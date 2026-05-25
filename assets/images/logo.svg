@@ -1,0 +1,10 @@
+<svg width="200" height="200" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Blue left wing -->
+    <polygon points="10,85 42,18 54,50 30,70" fill="#1e78c8" />
+    <!-- Red right wing -->
+    <polygon points="90,85 58,18 46,50 70,70" fill="#e74c3c" />
+    <!-- Yellow center mountain -->
+    <polygon points="50,12 66,48 50,65 34,48" fill="#f1c40f" />
+    <!-- Dark center overlap -->
+    <polygon points="34,48 50,65 66,48 50,52" fill="#1a2233" />
+</svg>
