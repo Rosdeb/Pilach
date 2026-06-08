@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:messageapp/core/constants/app_constants.dart';
 
 import '../../data/models/chat_model.dart';
 
@@ -13,6 +15,9 @@ class ChatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      onTap: (){
+        context.push(AppPaths.chat);
+      },
       contentPadding: const EdgeInsets.symmetric(
         horizontal: 8,
         vertical: 4,

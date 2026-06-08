@@ -36,9 +36,10 @@ class ContactScreen extends ConsumerWidget {
                 floating: false,
                 snap: false,
                 automaticallyImplyLeading: false,
-                expandedHeight: 80.0, // Gives room for the large iOS title layout
+                expandedHeight: 65.0, // Gives room for the large iOS title layout
                 toolbarHeight: 65.0,
                 backgroundColor: AppColors.background, // Semi-transparent base
+                surfaceTintColor:  AppColors.background,
                 centerTitle: false,
                 // This is where the magic glass blur effect happens
                 flexibleSpace: ClipRect(
@@ -51,7 +52,7 @@ class ContactScreen extends ConsumerWidget {
                         'Contacts',
                         style: TextStyle(
                           color: Colors.black,
-                          fontSize: 20,
+                          fontSize: 28,
                           fontWeight: FontWeight.bold,
                         ),
                       ),

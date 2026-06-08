@@ -2,6 +2,7 @@ import 'package:flutter/animation.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:messageapp/Features/Chat/presentation/screens/inbox_screen/direct_chat_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/block_userlist/block_userlist_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/edit_profile/edit_profile_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/email_setting/email_setting_screen.dart';
@@ -99,6 +100,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => buildSlideTransitionPage(
           key: state.pageKey,
           child: EditProfileScreen(),
+        ),
+      ),
+
+      GoRoute(
+        path: AppPaths.chat,
+        name: AppRoutes.chat,
+        pageBuilder: (context, state) => buildSlideTransitionPage(
+          key: state.pageKey,
+          child: DirectChatScreen(),
         ),
       ),
 
