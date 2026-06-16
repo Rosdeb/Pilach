@@ -84,8 +84,12 @@ class MeScreen extends ConsumerWidget {
                         'alex.koch@brand.com',
                         style: TextStyle(color: AppColors.textLight, fontSize: 14),
                       ),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textLight),
-                      onTap: () {},
+                      trailing: const Icon(Icons.qr_code_scanner, size: 20, color: AppColors.textDark),
+                      onTap: () {
+
+                        context.push(AppPaths.qr_screen);
+
+                      },
                     ),
                   ]),
                   const SizedBox(height: 24),
@@ -110,6 +114,16 @@ class MeScreen extends ConsumerWidget {
                         context.push(AppPaths.email_setting);
                       },
                     ),
+                    _buildDivider(),
+                    _buildListTile(
+                      icon: Icons.chat_bubble_outline,
+                      iconColor: AppColors.successGreen,
+                      title: 'Chats',
+                      onTap: () {
+                        context.push(AppPaths.chats_setting);
+                      },
+                    ),
+
                   ]),
                   const SizedBox(height: 24),
 

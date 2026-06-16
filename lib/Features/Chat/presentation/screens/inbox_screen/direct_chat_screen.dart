@@ -54,7 +54,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.arrow_left, color: AppColors.textDark),
+          icon: const Icon(CupertinoIcons.back, color: AppColors.textDark),
           onPressed: () => Navigator.of(context).pop(),
         ),
         titleSpacing: 0,
@@ -82,20 +82,33 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
               ],
             ),
             const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Alexandra Sterling',
-                  style: TextStyle(color: AppColors.textDark, fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  'Online',
-                  style: TextStyle(color: AppColors.successGreen.withValues(alpha: 0.9), fontSize: 12, fontWeight: FontWeight.w500),
-                ),
-              ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Alexandra Sterling',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.textDark,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'Online',
+                    style: TextStyle(
+                      color: AppColors.successGreen.withValues(alpha: 0.9),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
+
           ],
         ),
         actions: [
@@ -164,32 +177,49 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                   // Expanded Input Box
                   Expanded(
                     child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.textWhite,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.border.withOpacity(0.15)),
+                      constraints: const BoxConstraints(
+                        minHeight: 40,
+                        maxHeight: 120,
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 14.0),
+                      decoration: BoxDecoration(
+                        color: AppColors.white_bg,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: AppColors.border.withOpacity(0.15),
+                        ),
+                      ),
+                      padding: const EdgeInsets.only(left: 5,right: 5),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
                             child: TextField(
-                              maxLines: 3,
                               controller: _messageController,
-                              style: const TextStyle(color: AppColors.textDark, fontSize: 15),
-                              decoration:  InputDecoration(
-                                hintText: 'Type a message...',
-                                fillColor: AppColors.textWhite,
-                                hintStyle: TextStyle(color: AppColors.textLight, fontSize: 15),
+                              minLines: 1,
+                              maxLines: 5,
+                              textCapitalization: TextCapitalization.sentences,
+                              style: const TextStyle(
+                                color: AppColors.textDark,
+                                fontSize: 15,
+                              ),
+
+                              decoration: InputDecoration(
+                                hintText: 'Type a message',
                                 border: InputBorder.none,
+                                fillColor: AppColors.white_bg,
                                 isDense: true,
                               ),
                             ),
                           ),
+                          const SizedBox(width: 8),
                           IconButton(
-                            icon: const Icon(CupertinoIcons.smiley, color: AppColors.textLight, size: 22),
+                            icon: const Icon(
+                              CupertinoIcons.smiley,
+                              size: 24,
+                              color: AppColors.textLight,
+                            ),
                             onPressed: () {},
-                            padding: EdgeInsets.zero,
+                            padding: EdgeInsets.all(8),
                             constraints: const BoxConstraints(),
                           ),
                         ],

@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:messageapp/Features/Chat/presentation/screens/inbox_screen/direct_chat_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/block_userlist/block_userlist_screen.dart';
+import 'package:messageapp/Features/Me/presentation/screens/chats_setting/chats_settings_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/edit_profile/edit_profile_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/email_setting/email_setting_screen.dart';
+import 'package:messageapp/Features/Me/presentation/screens/qr_scan/ar_scan_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/security_privacy/security_privacy_screen.dart';
 import 'package:messageapp/features/auth/presentation/screens/splash_screen.dart';
 
@@ -112,6 +114,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
+
+      GoRoute(
+        path: AppPaths.qr_screen,
+        name: AppRoutes.qr_screen,
+        pageBuilder: (context, state) => buildSlideTransitionPage(
+          key: state.pageKey,
+          child: QrScanScreen(),
+        ),
+      ),
+
+      GoRoute(
+        path: AppPaths.chats_setting,
+        name: AppRoutes.chats_setting,
+        pageBuilder: (context, state) => buildSlideTransitionPage(
+          key: state.pageKey,
+          child: ChatsSettingsScreen(),
+        ),
+      ),
 
       // GoRoute(
       //   path: '/communities',

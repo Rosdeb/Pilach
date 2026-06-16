@@ -292,11 +292,11 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen> {
               onPressed: () => Navigator.of(context).pop(),
             ),
             title: const AppText(
-              "Edit Profile",
+              "Email setting",
               style: TextStyle(
                 color: AppColors.textDark,
                 fontSize: 20,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
@@ -401,11 +401,11 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen> {
     });
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: ListTile(
         title: Text(
           title,
-          style: const TextStyle(color: AppColors.textDark, fontWeight: FontWeight.w500, fontSize: 16),
+          style: const TextStyle(color: AppColors.textDark, fontWeight: FontWeight.w400, fontSize: 16),
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 2.0),
