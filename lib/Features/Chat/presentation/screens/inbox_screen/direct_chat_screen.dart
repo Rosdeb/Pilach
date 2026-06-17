@@ -202,25 +202,37 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                                 color: AppColors.textDark,
                                 fontSize: 15,
                               ),
-
                               decoration: InputDecoration(
+                                contentPadding: EdgeInsets.zero,
+
                                 hintText: 'Type a message',
                                 border: InputBorder.none,
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(50),
+                                  borderSide: BorderSide(
+                                    color: Colors.transparent
+                                  )
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(50),
+                                  borderSide: BorderSide(
+                                    color: Colors.transparent,
+                                  )
+                                ),
                                 fillColor: AppColors.white_bg,
                                 isDense: true,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
+
                           IconButton(
                             icon: const Icon(
                               CupertinoIcons.smiley,
-                              size: 24,
+                              size: 20,
                               color: AppColors.textLight,
                             ),
                             onPressed: () {},
-                            padding: EdgeInsets.all(8),
-                            constraints: const BoxConstraints(),
+                            padding: EdgeInsets.all(5),
                           ),
                         ],
                       ),

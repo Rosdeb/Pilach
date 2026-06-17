@@ -20,13 +20,13 @@ class ChatTile extends StatelessWidget {
       },
       contentPadding: const EdgeInsets.symmetric(
         horizontal: 8,
-        vertical: 4,
+        vertical: 0,
       ),
 
       leading: Stack(
         children: [
           CircleAvatar(
-            radius: 28,
+            radius: 24,
             backgroundImage:
             NetworkImage(chat.image),
           ),
@@ -55,7 +55,7 @@ class ChatTile extends StatelessWidget {
         chat.name,
         style: const TextStyle(
           fontWeight: FontWeight.bold,
-          fontSize: 16,
+          fontSize: 14,
         ),
       ),
 
@@ -66,6 +66,7 @@ class ChatTile extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
+            fontSize: 13,
             color: Colors.grey.shade600,
           ),
         ),
@@ -81,11 +82,11 @@ class ChatTile extends StatelessWidget {
             chat.time,
             style: TextStyle(
               color: Colors.grey.shade500,
-              fontSize: 12,
+              fontSize: 11,
             ),
           ),
 
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
 
           if (chat.unreadCount > 0)
             Container(
