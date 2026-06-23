@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:messageapp/components/AppText/appText.dart';
 
 import '../../../../../core/constants/app_constants.dart';
-import '../../../../../core/utils/app_colour.dart';
 import '../../providers/block_userlist_providers.dart';
 import '../../widgets/block_list.dart';
 import '../../widgets/block_list_search.dart';
@@ -17,9 +16,10 @@ class BlockedUsersScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final blockedUsers = ref.watch(blockedUsersProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
@@ -31,16 +31,16 @@ class BlockedUsersScreen extends ConsumerWidget {
             expandedHeight: 60,
             toolbarHeight: 60,
             automaticallyImplyLeading: false,
-            backgroundColor: AppColors.background,
+            backgroundColor: theme.scaffoldBackgroundColor,
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.back_icon, size: 20),
+              icon: Icon(Icons.arrow_back_ios_new, color: theme.colorScheme.onSurface, size: 20),
               onPressed: () => Navigator.of(context).pop(),
             ),
-            title: const AppText(
+            title: AppText(
               'Blocked Users',
               style: TextStyle(
-                color: AppColors.textDark,
+                color: theme.colorScheme.onSurface,
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
               ),
@@ -62,12 +62,12 @@ class BlockedUsersScreen extends ConsumerWidget {
                   const SizedBox(height: 24.0),
 
                   // --- LIST HEADER DESCRIPTION ---
-                  const Padding(
-                    padding: EdgeInsets.only(left: 8.0, bottom: 8.0),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
                     child: AppText(
                       'BLOCKED CONTACTS',
                       style: TextStyle(
-                        color: AppColors.textLight,
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 0.5,
@@ -77,18 +77,18 @@ class BlockedUsersScreen extends ConsumerWidget {
 
                   // --- BLOCKED LIST CONTAINER ---
                   if (blockedUsers.isEmpty)
-                    _buildEmptyState()
+                    _buildEmptyState(context)
                   else
                     BlockedUserList(blockedUsers: blockedUsers),
 
                   const SizedBox(height: 12),
                   // --- iOS FOOTER EXPLANATION ---
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8.0),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
                     child: AppText(
                       'Blocked users will not be able to send you messages, view your profile updates, or initiate voice/video calls with you.',
                       style: TextStyle(
-                        color: AppColors.textLight,
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
                         fontSize: 12,
                         height: 1.3,
                       ),
@@ -104,34 +104,35 @@ class BlockedUsersScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
       decoration: BoxDecoration(
-        color: AppColors.textWhite,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
-        children: const [
+        children: [
           Icon(
             CupertinoIcons.checkmark_shield,
             size: 48,
-            color: AppColors.textLight,
+            color: theme.colorScheme.onSurface.withOpacity(0.6),
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           AppText(
             'No Blocked Users',
             style: TextStyle(
-              color: AppColors.textDark,
+              color: theme.colorScheme.onSurface,
               fontWeight: FontWeight.bold,
               fontSize: 16,
             ),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           AppText(
             'Contacts you block will appear here.',
-            style: TextStyle(color: AppColors.textLight, fontSize: 13),
+            style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 13),
           ),
         ],
       ),

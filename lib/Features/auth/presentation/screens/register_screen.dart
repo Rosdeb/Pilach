@@ -8,7 +8,6 @@ import '../../../../components/AppText/appText.dart';
 import '../../../../components/FloatingErrorBar/floatingbar.dart';
 
 import '../../../../core/constants/asset_constants.dart';
-import '../../../../core/utils/app_colour.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
 
@@ -62,34 +61,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Stack(
         children: [
-
-
-          // Back arrow button
-          // Positioned(
-          //   top: MediaQuery.of(context).padding.top + 10,
-          //   left: 16,
-          //   child: ZoomTapAnimation(
-          //     onTap: () => context.pop(),
-          //     child: Container(
-          //       padding: const EdgeInsets.all(12),
-          //       decoration: BoxDecoration(
-          //         color: Colors.black.withOpacity(0.05),
-          //         shape: BoxShape.circle,
-          //       ),
-          //       child: const Icon(
-          //         Icons.arrow_back_ios_new_rounded,
-          //         color: AppColors.textDark,
-          //         size: 18,
-          //       ),
-          //     ),
-          //   ),
-          // ),
-
           // Scrollable layout
           SafeArea(
             child: SingleChildScrollView(
@@ -115,7 +92,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       Center(
                         child: AppText(
                           "Create Account",
-                          color: AppColors.textDark,
+                          color: theme.colorScheme.onSurface,
                           fontSize: 26,
                           fontWeight: FontWeight.w600,
                         ),
@@ -124,7 +101,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       Center(
                         child: AppText(
                           "Connect with your friends today",
-                          color: AppColors.textLight,
+                          color: theme.colorScheme.onSurface.withOpacity(0.6),
                           fontSize: 13,
                           fontWeight: FontWeight.w400,
                         ),
@@ -204,15 +181,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         child: Container(
                           height: 56,
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [AppColors.primary, Color(0xFF1E40AF)],
+                            gradient: LinearGradient(
+                              colors: [theme.colorScheme.primary, theme.colorScheme.primary.withOpacity(0.8)],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.primary.withOpacity(0.2),
+                                color: theme.colorScheme.primary.withOpacity(0.2),
                                 blurRadius: 16,
                                 offset: const Offset(0, 6),
                               ),
@@ -230,7 +207,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                   )
                                 : const AppText(
                                     "Sign Up",
-                                    color: AppColors.textWhite,
+                                    color: Colors.white,
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -246,15 +223,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         children: [
                           AppText(
                             "Already have an account? ",
-                            color: AppColors.textLight,
+                            color: theme.colorScheme.onSurface.withOpacity(0.6),
                             fontSize: 14,
                             fontWeight: FontWeight.w400,
                           ),
                           GestureDetector(
                             onTap: () => context.pop(),
-                            child: const AppText(
+                            child: AppText(
                               "Log In",
-                              color: AppColors.primary,
+                              color: theme.colorScheme.primary,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),

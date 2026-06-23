@@ -3,30 +3,81 @@ import 'package:flutter/material.dart';
 import 'package:flutter_advanced_switch/flutter_advanced_switch.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:messageapp/components/AppText/appText.dart';
+import 'package:messageapp/core/theme/theme_provider.dart';
+import 'package:messageapp/core/utils/app_colour.dart';
 
-// Replace these imports with your actual path utilities
-import '../../../../../components/AppText/appText.dart';
-import '../../../../../core/utils/app_colour.dart';
-
-// MOCK PROVIDERS: Replace with your actual application state providers
-final themeProvider = StateProvider<bool>(
-  (ref) => false,
-); // false = Light, true = Dark
+// MOCK PROVIDERS: Keep other settings providers unchanged
 final saveToPhotosProvider = StateProvider<bool>((ref) => true);
 final enterIsSendProvider = StateProvider<bool>((ref) => false);
 
 class ChatsSettingsScreen extends ConsumerWidget {
   const ChatsSettingsScreen({Key? key}) : super(key: key);
 
+  void _showThemeSelectionDialog(BuildContext context, WidgetRef ref) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (BuildContext context) => CupertinoActionSheet(
+        title: const Text('Select Theme'),
+        message: const Text('Choose your preferred display appearance.'),
+        actions: <CupertinoActionSheetAction>[
+          CupertinoActionSheetAction(
+            child: const Text('Light Mode'),
+            onPressed: () {
+              ref.read(themeProvider.notifier).setLightTheme();
+              Navigator.pop(context);
+            },
+          ),
+          CupertinoActionSheetAction(
+            child: const Text('Dark Mode'),
+            onPressed: () {
+              ref.read(themeProvider.notifier).setDarkTheme();
+              Navigator.pop(context);
+            },
+          ),
+          CupertinoActionSheetAction(
+            child: const Text('System Default'),
+            onPressed: () {
+              ref.read(themeProvider.notifier).setSystemTheme();
+              Navigator.pop(context);
+            },
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          child: const Text('Cancel'),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch current state values from Riverpod
-    final isDarkMode = ref.watch(themeProvider);
+    // Watch current theme states from Riverpod
+    final themeState = ref.watch(themeProvider);
     final isSaveToPhotosEnabled = ref.watch(saveToPhotosProvider);
     final isEnterIsSendEnabled = ref.watch(enterIsSendProvider);
 
+    final String currentThemeName;
+    switch (themeState.themeMode) {
+      case ThemeMode.light:
+        currentThemeName = 'Light Mode';
+        break;
+      case ThemeMode.dark:
+        currentThemeName = 'Dark Mode';
+        break;
+      case ThemeMode.system:
+        currentThemeName = 'System Default';
+        break;
+    }
+
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
@@ -35,21 +86,22 @@ class ChatsSettingsScreen extends ConsumerWidget {
             pinned: true,
             expandedHeight: 60.0,
             toolbarHeight: 60.0,
-            backgroundColor: AppColors.background,
+            backgroundColor: theme.scaffoldBackgroundColor,
+            surfaceTintColor: theme.scaffoldBackgroundColor,
             elevation: 0,
             centerTitle: true,
             leading: IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.arrow_back_ios_new,
-                color: AppColors.back_icon,
+                color: theme.colorScheme.onSurface,
                 size: 20,
               ),
               onPressed: () => Navigator.of(context).pop(),
             ),
-            title: const AppText(
+            title: AppText(
               "Chats",
               style: TextStyle(
-                color: AppColors.textDark,
+                color: theme.colorScheme.onSurface,
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
               ),
@@ -67,47 +119,40 @@ class ChatsSettingsScreen extends ConsumerWidget {
 
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    // Keeps text from touching edges
                     decoration: BoxDecoration(
-                      color: AppColors.white_bg,
-                      borderRadius: BorderRadius.circular(
-                        12,
-                      ), // Makes it a perfect pill shape
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
                       children: [
-                        chat_theme("Default caht theme", () {}),
-                        Divider(
-                          height: 1,
-                          thickness: 0.5,
-                          color: AppColors.background,
-                        ),
-
-                        chat_theme("Export chat", () {}),
+                        _buildChatThemeTile(context, "Default chat theme", () {}),
+                        _buildDivider(context),
+                        _buildChatThemeTile(context, "Export chat", () {}),
                       ],
                     ),
                   ),
 
                   const SizedBox(height: 24.0),
                   // --- SECTION 1: DISPLAY & THEME ---
-                  _buildSectionHeader('DISPLAY'),
+                  _buildSectionHeader(context, 'DISPLAY'),
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.textWhite,
+                      color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
                       children: [
-                        _buildSwitchRow(
+                        _buildActionRow(
+                          context,
                           icon: CupertinoIcons.brightness,
                           iconColor: Colors.purple,
-                          title: 'Dark Mode',
-                          value: isDarkMode,
-                          onChanged: (val) =>
-                              ref.read(themeProvider.notifier).state = val,
+                          title: 'Theme Mode',
+                          trailingText: currentThemeName,
+                          onTap: () => _showThemeSelectionDialog(context, ref),
                         ),
-                        _buildDivider(),
+                        _buildDivider(context),
                         _buildActionRow(
+                          context,
                           icon: CupertinoIcons.photo_on_rectangle,
                           iconColor: Colors.teal,
                           title: 'Chat Wallpaper',
@@ -121,32 +166,32 @@ class ChatsSettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 24.0),
 
                   // --- SECTION 2: CHAT PREFERENCES ---
-                  _buildSectionHeader('CHAT SETTINGS'),
+                  _buildSectionHeader(context, 'CHAT SETTINGS'),
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.textWhite,
+                      color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
                       children: [
                         _buildSwitchRow(
+                          context,
                           icon: CupertinoIcons.return_icon,
                           iconColor: Colors.blue,
                           title: 'Enter is Send',
                           value: isEnterIsSendEnabled,
                           onChanged: (val) =>
-                              ref.read(enterIsSendProvider.notifier).state =
-                                  val,
+                              ref.read(enterIsSendProvider.notifier).state = val,
                         ),
-                        _buildDivider(),
+                        _buildDivider(context),
                         _buildSwitchRow(
+                          context,
                           icon: CupertinoIcons.square_arrow_down,
                           iconColor: AppColors.successGreen,
                           title: 'Save to Photos',
                           value: isSaveToPhotosEnabled,
                           onChanged: (val) =>
-                              ref.read(saveToPhotosProvider.notifier).state =
-                                  val,
+                              ref.read(saveToPhotosProvider.notifier).state = val,
                         ),
                       ],
                     ),
@@ -154,15 +199,16 @@ class ChatsSettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 24.0),
 
                   // --- SECTION 3: MAINTENANCE & ARCHIVE ---
-                  _buildSectionHeader('BACKUP & HISTORY'),
+                  _buildSectionHeader(context, 'BACKUP & HISTORY'),
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.textWhite,
+                      color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
                       children: [
                         _buildActionRow(
+                          context,
                           icon: CupertinoIcons.cloud_upload,
                           iconColor: Colors.blueAccent,
                           title: 'Chat Backup',
@@ -171,8 +217,9 @@ class ChatsSettingsScreen extends ConsumerWidget {
                             // Navigate to Backup management view
                           },
                         ),
-                        _buildDivider(),
+                        _buildDivider(context),
                         _buildActionRow(
+                          context,
                           icon: CupertinoIcons.archivebox,
                           iconColor: Colors.orange,
                           title: 'Archive All Chats',
@@ -181,8 +228,9 @@ class ChatsSettingsScreen extends ConsumerWidget {
                             // Trigger Batch Archive Action
                           },
                         ),
-                        _buildDivider(),
+                        _buildDivider(context),
                         _buildActionRow(
+                          context,
                           icon: CupertinoIcons.trash,
                           iconColor: Colors.red,
                           title: 'Clear All Chats',
@@ -205,34 +253,27 @@ class ChatsSettingsScreen extends ConsumerWidget {
     );
   }
 
-  GestureDetector chat_theme(String title, VoidCallback onTap) {
+  Widget _buildChatThemeTile(BuildContext context, String title, VoidCallback onTap) {
+    final theme = Theme.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 40,
+        height: 50,
         width: double.infinity,
-        decoration: BoxDecoration(
-          color: AppColors.white_bg,
-          borderRadius: BorderRadius.circular(
-            12,
-          ), // Makes it a perfect pill shape
-        ),
+        color: Colors.transparent,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          // Distributes text and trail items perfectly
           crossAxisAlignment: CrossAxisAlignment.center,
-          // Perfectly centers elements vertically
-          children:  [
+          children: [
             AppText(
               title,
               style: TextStyle(
                 fontSize: 16,
-                color: AppColors.textDark,
+                color: theme.colorScheme.onSurface,
                 fontWeight: FontWeight.w400,
               ),
             ),
-            // Optional trailing indicator to match the iOS vibe:
-            Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textDark),
+            Icon(Icons.arrow_forward_ios, size: 14, color: theme.colorScheme.onSurface.withOpacity(0.3)),
           ],
         ),
       ),
@@ -240,13 +281,14 @@ class ChatsSettingsScreen extends ConsumerWidget {
   }
 
   // Helper Section Header Layout
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
       child: Text(
         title,
-        style: const TextStyle(
-          color: AppColors.textLight,
+        style: TextStyle(
+          color: theme.colorScheme.onSurface.withOpacity(0.5),
           fontSize: 12,
           fontWeight: FontWeight.w500,
           letterSpacing: 0.5,
@@ -256,23 +298,22 @@ class ChatsSettingsScreen extends ConsumerWidget {
   }
 
   // Inline List Item Divider Blueprint
-  Widget _buildDivider() {
-    return const Padding(
-      padding: EdgeInsets.only(left: 56.0),
-      child: Divider(height: 1, thickness: 0.5, color: AppColors.background),
-    );
+  Widget _buildDivider(BuildContext context) {
+    return Divider(height: 1, thickness: 0.5, color: Theme.of(context).dividerColor);
   }
 
   // Navigation Row Component
-  Widget _buildActionRow({
+  Widget _buildActionRow(
+    BuildContext context, {
     required IconData icon,
     Color iconColor = AppColors.primary,
     required String title,
-    Color textColor = AppColors.textDark,
+    Color? textColor,
     String? trailingText,
     bool showArrow = true,
     required VoidCallback onTap,
   }) {
+    final theme = Theme.of(context);
     return ListTile(
       dense: true,
       onTap: onTap,
@@ -287,7 +328,7 @@ class ChatsSettingsScreen extends ConsumerWidget {
       title: Text(
         title,
         style: TextStyle(
-          color: textColor,
+          color: textColor ?? theme.colorScheme.onSurface,
           fontWeight: FontWeight.w400,
           fontSize: 16,
         ),
@@ -298,14 +339,14 @@ class ChatsSettingsScreen extends ConsumerWidget {
           if (trailingText != null)
             Text(
               trailingText,
-              style: const TextStyle(color: AppColors.textLight, fontSize: 14),
+              style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 14),
             ),
           if (trailingText != null && showArrow) const SizedBox(width: 6),
           if (showArrow)
-            const Icon(
+            Icon(
               Icons.arrow_forward_ios,
               size: 14,
-              color: AppColors.border,
+              color: theme.colorScheme.onSurface.withOpacity(0.3),
             ),
         ],
       ),
@@ -313,7 +354,8 @@ class ChatsSettingsScreen extends ConsumerWidget {
   }
 
   // Interactive Switch Row Component
-  Widget _buildSwitchRow({
+  Widget _buildSwitchRow(
+    BuildContext context, {
     required IconData icon,
     Color iconColor = AppColors.successGreen,
     required String title,
@@ -326,6 +368,7 @@ class ChatsSettingsScreen extends ConsumerWidget {
       onChanged(switchController.value);
     });
 
+    final theme = Theme.of(context);
     return ListTile(
       dense: true,
       leading: Container(
@@ -338,8 +381,8 @@ class ChatsSettingsScreen extends ConsumerWidget {
       ),
       title: Text(
         title,
-        style: const TextStyle(
-          color: AppColors.textDark,
+        style: TextStyle(
+          color: theme.colorScheme.onSurface,
           fontWeight: FontWeight.w400,
           fontSize: 16,
         ),
@@ -352,7 +395,7 @@ class ChatsSettingsScreen extends ConsumerWidget {
           width: 45,
           height: 24,
           activeColor: const Color(0xFF34C759),
-          inactiveColor: Colors.grey.shade400,
+          inactiveColor: theme.colorScheme.onSurface.withOpacity(0.2),
         ),
       ),
     );

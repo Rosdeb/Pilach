@@ -10,6 +10,7 @@ import 'package:messageapp/Features/Chat/presentation/screens/chat_screen.dart';
 import 'package:messageapp/Features/Contact/presentation/screens/contact_screen.dart';
 import 'package:messageapp/Features/Discovers/presentation/screens/discover_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/me_screen.dart';
+import 'package:messageapp/Features/Me/presentation/providers/setting_providers.dart';
 
 import '../providers/bottom_nav_provider.dart';
 import '../widgets/custom_bottom_nav.dart';
@@ -35,6 +36,7 @@ class _BottomMenuWrapperState extends ConsumerState<BottomMenuWrapper> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(darkModeProvider);
     final currentIndex = ref.watch(bottomNavProvider);
 
     if (Platform.isIOS) {

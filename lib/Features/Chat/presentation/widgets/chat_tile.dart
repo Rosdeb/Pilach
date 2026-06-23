@@ -14,6 +14,9 @@ class ChatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final successColor = const Color(0xFF34C759);
+
     return ListTile(
       onTap: (){
         context.push(AppPaths.chat);
@@ -39,10 +42,10 @@ class ChatTile extends StatelessWidget {
                 height: 14,
                 width: 14,
                 decoration: BoxDecoration(
-                  color: Colors.green,
+                  color: successColor,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white,
+                    color: theme.scaffoldBackgroundColor,
                     width: 2,
                   ),
                 ),
@@ -53,9 +56,10 @@ class ChatTile extends StatelessWidget {
 
       title: Text(
         chat.name,
-        style: const TextStyle(
+        style: TextStyle(
           fontWeight: FontWeight.bold,
           fontSize: 14,
+          color: theme.colorScheme.onSurface,
         ),
       ),
 
@@ -67,7 +71,7 @@ class ChatTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 13,
-            color: Colors.grey.shade600,
+            color: theme.colorScheme.onSurface.withOpacity(0.6),
           ),
         ),
       ),
@@ -81,7 +85,7 @@ class ChatTile extends StatelessWidget {
           Text(
             chat.time,
             style: TextStyle(
-              color: Colors.grey.shade500,
+              color: theme.colorScheme.onSurface.withOpacity(0.5),
               fontSize: 11,
             ),
           ),
@@ -92,14 +96,14 @@ class ChatTile extends StatelessWidget {
             Container(
               padding:
               const EdgeInsets.all(6),
-              decoration: const BoxDecoration(
-                color: Colors.green,
+              decoration: BoxDecoration(
+                color: successColor,
                 shape: BoxShape.circle,
               ),
               child: Text(
                 chat.unreadCount.toString(),
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: theme.colorScheme.onPrimary,
                   fontSize: 11,
                   fontWeight:
                   FontWeight.bold,

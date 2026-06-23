@@ -1,10 +1,7 @@
 import 'dart:ui';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:messageapp/core/utils/app_colour.dart';
-
 import '../../../../components/AppText/appText.dart';
 import '../providers/discover_providers.dart';
 
@@ -14,12 +11,13 @@ class DiscoverScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(discoverProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: CustomScrollView(
-          physics: const BouncingScrollPhysics(), // Smooth iOS scrolling
+          physics: const BouncingScrollPhysics(),
           slivers: [
             // iOS Large Title Navigation Bar
             SliverAppBar(
@@ -27,22 +25,21 @@ class DiscoverScreen extends ConsumerWidget {
               floating: false,
               snap: false,
               automaticallyImplyLeading: false,
-              expandedHeight: 65.0, // Gives room for the large iOS title layout
+              expandedHeight: 65.0,
               toolbarHeight: 65.0,
-              backgroundColor: AppColors.background, // Semi-transparent base
-              surfaceTintColor:  AppColors.background,
+              backgroundColor: theme.scaffoldBackgroundColor,
+              surfaceTintColor: theme.scaffoldBackgroundColor,
               centerTitle: true,
-              // This is where the magic glass blur effect happens
               flexibleSpace: ClipRect(
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                  child: const FlexibleSpaceBar(
-                    titlePadding: EdgeInsets.only(left: 24.0, bottom: 16.0),
+                  child: FlexibleSpaceBar(
+                    titlePadding: const EdgeInsets.only(left: 24.0, bottom: 16.0),
                     centerTitle: false,
                     title: AppText(
                       'Discover',
                       style: TextStyle(
-                        color: Colors.black,
+                        color: theme.colorScheme.onSurface,
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
                       ),
@@ -62,14 +59,14 @@ class DiscoverScreen extends ConsumerWidget {
                     const SizedBox(height: 10),
 
                     // --- STORIES SECTION ---
-                    _buildSectionHeader('Stories', 'See All'),
+                    _buildSectionHeader(context, 'Stories', 'See All'),
                     const SizedBox(height: 12),
-                    _buildStoriesTray(),
+                    _buildStoriesTray(context),
 
                     const SizedBox(height: 35),
 
                     // --- NEARBY SCAN SECTION ---
-                    _buildSectionHeader('Nearby People', state.isScanning ? 'Scanning...' : 'Paused'),
+                    _buildSectionHeader(context, 'Nearby People', state.isScanning ? 'Scanning...' : 'Paused'),
                     const SizedBox(height: 20),
                     _buildRadarScanner(context, ref, state.isScanning),
 
@@ -86,15 +83,17 @@ class DiscoverScreen extends ConsumerWidget {
 
   // --- UI Helper Components ---
 
-  Widget _buildSectionHeader(String title, String actionText) {
+  Widget _buildSectionHeader(BuildContext context, String title, String actionText) {
+    final theme = Theme.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w700,
+            color: theme.colorScheme.onSurface,
             letterSpacing: -0.3,
           ),
         ),
@@ -115,7 +114,8 @@ class DiscoverScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStoriesTray() {
+  Widget _buildStoriesTray(BuildContext context) {
+    final theme = Theme.of(context);
     return SizedBox(
       height: 115,
       child: ListView.builder(
@@ -139,7 +139,7 @@ class DiscoverScreen extends ConsumerWidget {
                           width: 68,
                           height: 68,
                           decoration: BoxDecoration(
-                            color: Colors.grey.withOpacity(0.15),
+                            color: theme.colorScheme.onSurface.withOpacity(0.08),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -151,9 +151,9 @@ class DiscoverScreen extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'Your Story',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.5)),
                     ),
                   ],
                 ),
@@ -179,20 +179,20 @@ class DiscoverScreen extends ConsumerWidget {
                   child: Container(
                     padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
-                      color: AppColors.background,
+                      color: theme.scaffoldBackgroundColor,
                       shape: BoxShape.circle,
                     ),
-                    child: const CircleAvatar(
+                    child: CircleAvatar(
                       radius: 28,
-                      backgroundColor: CupertinoColors.systemGroupedBackground,
-                      child: Icon(CupertinoIcons.person_fill, color: Colors.grey),
+                      backgroundColor: theme.colorScheme.onSurface.withOpacity(0.05),
+                      child: Icon(CupertinoIcons.person_fill, color: theme.colorScheme.onSurface.withOpacity(0.4)),
                     ),
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'User $index',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurface),
                 ),
               ],
             ),
@@ -203,6 +203,7 @@ class DiscoverScreen extends ConsumerWidget {
   }
 
   Widget _buildRadarScanner(BuildContext context, WidgetRef ref, bool isScanning) {
+    final theme = Theme.of(context);
     return Center(
       child: GestureDetector(
         onTap: () => ref.read(discoverProvider.notifier).toggleScan(),
@@ -210,28 +211,28 @@ class DiscoverScreen extends ConsumerWidget {
           alignment: Alignment.center,
           children: [
             // Outer Concentric Radar Circles
-            _buildRadarCircle(240, isScanning ? 0.3 : 0.1),
-            _buildRadarCircle(170, isScanning ? 0.5 : 0.2),
-            _buildRadarCircle(110, isScanning ? 0.7 : 0.3),
+            _buildRadarCircle(context, 240, isScanning ? 0.3 : 0.1),
+            _buildRadarCircle(context, 170, isScanning ? 0.5 : 0.2),
+            _buildRadarCircle(context, 110, isScanning ? 0.7 : 0.3),
 
             // Central Interactive Scanner Core
             Container(
               width: 64,
               height: 64,
-              decoration: const BoxDecoration(
-                color: CupertinoColors.activeBlue,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black54,
+                    color: Colors.black.withOpacity(0.2),
                     blurRadius: 10,
-                    offset: Offset(0, 4),
+                    offset: const Offset(0, 4),
                   )
                 ],
               ),
               child: Icon(
                 isScanning ? CupertinoIcons.goforward : CupertinoIcons.add,
-                color: Colors.white,
+                color: theme.colorScheme.onPrimary,
                 size: 24,
               ),
             ),
@@ -241,7 +242,8 @@ class DiscoverScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildRadarCircle(double size, double opacity) {
+  Widget _buildRadarCircle(BuildContext context, double size, double opacity) {
+    final theme = Theme.of(context);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 600),
       curve: Curves.easeInOut,
@@ -251,7 +253,7 @@ class DiscoverScreen extends ConsumerWidget {
         shape: BoxShape.circle,
         color: Colors.transparent,
         border: Border.all(
-          color: CupertinoColors.activeBlue.withOpacity(opacity),
+          color: theme.colorScheme.primary.withOpacity(opacity),
           width: 1.5,
         ),
       ),

@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:messageapp/core/constants/app_constants.dart';
-import '../../../../core/utils/app_colour.dart';
 import '../providers/chat_provider.dart';
 
 class IOSSearchBar extends ConsumerWidget {
@@ -20,24 +19,25 @@ class IOSSearchBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final searchQuery = ref.watch(chatSearchProviders);
+    final theme = Theme.of(context);
 
     return Container(
       height: 38,
       margin: EdgeInsets.symmetric(horizontal: AppSizes.paddingMedium,vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.textWhite,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: AppColors.back_icon.withValues(alpha: 0.3),
+          color: theme.colorScheme.onSurface.withOpacity(0.12),
           width: 1
         )
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             CupertinoIcons.search,
-            color: AppColors.textLight,
+            color: theme.colorScheme.onSurface.withOpacity(0.6),
             size: 20,
           ),
           const SizedBox(width: 6),
@@ -50,17 +50,17 @@ class IOSSearchBar extends ConsumerWidget {
 
                 onChanged?.call(value);
               },
-              style: const TextStyle(
-                color: AppColors.textDark,
+              style: TextStyle(
+                color: theme.colorScheme.onSurface,
                 fontSize: 16,
               ),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: "Search",
                 hintStyle: TextStyle(
-                  color: AppColors.textLight,
+                  color: theme.colorScheme.onSurface.withOpacity(0.6),
                   fontSize: 15,
                 ),
-                fillColor: AppColors.textWhite,
+                fillColor: theme.colorScheme.surface,
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
@@ -75,9 +75,9 @@ class IOSSearchBar extends ConsumerWidget {
                 ref.read(chatSearchProviders.notifier).state = '';
                 onChanged?.call('');
               },
-              child: const Icon(
+              child: Icon(
                 CupertinoIcons.clear_circled_solid,
-                color: AppColors.textLight,
+                color: theme.colorScheme.onSurface.withOpacity(0.6),
                 size: 18,
               ),
             ),

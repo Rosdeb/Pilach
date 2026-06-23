@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/utils/app_colour.dart';
 import '../providers/find_chat_bottom_sheet.dart';
 // Import your findAndConnectChatProvider and ChatRoomScreen page here
 
@@ -55,6 +54,7 @@ class FindChatBottomSheetState extends ConsumerState<FindChatBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return ConstrainedBox(
       // FIXED: Swapped hardcoded container height for a dynamic max-constraint boundary.
       // This prevents the keyboard overlay from squishing and clipping content.
@@ -62,9 +62,9 @@ class FindChatBottomSheetState extends ConsumerState<FindChatBottomSheet> {
         maxHeight: MediaQuery.of(context).size.height * 0.80,
       ),
       child: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.only(
+        decoration: BoxDecoration(
+          color: theme.scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(12),
             topRight: Radius.circular(12),
           ),
@@ -75,13 +75,13 @@ class FindChatBottomSheetState extends ConsumerState<FindChatBottomSheet> {
             // --- STICKY iOS TOP NAVIGATION HEADER BAR ---
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: const BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.only(
+              decoration: BoxDecoration(
+                color: theme.scaffoldBackgroundColor,
+                borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(12),
                   topRight: Radius.circular(12),
                 ),
-                border: Border(bottom: BorderSide(color: AppColors.background, width: 1)),
+                border: Border(bottom: BorderSide(color: theme.dividerColor.withOpacity(0.12), width: 1)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -91,16 +91,16 @@ class FindChatBottomSheetState extends ConsumerState<FindChatBottomSheet> {
                     child: const Text(
                       'Cancel',
                       style: TextStyle(
-                        color: AppColors.destructiveRed,
+                        color: Color(0xFFFF3B30),
                         fontSize: 16,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
                   ),
-                  const Text(
+                  Text(
                     'Find Chat',
                     style: TextStyle(
-                      color: AppColors.textDark,
+                      color: theme.colorScheme.onSurface,
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
                     ),
@@ -113,8 +113,8 @@ class FindChatBottomSheetState extends ConsumerState<FindChatBottomSheet> {
                       'Connect',
                       style: TextStyle(
                         color: _idController.text.trim().isEmpty || _isSearching
-                            ? AppColors.textLight.withOpacity(0.5)
-                            : AppColors.successGreen,
+                            ? theme.colorScheme.onSurface.withOpacity(0.3)
+                            : const Color(0xFF34C759),
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -142,29 +142,29 @@ class FindChatBottomSheetState extends ConsumerState<FindChatBottomSheet> {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
+                          color: theme.colorScheme.primary.withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
                           CupertinoIcons.chat_bubble_text_fill,
-                          color: AppColors.successGreen,
+                          color: Color(0xFF34C759),
                           size: 40,
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Center(
+                    Center(
                       child: Text(
                         'Start Conversation via ID',
-                        style: TextStyle(color: AppColors.textDark, fontWeight: FontWeight.bold, fontSize: 18),
+                        style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 18),
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Center(
+                    Center(
                       child: Text(
                         'Enter your friend\'s unique application identifier code or scan their generated profile card matrix.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.textLight, fontSize: 13, height: 1.3),
+                        style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 13, height: 1.3),
                       ),
                     ),
                     const SizedBox(height: 28),
@@ -172,16 +172,16 @@ class FindChatBottomSheetState extends ConsumerState<FindChatBottomSheet> {
                     // --- SEARCH CONNECTIVITY CARD BLOCK ---
                     Container(
                       decoration: BoxDecoration(
-                        color: AppColors.textWhite,
+                        color: theme.colorScheme.surface,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: Row(
                           children: [
-                            const Icon(
+                            Icon(
                               CupertinoIcons.person_crop_circle_badge_plus,
-                              color: AppColors.textLight,
+                              color: theme.colorScheme.onSurface.withOpacity(0.6),
                               size: 22,
                             ),
                             const SizedBox(width: 12),
@@ -190,11 +190,11 @@ class FindChatBottomSheetState extends ConsumerState<FindChatBottomSheet> {
                                 controller: _idController,
                                 autofocus: true,
                                 onChanged: (value) => setState(() {}), // Refreshes action button activation state
-                                style: const TextStyle(color: AppColors.textDark, fontSize: 16),
+                                style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 16),
                                 decoration: InputDecoration(
-                                  fillColor: AppColors.textWhite,
+                                  fillColor: theme.colorScheme.surface,
                                   hintText: 'App Id (e.g. KC-92834)',
-                                  hintStyle: const TextStyle(color: AppColors.textLight, fontSize: 16),
+                                  hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 16),
                                   border: InputBorder.none,
                                   isDense: true,
                                   contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -203,9 +203,9 @@ class FindChatBottomSheetState extends ConsumerState<FindChatBottomSheet> {
                             ),
                             // iOS suffix QR finder integration button
                             IconButton(
-                              icon: const Icon(
+                              icon: Icon(
                                 CupertinoIcons.qrcode_viewfinder,
-                                color: AppColors.primary,
+                                color: theme.colorScheme.primary,
                                 size: 22,
                               ),
                               onPressed: () {
@@ -223,7 +223,7 @@ class FindChatBottomSheetState extends ConsumerState<FindChatBottomSheet> {
                         padding: const EdgeInsets.only(left: 8.0, top: 8.0),
                         child: Text(
                           _errorMessage!,
-                          style: const TextStyle(color: AppColors.destructiveRed, fontSize: 13),
+                          style: const TextStyle(color: Color(0xFFFF3B30), fontSize: 13),
                         ),
                       ),
 

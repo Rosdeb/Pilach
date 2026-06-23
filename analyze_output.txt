@@ -1,0 +1,98 @@
+Analyzing MessageApp...                                         
+
+warning • Unused import: 'package:flutter_riverpod/flutter_riverpod.dart' • lib/Features/Chat/presentation/providers/chat_provider.dart:1:8 • unused_import
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Chat/presentation/screens/chat_screen.dart:138:57 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Chat/presentation/screens/inbox_screen/direct_chat_screen.dart:147:49 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Chat/presentation/screens/inbox_screen/direct_chat_screen.dart:167:72 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Chat/presentation/screens/inbox_screen/direct_chat_screen.dart:188:51 • deprecated_member_use
+   info • The import of 'package:flutter/cupertino.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' • lib/Features/Chat/presentation/widgets/custom_fad.dart:3:8 • unnecessary_import
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Chat/presentation/widgets/custom_fad.dart:52:53 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Chat/presentation/widgets/custom_fad.dart:68:33 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Chat/presentation/widgets/custom_fad.dart:105:31 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Chat/presentation/widgets/custom_fad.dart:110:43 • deprecated_member_use
+warning • Unused import: 'package:flutter_riverpod/flutter_riverpod.dart' • lib/Features/Contact/presentation/providers/create_group_providers.dart:1:8 • unused_import
+   info • Don't invoke 'print' in production code • lib/Features/Contact/presentation/screens/contact_screen.dart:204:15 • avoid_print
+warning • The declaration '_showNewContactSheet' isn't referenced • lib/Features/Contact/presentation/screens/contact_screen.dart:283:8 • unused_element
+   info • Parameter 'key' could be a super parameter • lib/Features/Contact/presentation/widgets/create_contact_sheet.dart:12:9 • use_super_parameters
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Contact/presentation/widgets/create_contact_sheet.dart:35:41 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Contact/presentation/widgets/create_contact_sheet.dart:145:41 • deprecated_member_use
+   info • Parameter 'key' could be a super parameter • lib/Features/Contact/presentation/widgets/create_group_sheet.dart:10:9 • use_super_parameters
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Contact/presentation/widgets/create_group_sheet.dart:96:51 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Contact/presentation/widgets/create_group_sheet.dart:211:96 • deprecated_member_use
+   info • Parameter 'key' could be a super parameter • lib/Features/Contact/presentation/widgets/find_chat_bottom_sheet.dart:10:9 • use_super_parameters
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Contact/presentation/widgets/find_chat_bottom_sheet.dart:116:51 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Contact/presentation/widgets/find_chat_bottom_sheet.dart:145:52 • deprecated_member_use
+   info • Parameter 'key' could be a super parameter • lib/Features/Contact/presentation/widgets/new_contact_sheet.dart:8:9 • use_super_parameters
+   info • Use the null-aware marker '?' rather than a null check via an 'if' • lib/Features/Contact/presentation/widgets/new_contact_sheet.dart:259:11 • use_null_aware_elements
+warning • Unused import: 'package:flutter_riverpod/flutter_riverpod.dart' • lib/Features/Discovers/presentation/providers/discover_providers.dart:1:8 • unused_import
+   info • 'minSize' is deprecated and shouldn't be used. Use minimumSize instead. This feature was deprecated after v3.28.0-3.0.pre • lib/Features/Discovers/presentation/screens/discover_screen.dart:103:11 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Discovers/presentation/screens/discover_screen.dart:142:48 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. This feature was deprecated after v3.33.0-1.0.pre • lib/Features/Discovers/presentation/screens/discover_screen.dart:254:45 • deprecated_member_use
+warning • Unused import: 'package:flutter_riverpod/flutter_riverpod.dart' • lib/Features/Me/presentation/providers/security_privacy_providers.dart:1:8 • unused_import
+   info • The import of 'dart:ui' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/cupertino.dart' • lib/Features/Me/presentation/screens/block_userlist/block_userlist_screen.dart:1:8 • unnecessary_import
+   info • Parameter 'key' could be a super parameter • lib/Features/Me/presentation/screens/block_userlist/block_userlist_screen.dart:15:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/Features/Me/presentation/screens/chats_setting/chats_settings_screen.dart:19:9 • use_super_parameters
+   info • The variable name 'chat_theme' isn't a lowerCamelCase identifier • lib/Features/Me/presentation/screens/chats_setting/chats_settings_screen.dart:208:19 • non_constant_identifier_names
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Me/presentation/screens/chats_setting/chats_settings_screen.dart:282:28 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Me/presentation/screens/chats_setting/chats_settings_screen.dart:334:28 • deprecated_member_use
+   info • The import of 'dart:ui' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/cupertino.dart' • lib/Features/Me/presentation/screens/email_setting/email_setting_screen.dart:251:8 • unnecessary_import
+   info • The import of 'package:flutter/cupertino.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' • lib/Features/Me/presentation/screens/email_setting/email_setting_screen.dart:252:8 • unnecessary_import
+   info • Parameter 'key' could be a super parameter • lib/Features/Me/presentation/screens/email_setting/email_setting_screen.dart:262:9 • use_super_parameters
+warning • The value of the local variable 'backgroundColor' isn't used • lib/Features/Me/presentation/screens/me_screen.dart:24:11 • unused_local_variable
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Me/presentation/screens/me_screen.dart:312:28 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Me/presentation/screens/me_screen.dart:357:28 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Me/presentation/screens/qr_scan/ar_scan_screen.dart:89:43 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Me/presentation/screens/qr_scan/ar_scan_screen.dart:144:41 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Me/presentation/screens/qr_scan/ar_scan_screen.dart:237:39 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Me/presentation/screens/qr_scan/ar_scan_screen.dart:265:41 • deprecated_member_use
+   info • The import of 'dart:ui' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/cupertino.dart' • lib/Features/Me/presentation/screens/security_privacy/security_privacy_screen.dart:1:8 • unnecessary_import
+   info • Parameter 'key' could be a super parameter • lib/Features/Me/presentation/screens/security_privacy/security_privacy_screen.dart:13:9 • use_super_parameters
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Me/presentation/screens/security_privacy/security_privacy_screen.dart:202:28 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/Me/presentation/screens/security_privacy/security_privacy_screen.dart:245:41 • deprecated_member_use
+   info • The import of 'package:flutter/cupertino.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' • lib/Features/Me/presentation/widgets/block_list.dart:1:8 • unnecessary_import
+   info • The file name 'block_listTile.dart' isn't a lower_case_with_underscores identifier • lib/Features/Me/presentation/widgets/block_listTile.dart:1:1 • file_names
+   info • The file name 'qr_scan_settingShape.dart' isn't a lower_case_with_underscores identifier • lib/Features/Me/presentation/widgets/qr_scan_settingShape.dart:1:1 • file_names
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/auth/presentation/screens/login_screen.dart:169:54 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/auth/presentation/screens/login_screen.dart:199:47 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/auth/presentation/screens/login_screen.dart:207:54 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/auth/presentation/screens/login_screen.dart:214:47 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/auth/presentation/screens/login_screen.dart:235:70 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/auth/presentation/screens/login_screen.dart:263:70 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/auth/presentation/screens/register_screen.dart:215:58 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/auth/presentation/widgets/auth_text_field.dart:72:54 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/Features/auth/presentation/widgets/auth_text_field.dart:76:54 • deprecated_member_use
+   info • The import of 'dart:ui' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/cupertino.dart' • lib/Features/bottom_nav_bar/presentation/screens/bottom_manu_wrappers.dart:2:8 • unnecessary_import
+warning • The member 'state' can only be used within 'package:state_notifier/state_notifier.dart' or a test • lib/Features/bottom_nav_bar/presentation/screens/bottom_manu_wrappers.dart:34:42 • invalid_use_of_visible_for_testing_member
+warning • The member 'state' can only be used within instance members of subclasses of 'StateNotifier' • lib/Features/bottom_nav_bar/presentation/screens/bottom_manu_wrappers.dart:34:42 • invalid_use_of_protected_member
+   info • The import of 'dart:ui' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/cupertino.dart' • lib/Features/bottom_nav_bar/presentation/widgets/custom_bottom_nav.dart:1:8 • unnecessary_import
+warning • Unused import: 'package:firebase_core/firebase_core.dart' • lib/app/app_initializer.dart:1:8 • unused_import
+   info • The file name 'appText.dart' isn't a lower_case_with_underscores identifier • lib/components/AppText/appText.dart:1:1 • file_names
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/components/FloatingErrorBar/floatingbar.dart:107:41 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/components/SuccessBar/successbar.dart:107:41 • deprecated_member_use
+   info • The constant name 'block_userlist' isn't a lowerCamelCase identifier • lib/core/constants/app_constants.dart:26:23 • constant_identifier_names
+   info • The constant name 'qr_screen' isn't a lowerCamelCase identifier • lib/core/constants/app_constants.dart:27:23 • constant_identifier_names
+   info • The constant name 'chats_setting' isn't a lowerCamelCase identifier • lib/core/constants/app_constants.dart:31:23 • constant_identifier_names
+   info • The constant name 'bottom_manu' isn't a lowerCamelCase identifier • lib/core/constants/app_constants.dart:32:23 • constant_identifier_names
+   info • The constant name 'email_setting' isn't a lowerCamelCase identifier • lib/core/constants/app_constants.dart:33:23 • constant_identifier_names
+   info • The constant name 'security_privacy' isn't a lowerCamelCase identifier • lib/core/constants/app_constants.dart:34:23 • constant_identifier_names
+   info • The constant name 'edit_profile' isn't a lowerCamelCase identifier • lib/core/constants/app_constants.dart:35:23 • constant_identifier_names
+   info • The constant name 'chats_setting' isn't a lowerCamelCase identifier • lib/core/constants/app_constants.dart:45:23 • constant_identifier_names
+   info • The constant name 'bottom_manu' isn't a lowerCamelCase identifier • lib/core/constants/app_constants.dart:46:23 • constant_identifier_names
+   info • The constant name 'block_userlist' isn't a lowerCamelCase identifier • lib/core/constants/app_constants.dart:47:23 • constant_identifier_names
+   info • The constant name 'qr_screen' isn't a lowerCamelCase identifier • lib/core/constants/app_constants.dart:48:23 • constant_identifier_names
+   info • The constant name 'email_setting' isn't a lowerCamelCase identifier • lib/core/constants/app_constants.dart:49:23 • constant_identifier_names
+   info • The constant name 'security_privacy' isn't a lowerCamelCase identifier • lib/core/constants/app_constants.dart:50:23 • constant_identifier_names
+   info • The constant name 'edit_profile' isn't a lowerCamelCase identifier • lib/core/constants/app_constants.dart:51:23 • constant_identifier_names
+   info • The import of 'package:flutter/animation.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/cupertino.dart' • lib/core/router/app_router.dart:1:8 • unnecessary_import
+   info • 'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre • lib/core/theme/app_theme.dart:12:5 • deprecated_member_use
+   info • 'onBackground' is deprecated and shouldn't be used. Use onSurface instead. This feature was deprecated after v3.18.0-0.1.pre • lib/core/theme/app_theme.dart:13:5 • deprecated_member_use
+   info • 'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre • lib/core/theme/app_theme.dart:26:5 • deprecated_member_use
+   info • 'onBackground' is deprecated and shouldn't be used. Use onSurface instead. This feature was deprecated after v3.18.0-0.1.pre • lib/core/theme/app_theme.dart:27:5 • deprecated_member_use
+   info • 'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre • lib/core/theme/app_theme.dart:36:45 • deprecated_member_use
+   info • 'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre • lib/core/theme/app_theme.dart:78:49 • deprecated_member_use
+   info • The constant name 'white_bg' isn't a lowerCamelCase identifier • lib/core/utils/app_colour.dart:18:22 • constant_identifier_names
+   info • The constant name 'background_s1' isn't a lowerCamelCase identifier • lib/core/utils/app_colour.dart:19:22 • constant_identifier_names
+   info • The constant name 'background_s2' isn't a lowerCamelCase identifier • lib/core/utils/app_colour.dart:20:22 • constant_identifier_names
+   info • The constant name 'black_border' isn't a lowerCamelCase identifier • lib/core/utils/app_colour.dart:28:22 • constant_identifier_names
+   info • The constant name 'back_icon' isn't a lowerCamelCase identifier • lib/core/utils/app_colour.dart:29:22 • constant_identifier_names
+

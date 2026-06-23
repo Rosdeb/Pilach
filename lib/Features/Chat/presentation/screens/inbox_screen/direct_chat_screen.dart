@@ -1,7 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-import '../../../../../core/utils/app_colour.dart';
 import '../../widgets/chat_bundle.dart';
 
 class DirectChatScreen extends StatefulWidget {
@@ -46,15 +45,18 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final successColor = const Color(0xFF34C759);
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       // --- iOS STYLE CHAT TOP BAR ---
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: AppColors.textDark),
+          icon: Icon(CupertinoIcons.back, color: theme.colorScheme.onSurface),
           onPressed: () => Navigator.of(context).pop(),
         ),
         titleSpacing: 0,
@@ -73,9 +75,9 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                     width: 10,
                     height: 10,
                     decoration: BoxDecoration(
-                      color: AppColors.successGreen,
+                      color: successColor,
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.background, width: 1.5),
+                      border: Border.all(color: theme.scaffoldBackgroundColor, width: 1.5),
                     ),
                   ),
                 ),
@@ -87,12 +89,12 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
+                  Text(
                     'Alexandra Sterling',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: AppColors.textDark,
+                      color: theme.colorScheme.onSurface,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -100,7 +102,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                   Text(
                     'Online',
                     style: TextStyle(
-                      color: AppColors.successGreen.withValues(alpha: 0.9),
+                      color: successColor.withOpacity(0.9),
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -113,15 +115,15 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(CupertinoIcons.phone, color: AppColors.successGreen, size: 22),
+            icon: Icon(CupertinoIcons.phone, color: successColor, size: 22),
             onPressed: () {},
           ),
           IconButton(
-            icon: const Icon(CupertinoIcons.video_camera, color: AppColors.successGreen, size: 26),
+            icon: Icon(CupertinoIcons.video_camera, color: successColor, size: 26),
             onPressed: () {},
           ),
           IconButton(
-            icon: const Icon(CupertinoIcons.ellipsis_vertical, color: AppColors.textDark, size: 20),
+            icon: Icon(CupertinoIcons.ellipsis_vertical, color: theme.colorScheme.onSurface, size: 20),
             onPressed: () {},
           ),
           const SizedBox(width: 8),
@@ -144,12 +146,12 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       margin: const EdgeInsets.symmetric(vertical: 16),
                       decoration: BoxDecoration(
-                        color: AppColors.border.withOpacity(0.15),
+                        color: theme.dividerColor.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Today',
-                        style: TextStyle(color: AppColors.textLight, fontSize: 12, fontWeight: FontWeight.w500),
+                        style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 12, fontWeight: FontWeight.w500),
                       ),
                     ),
                   ),
@@ -163,14 +165,14 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
               decoration: BoxDecoration(
-                color: AppColors.background,
-                border: Border(top: BorderSide(color: AppColors.border.withOpacity(0.1), width: 1)),
+                color: theme.scaffoldBackgroundColor,
+                border: Border(top: BorderSide(color: theme.dividerColor.withOpacity(0.12), width: 1)),
               ),
               child: Row(
                 children: [
                   // Attachment Add Button
                   IconButton(
-                    icon: const Icon(CupertinoIcons.add, color: AppColors.successGreen, size: 24),
+                    icon: Icon(CupertinoIcons.add, color: successColor, size: 24),
                     onPressed: () {},
                   ),
 
@@ -182,10 +184,10 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                         maxHeight: 120,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.white_bg,
+                        color: theme.colorScheme.surface,
                         borderRadius: BorderRadius.circular(24),
                         border: Border.all(
-                          color: AppColors.border.withOpacity(0.15),
+                          color: theme.dividerColor.withOpacity(0.12),
                         ),
                       ),
                       padding: const EdgeInsets.only(left: 5,right: 5),
@@ -198,8 +200,8 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                               minLines: 1,
                               maxLines: 5,
                               textCapitalization: TextCapitalization.sentences,
-                              style: const TextStyle(
-                                color: AppColors.textDark,
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface,
                                 fontSize: 15,
                               ),
                               decoration: InputDecoration(
@@ -209,30 +211,30 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                                 border: InputBorder.none,
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(50),
-                                  borderSide: BorderSide(
+                                  borderSide: const BorderSide(
                                     color: Colors.transparent
                                   )
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(50),
-                                  borderSide: BorderSide(
+                                  borderSide: const BorderSide(
                                     color: Colors.transparent,
                                   )
                                 ),
-                                fillColor: AppColors.white_bg,
+                                fillColor: theme.colorScheme.surface,
                                 isDense: true,
                               ),
                             ),
                           ),
 
                           IconButton(
-                            icon: const Icon(
+                            icon: Icon(
                               CupertinoIcons.smiley,
                               size: 20,
-                              color: AppColors.textLight,
+                              color: theme.colorScheme.onSurface.withOpacity(0.6),
                             ),
                             onPressed: () {},
-                            padding: EdgeInsets.all(5),
+                            padding: const EdgeInsets.all(5),
                           ),
                         ],
                       ),
@@ -256,11 +258,11 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                     },
                     child: Container(
                       padding: const EdgeInsets.all(10),
-                      decoration: const BoxDecoration(
-                        color: Colors.blue, // Dynamic custom primary blue choice from screenshot
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary, // Dynamic custom primary blue choice from screenshot
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 18),
+                      child: Icon(CupertinoIcons.paperplane_fill, color: theme.colorScheme.onPrimary, size: 18),
                     ),
                   ),
                 ],

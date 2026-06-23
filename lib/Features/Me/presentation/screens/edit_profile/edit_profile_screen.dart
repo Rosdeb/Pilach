@@ -9,12 +9,12 @@ class EditProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-
           // --- APP BAR ---
           SliverAppBar(
             pinned: true,
@@ -23,7 +23,8 @@ class EditProfileScreen extends StatelessWidget {
             expandedHeight: 60.0,
             toolbarHeight: 60.0,
             automaticallyImplyLeading: false,
-            backgroundColor: AppColors.background,
+            backgroundColor: theme.scaffoldBackgroundColor,
+            surfaceTintColor: theme.scaffoldBackgroundColor,
             elevation: 0,
             flexibleSpace: ClipRect(
               child: BackdropFilter(
@@ -36,39 +37,35 @@ class EditProfileScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Row(
                       children: [
-
                         // Back Button
                         IconButton(
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.arrow_back_ios_new,
-                            color: AppColors.back_icon,
+                            color: theme.colorScheme.onSurface,
                             size: 20,
                           ),
                           onPressed: () => Navigator.pop(context),
                         ),
-
                         const Spacer(),
-
                         // Title
-                        const AppText(
-                            'Edit Profile',
-                            style: TextStyle(
-                              color: AppColors.textDark,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w500,
-                            ),
+                        AppText(
+                          'Edit Profile',
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w500,
                           ),
-
+                        ),
                         const Spacer(),
                         // Save Button
                         TextButton(
                           onPressed: () {
                             Navigator.pop(context);
                           },
-                          child: const Text(
+                          child: Text(
                             'Save',
                             style: TextStyle(
-                              color: AppColors.primary,
+                              color: theme.colorScheme.primary,
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                             ),
@@ -88,14 +85,12 @@ class EditProfileScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
-
                   const SizedBox(height: 24),
 
                   // --- PROFILE IMAGE ---
                   Center(
                     child: Stack(
                       children: [
-
                         const CircleAvatar(
                           radius: 50,
                           backgroundColor: AppColors.background_s2,
@@ -103,19 +98,18 @@ class EditProfileScreen extends StatelessWidget {
                             'https://cdn.motor1.com/images/mgl/bglVnv/s3/best-new-cars-coming-out-in-2025.webp',
                           ),
                         ),
-
                         Positioned(
                           bottom: 0,
                           right: 0,
                           child: Container(
                             padding: const EdgeInsets.all(6),
-                            decoration: const BoxDecoration(
-                              color: AppColors.primary,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               CupertinoIcons.camera_fill,
-                              color: AppColors.textWhite,
+                              color: theme.colorScheme.onPrimary,
                               size: 16,
                             ),
                           ),
@@ -128,10 +122,10 @@ class EditProfileScreen extends StatelessWidget {
 
                   TextButton(
                     onPressed: () {},
-                    child: const Text(
+                    child: Text(
                       'Change Profile Photo',
                       style: TextStyle(
-                        color: AppColors.primary,
+                        color: theme.colorScheme.primary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -143,34 +137,31 @@ class EditProfileScreen extends StatelessWidget {
                   // --- FORM CARD ---
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.textWhite,
+                      color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
                       children: [
-
                         _buildInputField(
+                          context,
                           label: 'Name',
                           initialValue: 'Alex Koch',
                         ),
-
-                        _buildDivider(),
-
+                        _buildDivider(context),
                         _buildInputField(
+                          context,
                           label: 'Username',
                           initialValue: 'alex_koch',
                         ),
-
-                        _buildDivider(),
-
+                        _buildDivider(context),
                         _buildInputField(
+                          context,
                           label: 'Phone',
                           initialValue: '+1 (555) 019-2834',
                         ),
-
-                        _buildDivider(),
-
+                        _buildDivider(context),
                         _buildInputField(
+                          context,
                           label: 'Bio',
                           initialValue: 'App Developer & Designer',
                         ),
@@ -188,10 +179,12 @@ class EditProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInputField({
+  Widget _buildInputField(
+    BuildContext context, {
     required String label,
     required String initialValue,
   }) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: 16,
@@ -199,32 +192,30 @@ class EditProfileScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-
           SizedBox(
             width: 100,
             child: Text(
               label,
-              style: const TextStyle(
-                color: AppColors.textDark,
+              style: TextStyle(
+                color: theme.colorScheme.onSurface,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),
             ),
           ),
-
           Expanded(
             child: TextFormField(
               initialValue: initialValue,
-              style: const TextStyle(
-                color: AppColors.textLight,
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
                 fontSize: 16,
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
-                fillColor: AppColors.textWhite,
-                hint: AppText("|"),
+                fillColor: theme.colorScheme.surface,
+                hint: const AppText("|"),
                 isDense: true,
-                contentPadding: EdgeInsets.symmetric(
+                contentPadding: const EdgeInsets.symmetric(
                   vertical: 12,
                 ),
               ),
@@ -235,13 +226,13 @@ class EditProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDivider() {
-    return const Padding(
-      padding: EdgeInsets.only(left: 16),
+  Widget _buildDivider(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16),
       child: Divider(
         height: 1,
         thickness: 0.5,
-        color: AppColors.background,
+        color: Theme.of(context).dividerColor,
       ),
     );
   }

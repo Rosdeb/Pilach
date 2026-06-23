@@ -2,11 +2,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
-// Replace these imports with your actual path utilities
 import '../../../../../components/AppText/appText.dart';
 import '../../../../../core/utils/app_colour.dart';
 
-// MOCK PROVIDER: Replace this with your actual Auth/User Profile Provider
+// MOCK PROVIDER: Keep Auth/User Profile Provider unchanged
 final userIdProvider = Provider<String>((ref) {
   return "backend_user_id_123456789"; // This represents your backend ID data
 });
@@ -35,23 +34,23 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
-    // Watch your backend ID from Riverpod
     final backendId = ref.watch(userIdProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: AppColors.background,
+        backgroundColor: theme.scaffoldBackgroundColor,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.back_icon, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new, color: theme.colorScheme.onSurface, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const AppText(
+        title: AppText(
           "QR Code",
           style: TextStyle(
-            color: AppColors.textDark,
+            color: theme.colorScheme.onSurface,
             fontSize: 20,
             fontWeight: FontWeight.w600,
           ),
@@ -74,7 +73,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
             child: Container(
               height: 36,
               decoration: BoxDecoration(
-                color: Colors.grey.shade200,
+                color: theme.colorScheme.onSurface.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(8.0),
               ),
               child: TabBar(
@@ -82,7 +81,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerColor: Colors.transparent,
                 indicator: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.colorScheme.surface,
                   borderRadius: BorderRadius.circular(7.0),
                   boxShadow: [
                     BoxShadow(
@@ -92,8 +91,8 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                     ),
                   ],
                 ),
-                labelColor: AppColors.textDark,
-                unselectedLabelColor: Colors.grey.shade600,
+                labelColor: theme.colorScheme.onSurface,
+                unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.5),
                 labelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
                 tabs: const [
                   Tab(text: "My Code"),
@@ -110,8 +109,8 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
               controller: _tabController,
               physics: const BouncingScrollPhysics(),
               children: [
-                _buildMyCodeTab(backendId),
-                _buildScanCodeTab(),
+                _buildMyCodeTab(context, backendId),
+                _buildScanCodeTab(context),
               ],
             ),
           ),
@@ -121,12 +120,12 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
   }
 
   // --- TAB 1: MY CODE (Updated with pretty_qr_code) ---
-  Widget _buildMyCodeTab(String qrData) {
-    // Generate the QR configuration safely based on your backend string data
+  Widget _buildMyCodeTab(BuildContext context, String qrData) {
     final qrImage = QrImage(QrCode.fromData(
       data: qrData,
-      errorCorrectLevel: QrErrorCorrectLevel.H, // High error correction permits logo overlays
+      errorCorrectLevel: QrErrorCorrectLevel.H,
     ));
+    final theme = Theme.of(context);
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -137,7 +136,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
             Container(
               padding: const EdgeInsets.all(24.0),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
@@ -153,23 +152,23 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                   // User Profile info row
                   Row(
                     children: [
-                      CircleAvatar(
+                      const CircleAvatar(
                         radius: 25,
-                        backgroundImage: NetworkImage('https://cdn.motor1.com/images/mgl/bglVnv/s3/best-new-cars-coming-out-in-2025.webp'), // Replace with actual asset/image
+                        backgroundImage: NetworkImage('https://cdn.motor1.com/images/mgl/bglVnv/s3/best-new-cars-coming-out-in-2025.webp'),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
+                          children: [
                             Text(
                               "Alex Koch",
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textDark),
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
                             ),
-                            SizedBox(height: 2),
+                            const SizedBox(height: 2),
                             Text(
                               "Scan to connect with me",
-                              style: TextStyle(fontSize: 13, color: AppColors.textLight),
+                              style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface.withOpacity(0.6)),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -180,7 +179,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                   ),
                   const SizedBox(height: 32),
 
-                  // Beautiful PrettyQrView Container
+                  // QR View Container - Must remain white background for scanning compatibility
                   Container(
                     width: 220,
                     height: 220,
@@ -191,7 +190,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                     ),
                     child: PrettyQrView(
                       qrImage: qrImage,
-                      decoration: const  PrettyQrDecoration(
+                      decoration: const PrettyQrDecoration(
                         background: Colors.transparent,
                         quietZone: PrettyQrQuietZone.zero,
                       ),
@@ -199,10 +198,10 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                   ),
                   const SizedBox(height: 32),
 
-                  const Text(
+                  Text(
                     "Your QR code is private. Other people can scan this to add or connect with you instantly.",
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.textLight, fontSize: 13, height: 1.4),
+                    style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 13, height: 1.4),
                   ),
                 ],
               ),
@@ -214,16 +213,17 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
   }
 
   // --- TAB 2: SCAN CODE ---
-  Widget _buildScanCodeTab() {
+  Widget _buildScanCodeTab(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 36.0),
       child: Column(
         children: [
           const SizedBox(height: 10),
-          const Text(
+          Text(
             "Align the QR code within the frame to scan",
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textLight, fontSize: 14),
+            style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 14),
           ),
           const SizedBox(height: 40),
 
@@ -260,12 +260,12 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
           IconButton(
             padding: const EdgeInsets.all(16),
             style: IconButton.styleFrom(
-              backgroundColor: Colors.white,
+              backgroundColor: theme.colorScheme.surface,
               shape: const CircleBorder(),
               shadowColor: Colors.black.withOpacity(0.05),
               elevation: 4,
             ),
-            icon: const Icon(CupertinoIcons.lightbulb_fill, color: AppColors.textDark, size: 24),
+            icon: Icon(CupertinoIcons.lightbulb_fill, color: theme.colorScheme.onSurface, size: 24),
             onPressed: () {},
           ),
           const SizedBox(height: 60),

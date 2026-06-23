@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:messageapp/core/utils/app_colour.dart';
 
 class GlassFab extends StatefulWidget {
   final VoidCallback onPressed;
@@ -26,13 +25,15 @@ class _GlassFabState extends State<GlassFab> {
   @override
   Widget build(BuildContext context) {
     if (Platform.isIOS) {
-      return _buildIOSButton();
+      return _buildIOSButton(context);
     }
-    return _buildAndroidButton();
+    return _buildAndroidButton(context);
   }
 
   // ── iOS: native spring scale + opacity press feel ─────────────────────────
-  Widget _buildIOSButton() {
+  Widget _buildIOSButton(BuildContext context) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
     return GestureDetector(
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) {
@@ -48,9 +49,10 @@ class _GlassFabState extends State<GlassFab> {
           opacity: _pressed ? 0.75 : 1.0,
           duration: const Duration(milliseconds: 100),
           child: _buildFabBody(
+            context: context,
             // iOS: frosted glass tint instead of flat green
-            backgroundColor: AppColors.successGreen.withOpacity(0.92),
-            iconColor: Colors.white,
+            backgroundColor: primaryColor.withOpacity(0.92),
+            iconColor: theme.colorScheme.onPrimary,
             withBlur: true,
           ),
         ),
@@ -59,7 +61,9 @@ class _GlassFabState extends State<GlassFab> {
   }
 
   // ── Android: Material ink ripple ─────────────────────────────────────────
-  Widget _buildAndroidButton() {
+  Widget _buildAndroidButton(BuildContext context) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -74,13 +78,14 @@ class _GlassFabState extends State<GlassFab> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(widget.size / 2),
         child: Material(
-          color: AppColors.successGreen,
+          color: primaryColor,
           child: InkWell(
             onTap: widget.onPressed,
             customBorder: const CircleBorder(),
             child: _buildFabBody(
-              backgroundColor: AppColors.successGreen,
-              iconColor: const Color(0xFF1C1B1F),
+              context: context,
+              backgroundColor: primaryColor,
+              iconColor: theme.colorScheme.onPrimary,
               withBlur: false,
             ),
           ),
@@ -91,10 +96,13 @@ class _GlassFabState extends State<GlassFab> {
 
   // ── Shared visual body ────────────────────────────────────────────────────
   Widget _buildFabBody({
+    required BuildContext context,
     required Color backgroundColor,
     required Color iconColor,
     required bool withBlur,
   }) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
     final circle = Container(
       width: widget.size,
       height: widget.size,
@@ -107,7 +115,7 @@ class _GlassFabState extends State<GlassFab> {
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.successGreen.withOpacity(0.35),
+            color: primaryColor.withOpacity(0.35),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),

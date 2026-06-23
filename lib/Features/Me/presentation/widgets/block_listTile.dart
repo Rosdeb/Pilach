@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:messageapp/core/constants/app_constants.dart';
 
 import '../../../../components/AppText/appText.dart';
-import '../../../../core/utils/app_colour.dart';
 import '../../data/models/block_userlist.dart';
 import '../providers/block_userlist_providers.dart';
 class BlockedUserTile extends ConsumerWidget {
@@ -16,6 +15,7 @@ class BlockedUserTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(
         horizontal: 16,
@@ -24,14 +24,14 @@ class BlockedUserTile extends ConsumerWidget {
 
       leading: CircleAvatar(
         radius: 22,
-        backgroundColor: AppColors.background_s2,
+        backgroundColor: theme.brightness == Brightness.dark ? const Color(0xFF1A3E40) : const Color(0xFFB8D8DA),
         backgroundImage: NetworkImage(user.avatarUrl),
       ),
 
       title: AppText(
         user.name,
-        style: const TextStyle(
-          color: AppColors.textDark,
+        style: TextStyle(
+          color: theme.colorScheme.onSurface,
           fontWeight: FontWeight.w600,
           fontSize: 16,
         ),
@@ -39,8 +39,8 @@ class BlockedUserTile extends ConsumerWidget {
 
       subtitle: AppText(
         user.email,
-        style: const TextStyle(
-          color: AppColors.textLight,
+        style: TextStyle(
+          color: theme.colorScheme.onSurface.withOpacity(0.6),
           fontSize: 13,
         ),
       ),
@@ -50,7 +50,7 @@ class BlockedUserTile extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(
             horizontal: 8,
           ),
-          backgroundColor: AppColors.background,
+          backgroundColor: theme.scaffoldBackgroundColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSizes.borderRadiusCircle),
           ),
@@ -61,10 +61,10 @@ class BlockedUserTile extends ConsumerWidget {
               .unblockUser(user.id);
         },
 
-        child: const AppText(
+        child: AppText(
           'Unblock',
           style: TextStyle(
-            color: AppColors.textDark,
+            color: theme.colorScheme.onSurface,
             fontWeight: FontWeight.bold,
             fontSize: 13,
           ),

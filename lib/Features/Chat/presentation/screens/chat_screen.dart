@@ -2,7 +2,6 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:messageapp/core/utils/app_colour.dart';
 
 import '../../../Contact/presentation/widgets/create_contact_sheet.dart';
 import '../providers/chat_provider.dart';
@@ -28,10 +27,11 @@ class ChatScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final chats = ref.watch(chatProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Stack(
         children: [
           // --- SLIVER VIEW PORT ---
@@ -45,14 +45,14 @@ class ChatScreen extends ConsumerWidget {
                 pinned: true,
                 expandedHeight: 60.0,
                 toolbarHeight: 60.0,
-                backgroundColor: AppColors.background,
-                surfaceTintColor:  AppColors.background,
+                backgroundColor: theme.scaffoldBackgroundColor,
+                surfaceTintColor:  theme.scaffoldBackgroundColor,
                 elevation: 0,
                 automaticallyImplyLeading: false,
                 actions: [
                   TextButton(
                     style: TextButton.styleFrom(
-                      backgroundColor: AppColors.successGreen.withValues(alpha: 0.86),
+                      backgroundColor: const Color(0xFF34C759).withOpacity(0.86),
                       shape: const CircleBorder(),
                       padding: const EdgeInsets.all(8),
                       minimumSize: Size.zero,
@@ -63,7 +63,7 @@ class ChatScreen extends ConsumerWidget {
                     },
                     child: Icon(
                       Icons.add,
-                      color: AppColors.back_icon,
+                      color: theme.colorScheme.onSurface,
                       size: 24,
                     ),
                   ),
@@ -72,13 +72,13 @@ class ChatScreen extends ConsumerWidget {
                 flexibleSpace: ClipRect(
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                    child: const FlexibleSpaceBar(
-                      titlePadding: EdgeInsets.only(left: 20.0, bottom: 12.0),
+                    child: FlexibleSpaceBar(
+                      titlePadding: const EdgeInsets.only(left: 20.0, bottom: 12.0),
                       centerTitle: false,
                       title: Text(
                         'Chats', // Change this dynamically if needed
                         style: TextStyle(
-                          color: AppColors.textDark,
+                          color: theme.colorScheme.onSurface,
                           fontSize: 32,
                           fontWeight: FontWeight.bold,
                         ),
@@ -104,12 +104,12 @@ class ChatScreen extends ConsumerWidget {
 
               // --- SCROLLABLE CHAT LIST CONTAINER ---
               if (chats.isEmpty)
-                const SliverFillRemaining(
+                SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(
                     child: Text(
                       'No conversations yet',
-                      style: TextStyle(color: AppColors.textLight),
+                      style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6)),
                     ),
                   ),
                 )
@@ -135,7 +135,7 @@ class ChatScreen extends ConsumerWidget {
                               child: Divider(
                                 height: 1,
                                 thickness: 0.5,
-                                color: AppColors.border.withOpacity(0.3),
+                                color: theme.dividerColor.withOpacity(0.12),
                               ),
                             ),
                         ],

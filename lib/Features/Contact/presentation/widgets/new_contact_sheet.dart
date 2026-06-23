@@ -2,8 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/utils/app_colour.dart';
-
 class NewContactBottomSheet extends ConsumerStatefulWidget {
   const NewContactBottomSheet({Key? key}) : super(key: key);
 
@@ -30,6 +28,7 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return ConstrainedBox(
       // FIXED: Replaced static height with a dynamic max-constraint boundary.
       // This allows the sheet to expand naturally up to 85% of screen real estate when pushed by the keyboard.
@@ -37,9 +36,9 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
           maxHeight: MediaQuery.of(context).size.height * 0.85,
         ),
         child: Container(
-          decoration: const BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.only(
+          decoration: BoxDecoration(
+            color: theme.scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(12),
               topRight: Radius.circular(12),
             ),
@@ -50,13 +49,13 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
               // --- STICKY iOS TOP NAVIGATION HEADER BAR ---
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: const BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.only(
+                decoration: BoxDecoration(
+                  color: theme.scaffoldBackgroundColor,
+                  borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(12),
                     topRight: Radius.circular(12),
                   ),
-                  border: Border(bottom: BorderSide(color: AppColors.background, width: 1)),
+                  border: Border(bottom: BorderSide(color: theme.dividerColor.withOpacity(0.12), width: 1)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -66,16 +65,16 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
                       child: const Text(
                         'Cancel',
                         style: TextStyle(
-                          color: AppColors.destructiveRed,
+                          color: Color(0xFFFF3B30),
                           fontSize: 16,
                           fontWeight: FontWeight.w400,
                         ),
                       ),
                     ),
-                    const Text(
+                    Text(
                       'New Contact',
                       style: TextStyle(
-                        color: AppColors.textDark,
+                        color: theme.colorScheme.onSurface,
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
                       ),
@@ -89,7 +88,7 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
                       child: const Text(
                         'Done',
                         style: TextStyle(
-                          color: AppColors.successGreen,
+                          color: Color(0xFF34C759),
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -117,7 +116,7 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
                           children: [
                             CircleAvatar(
                               radius: 46,
-                              backgroundColor: AppColors.background_s2,
+                              backgroundColor: theme.brightness == Brightness.dark ? const Color(0xFF1A3E40) : const Color(0xFFB8D8DA),
                               backgroundImage: const NetworkImage("https://static.vecteezy.com/system/resources/thumbnails/053/733/179/small/every-detail-of-a-sleek-modern-car-captured-in-close-up-photo.jpg"),
                             ),
                             Positioned(
@@ -125,13 +124,13 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
                               right: 0,
                               child: Container(
                                 padding: const EdgeInsets.all(6),
-                                decoration: const BoxDecoration(
-                                  color: AppColors.primary,
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary,
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   CupertinoIcons.camera_fill,
-                                  color: AppColors.textWhite,
+                                  color: theme.colorScheme.onPrimary,
                                   size: 14,
                                 ),
                               ),
@@ -142,9 +141,9 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
                       const SizedBox(height: 8),
                       TextButton(
                         onPressed: () {},
-                        child: const Text(
+                        child: Text(
                           'Add Photo',
-                          style: TextStyle(color: AppColors.primary, fontSize: 14, fontWeight: FontWeight.w500),
+                          style: TextStyle(color: theme.colorScheme.primary, fontSize: 14, fontWeight: FontWeight.w500),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -152,21 +151,22 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
                       // --- GROUPED ROWS COMPONENT INPUT BLOCK ---
                       Container(
                         decoration: BoxDecoration(
-                          color: AppColors.textWhite,
+                          color: theme.colorScheme.surface,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
                           children: [
                             // App ID field with explicit trailing scan action integration
                             _buildInlineField(
+                              context: context,
                               hint: 'App Id',
                               controller: _appIdController,
                               keyboardType: TextInputType.text,
                               prefixIcon: CupertinoIcons.person_crop_circle_badge_plus,
                               suffixAction: IconButton(
-                                icon: const Icon(
+                                icon: Icon(
                                   CupertinoIcons.qrcode_viewfinder,
-                                  color: AppColors.primary,
+                                  color: theme.colorScheme.primary,
                                   size: 22,
                                 ),
                                 onPressed: () {
@@ -174,14 +174,16 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
                                 },
                               ),
                             ),
-                            _buildDivider(),
+                            _buildDivider(theme),
                             _buildInlineField(
+                              context: context,
                               hint: 'First Name',
                               controller: _firstNameController,
                               keyboardType: TextInputType.name,
                             ),
-                            _buildDivider(),
+                            _buildDivider(theme),
                             _buildInlineField(
+                              context: context,
                               hint: 'Last Name',
                               controller: _lastNameController,
                               keyboardType: TextInputType.name,
@@ -194,19 +196,21 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
                       // --- SECONDARY DATA BLOCK ---
                       Container(
                         decoration: BoxDecoration(
-                          color: AppColors.textWhite,
+                          color: theme.colorScheme.surface,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
                           children: [
                             _buildInlineField(
+                              context: context,
                               hint: 'Phone',
                               controller: _phoneController,
                               keyboardType: TextInputType.phone,
                               prefixIcon: CupertinoIcons.phone,
                             ),
-                            _buildDivider(),
+                            _buildDivider(theme),
                             _buildInlineField(
+                              context: context,
                               hint: 'Email',
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
@@ -223,33 +227,35 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
           ),
         )
     );
-    }
+  }
 
   // Row field design matching standard configuration
   Widget _buildInlineField({
+    required BuildContext context,
     required String hint,
     required TextEditingController controller,
     required TextInputType keyboardType,
     IconData? prefixIcon,
     Widget? suffixAction,
   }) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
         children: [
           if (prefixIcon != null) ...[
-            Icon(prefixIcon, color: AppColors.textLight, size: 20),
+            Icon(prefixIcon, color: theme.colorScheme.onSurface.withOpacity(0.6), size: 20),
             const SizedBox(width: 12),
           ],
           Expanded(
             child: TextField(
               controller: controller,
               keyboardType: keyboardType,
-              style: const TextStyle(color: AppColors.textDark, fontSize: 16),
+              style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 16),
               decoration: InputDecoration(
                 hintText: hint,
-                fillColor: AppColors.textWhite,
-                hintStyle: const TextStyle(color: AppColors.textLight, fontSize: 16),
+                fillColor: theme.colorScheme.surface,
+                hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 16),
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -262,10 +268,10 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
     );
   }
 
-  Widget _buildDivider() {
-    return const Padding(
-      padding: EdgeInsets.only(left: 16.0),
-      child: Divider(height: 1, thickness: 0.5, color: AppColors.border),
+  Widget _buildDivider(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16.0),
+      child: Divider(height: 1, thickness: 0.5, color: theme.dividerColor.withOpacity(0.12)),
     );
   }
 }

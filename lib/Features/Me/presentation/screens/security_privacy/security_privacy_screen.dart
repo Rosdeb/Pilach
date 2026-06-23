@@ -1,13 +1,10 @@
-import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_advanced_switch/flutter_advanced_switch.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../../../../components/AppText/appText.dart';
-import '../../../../../core/utils/app_colour.dart';
+import 'package:messageapp/components/AppText/appText.dart';
+import 'package:messageapp/core/utils/app_colour.dart';
 import '../../providers/security_privacy_providers.dart';
-// Import your AppColors and providers here
 
 class SecurityPrivacyScreen extends ConsumerWidget {
   const SecurityPrivacyScreen({Key? key}) : super(key: key);
@@ -16,9 +13,10 @@ class SecurityPrivacyScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isBiometricEnabled = ref.watch(biometricProvider);
     final isTwoFactorEnabled = ref.watch(twoFactorProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
@@ -27,17 +25,18 @@ class SecurityPrivacyScreen extends ConsumerWidget {
             pinned: true,
             expandedHeight: 60.0,
             toolbarHeight: 60.0,
-            backgroundColor: AppColors.background,
+            backgroundColor: theme.scaffoldBackgroundColor,
+            surfaceTintColor: theme.scaffoldBackgroundColor,
             elevation: 0,
             centerTitle: true,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.back_icon, size: 20),
+              icon: Icon(Icons.arrow_back_ios_new, color: theme.colorScheme.onSurface, size: 20),
               onPressed: () => Navigator.of(context).pop(),
             ),
-            title: const AppText(
+            title: AppText(
               "Security & Privacy",
               style: TextStyle(
-                color: AppColors.textDark,
+                color: theme.colorScheme.onSurface,
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
               ),
@@ -51,31 +50,33 @@ class SecurityPrivacyScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
                   // --- SECTION 1: SECURITY ---
-                  _buildSectionHeader('LOGIN SECURITY'),
+                  _buildSectionHeader(context, 'LOGIN SECURITY'),
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.textWhite,
+                      color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
                       children: [
                         _buildActionRow(
+                          context,
                           icon: CupertinoIcons.lock,
                           iconColor: AppColors.successGreen,
                           title: 'Change Password',
                           onTap: () {},
                         ),
-                        _buildDivider(),
+                        _buildDivider(context),
                         _buildSwitchRow(
+                          context,
                           icon: CupertinoIcons.device_phone_portrait,
                           title: 'Two-Factor Auth (2FA)',
                           value: isTwoFactorEnabled,
                           onChanged: (val) => ref.read(twoFactorProvider.notifier).state = val,
                         ),
-                        _buildDivider(),
+                        _buildDivider(context),
                         _buildSwitchRow(
+                          context,
                           icon: CupertinoIcons.qrcode,
                           title: 'Face ID / Touch ID',
                           value: isBiometricEnabled,
@@ -87,31 +88,34 @@ class SecurityPrivacyScreen extends ConsumerWidget {
                   const SizedBox(height: 24.0),
 
                   // --- SECTION 2: PRIVACY & PERMISSIONS ---
-                  _buildSectionHeader('APP PERMISSIONS'),
+                  _buildSectionHeader(context, 'APP PERMISSIONS'),
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.textWhite,
+                      color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
                       children: [
                         _buildActionRow(
+                          context,
                           iconColor: AppColors.successGreen,
                           icon: CupertinoIcons.location,
                           title: 'Location Services',
                           trailingText: 'While Using',
                           onTap: () {},
                         ),
-                        _buildDivider(),
+                        _buildDivider(context),
                         _buildActionRow(
+                          context,
                           iconColor: AppColors.successGreen,
                           icon: CupertinoIcons.photo,
                           title: 'Photos Access',
                           trailingText: 'All Photos',
                           onTap: () {},
                         ),
-                        _buildDivider(),
+                        _buildDivider(context),
                         _buildActionRow(
+                          context,
                           iconColor: AppColors.successGreen,
                           icon: CupertinoIcons.mic,
                           title: 'Microphone Permissions',
@@ -123,22 +127,24 @@ class SecurityPrivacyScreen extends ConsumerWidget {
                   const SizedBox(height: 24.0),
 
                   // --- SECTION 3: DATA MANAGEMENT ---
-                  _buildSectionHeader('DATA MANAGEMENT'),
+                  _buildSectionHeader(context, 'DATA MANAGEMENT'),
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.textWhite,
+                      color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
                       children: [
                         _buildActionRow(
+                          context,
                           iconColor: AppColors.successGreen,
                           icon: CupertinoIcons.cloud_download,
                           title: 'Download My Data',
                           onTap: () {},
                         ),
-                        _buildDivider(),
+                        _buildDivider(context),
                         _buildActionRow(
+                          context,
                           icon: CupertinoIcons.trash,
                           iconColor: Colors.red,
                           title: 'Delete Account',
@@ -160,13 +166,14 @@ class SecurityPrivacyScreen extends ConsumerWidget {
   }
 
   // Helper Section Header
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
       child: Text(
         title,
-        style: const TextStyle(
-          color: AppColors.textLight,
+        style: TextStyle(
+          color: theme.colorScheme.onSurface.withOpacity(0.5),
           fontSize: 12,
           fontWeight: FontWeight.w500,
           letterSpacing: 0.5,
@@ -176,23 +183,22 @@ class SecurityPrivacyScreen extends ConsumerWidget {
   }
 
   // Helper row divider
-  Widget _buildDivider() {
-    return const Padding(
-      padding: EdgeInsets.only(left: 56.0),
-      child: Divider(height: 1, thickness: 0.5, color: AppColors.background),
-    );
+  Widget _buildDivider(BuildContext context) {
+    return Divider(height: 1, thickness: 0.5, color: Theme.of(context).dividerColor);
   }
 
   // Action Navigation Row Builder
-  Widget _buildActionRow({
+  Widget _buildActionRow(
+    BuildContext context, {
     required IconData icon,
     Color iconColor = AppColors.primary,
     required String title,
-    Color textColor = AppColors.textDark,
+    Color? textColor,
     String? trailingText,
     bool showArrow = true,
     required VoidCallback onTap,
   }) {
+    final theme = Theme.of(context);
     return ListTile(
       dense: true,
       onTap: onTap,
@@ -206,7 +212,7 @@ class SecurityPrivacyScreen extends ConsumerWidget {
       ),
       title: Text(
         title,
-        style: TextStyle(color: textColor, fontWeight: FontWeight.w400, fontSize: 16),
+        style: TextStyle(color: textColor ?? theme.colorScheme.onSurface, fontWeight: FontWeight.w400, fontSize: 16),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -214,17 +220,18 @@ class SecurityPrivacyScreen extends ConsumerWidget {
           if (trailingText != null)
             Text(
               trailingText,
-              style: const TextStyle(color: AppColors.textLight, fontSize: 14),
+              style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 14),
             ),
           if (trailingText != null && showArrow) const SizedBox(width: 6),
-          if (showArrow) const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.border),
+          if (showArrow) Icon(Icons.arrow_forward_ios, size: 14, color: theme.colorScheme.onSurface.withOpacity(0.3)),
         ],
       ),
     );
   }
 
   // Toggle Switch Row Builder
-  Widget _buildSwitchRow({
+  Widget _buildSwitchRow(
+    BuildContext context, {
     required IconData icon,
     required String title,
     required bool value,
@@ -237,6 +244,7 @@ class SecurityPrivacyScreen extends ConsumerWidget {
       onChanged(switchController.value);
     });
 
+    final theme = Theme.of(context);
     return ListTile(
       dense: true,
       leading: Container(
@@ -249,7 +257,7 @@ class SecurityPrivacyScreen extends ConsumerWidget {
       ),
       title: Text(
         title,
-        style: const TextStyle(color: AppColors.textDark, fontWeight: FontWeight.w400, fontSize: 16),
+        style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w400, fontSize: 16),
       ),
       trailing: Transform.scale(
         scaleX: 0.75,
@@ -259,7 +267,7 @@ class SecurityPrivacyScreen extends ConsumerWidget {
           width: 45,
           height: 24,
           activeColor: const Color(0xFF34C759),
-          inactiveColor: Colors.grey.shade400,
+          inactiveColor: theme.colorScheme.onSurface.withOpacity(0.2),
         ),
       ),
     );

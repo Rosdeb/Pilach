@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:messageapp/components/AppText/appText.dart';
 import 'package:messageapp/core/constants/asset_constants.dart';
-import 'package:messageapp/core/utils/app_colour.dart';
 import 'package:messageapp/features/auth/presentation/providers/splash_provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -26,6 +25,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   Widget build(BuildContext context) {
     final progressColour = ref.watch(splashProvider);
     final size = MediaQuery.of(context).size;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       body: Container(
@@ -33,11 +34,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF000000),
-              const Color(0xFF000000),
-              const Color(0xFF000000),
-            ],
+            colors: isDark
+                ? [
+                    const Color(0xFF0F172A),
+                    const Color(0xFF090D16),
+                    const Color(0xFF000000),
+                  ]
+                : [
+                    const Color(0xFFFFFFFF),
+                    const Color(0xFFF8FAFC),
+                    const Color(0xFFF1F5F9),
+                  ],
             stops: const [0.0, 0.4, 0.75],
           ),
         ),
@@ -52,20 +59,24 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
             SvgPicture.asset(Assets.logo, height: 130, width: 130),
             AppText(
               "Pilach",
-              color: AppColors.textWhite,
+              color: theme.colorScheme.onSurface,
               fontSize: 22,
               fontWeight: FontWeight.w500,
             ),
             const Spacer(flex: 4),
 
-            AppText("loading..", color: AppColors.textWhite, fontSize: 16),
+            AppText(
+              "loading..",
+              color: theme.colorScheme.onSurface.withOpacity(0.6),
+              fontSize: 16,
+            ),
 
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18.0),
               child: LinearProgressIndicator(
                 borderRadius: BorderRadius.circular(12),
                 valueColor: AlwaysStoppedAnimation(progressColour),
-                backgroundColor: AppColors.primary,
+                backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
               ),
             ),
 

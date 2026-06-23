@@ -9,7 +9,6 @@ import '../../../../components/AppText/appText.dart';
 import '../../../../components/FloatingErrorBar/floatingbar.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/asset_constants.dart';
-import '../../../../core/utils/app_colour.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
 
@@ -53,9 +52,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -84,7 +84,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Center(
                     child: AppText(
                       "Welcome Back",
-                      color: AppColors.textDark,
+                      color: theme.colorScheme.onSurface,
                       fontSize: 26,
                       fontWeight: FontWeight.w600,
                     ),
@@ -93,7 +93,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Center(
                     child: AppText(
                       "Sign in to stay connected with your friends",
-                      color: AppColors.textLight,
+                      color: theme.colorScheme.onSurface.withOpacity(0.6),
                       fontSize: 13,
                       fontWeight: FontWeight.w400,
                       textAlign: TextAlign.center,
@@ -141,9 +141,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       onPressed: () {
                         // TODO: Add forgot password screen routing if needed
                       },
-                      child: const AppText(
+                      child: AppText(
                         "Forgot Password?",
-                        color: AppColors.primary,
+                        color: theme.colorScheme.primary,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -158,15 +158,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: Container(
                       height: 56,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppColors.primary, Color(0xFF1E40AF)],
+                        gradient: LinearGradient(
+                          colors: [theme.colorScheme.primary, theme.colorScheme.primary.withOpacity(0.8)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary.withOpacity(0.2),
+                            color: theme.colorScheme.primary.withOpacity(0.2),
                             blurRadius: 16,
                             offset: const Offset(0, 6),
                           ),
@@ -181,7 +181,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               )
                             : const AppText(
                                 "Log In",
-                                color: AppColors.textWhite,
+                                color: Colors.white,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -196,7 +196,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     children: [
                       Expanded(
                         child: Divider(
-                          color: Colors.black.withOpacity(0.08),
+                          color: theme.colorScheme.onSurface.withOpacity(0.08),
                           thickness: 1,
                         ),
                       ),
@@ -204,14 +204,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: AppText(
                           "or sign in with",
-                          color: AppColors.textLight.withOpacity(0.7),
+                          color: theme.colorScheme.onSurface.withOpacity(0.5),
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                       Expanded(
                         child: Divider(
-                          color: Colors.black.withOpacity(0.08),
+                          color: theme.colorScheme.onSurface.withOpacity(0.08),
                           thickness: 1,
                         ),
                       ),
@@ -230,18 +230,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           child: Container(
                             height: 52,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC), // slate-50
+                              color: theme.colorScheme.surface,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.black.withOpacity(0.08)),
+                              border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.08)),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.g_mobiledata_rounded, color: Colors.black, size: 28),
+                                Icon(Icons.g_mobiledata_rounded, color: theme.colorScheme.onSurface, size: 28),
                                 const SizedBox(width: 8),
-                                const AppText(
+                                AppText(
                                   "Google",
-                                  color: AppColors.textDark,
+                                  color: theme.colorScheme.onSurface,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -258,18 +258,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           child: Container(
                             height: 52,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC), // slate-50
+                              color: theme.colorScheme.surface,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.black.withOpacity(0.08)),
+                              border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.08)),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.apple_rounded, color: Colors.black, size: 22),
+                                Icon(Icons.apple_rounded, color: theme.colorScheme.onSurface, size: 22),
                                 const SizedBox(width: 8),
-                                const AppText(
+                                AppText(
                                   "Apple",
-                                  color: AppColors.textDark,
+                                  color: theme.colorScheme.onSurface,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -289,15 +289,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     children: [
                       AppText(
                         "Don't have an account? ",
-                        color: AppColors.textLight,
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
                       ),
                       GestureDetector(
                         onTap: () => context.push(AppPaths.register),
-                        child: const AppText(
+                        child: AppText(
                           "Sign Up",
-                          color: AppColors.primary,
+                          color: theme.colorScheme.primary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),

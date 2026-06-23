@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/utils/app_colour.dart';
-
 class AlphabetSidebar extends StatelessWidget {
   final List<String> alphabetList;
   final Function(String letter) onLetterSelected;
@@ -14,6 +12,8 @@ class AlphabetSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Positioned(
       right: 4,
       top: 140,
@@ -46,8 +46,8 @@ class AlphabetSidebar extends StatelessWidget {
                 },
                 child: Text(
                   letter,
-                  style: const TextStyle(
-                    color: AppColors.successGreen,
+                  style: TextStyle(
+                    color: isDark ? const Color(0xFF30D158) : const Color(0xFF34C759),
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),

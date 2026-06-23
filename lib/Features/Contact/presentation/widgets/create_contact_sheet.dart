@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/utils/app_colour.dart';
 import 'create_group_sheet.dart';
 import 'find_chat_bottom_sheet.dart';
 import 'new_contact_sheet.dart';
@@ -13,11 +12,12 @@ class CreateBottomSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.only(bottom: 34.0), // Adds standard iOS safe area padding
-      decoration: const BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(16),
           topRight: Radius.circular(16),
         ),
@@ -32,19 +32,19 @@ class CreateBottomSheet extends ConsumerWidget {
               width: 36,
               height: 5,
               decoration: BoxDecoration(
-                color: AppColors.border.withOpacity(0.5),
+                color: theme.colorScheme.onSurface.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(2.5),
               ),
             ),
           ),
 
           // --- HEADER TITLE ---
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
             child: Text(
               'Create New',
               style: TextStyle(
-                color: AppColors.textDark,
+                color: theme.colorScheme.onSurface,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -57,7 +57,7 @@ class CreateBottomSheet extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Container(
               decoration: BoxDecoration(
-                color: AppColors.textWhite,
+                color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -79,7 +79,7 @@ class CreateBottomSheet extends ConsumerWidget {
                       );
                     },
                   ),
-                  _buildDivider(),
+                  _buildDivider(theme),
                   _buildCreateRow(
                     context: context,
                     icon: CupertinoIcons.group,
@@ -99,7 +99,7 @@ class CreateBottomSheet extends ConsumerWidget {
 
                     },
                   ),
-                  _buildDivider(),
+                  _buildDivider(theme),
                   _buildCreateRow(
                     context: context,
                     icon: CupertinoIcons.person_crop_circle_badge_plus,
@@ -136,21 +136,23 @@ class CreateBottomSheet extends ConsumerWidget {
     required VoidCallback onTap,
     bool isLast = false,
   }) {
+    final theme = Theme.of(context);
+    final successColor = theme.brightness == Brightness.dark ? const Color(0xFF34C759) : const Color(0xFF34C759);
     return ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: AppColors.successGreen.withOpacity(0.12),
+          color: successColor.withOpacity(0.12),
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: AppColors.successGreen, size: 22),
+        child: Icon(icon, color: successColor, size: 22),
       ),
       title: Text(
         title,
-        style: const TextStyle(
-          color: AppColors.textDark,
+        style: TextStyle(
+          color: theme.colorScheme.onSurface,
           fontWeight: FontWeight.w600,
           fontSize: 16,
         ),
@@ -159,21 +161,21 @@ class CreateBottomSheet extends ConsumerWidget {
         padding: const EdgeInsets.only(top: 2.0),
         child: Text(
           subtitle,
-          style: const TextStyle(color: AppColors.textLight, fontSize: 13),
+          style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 13),
         ),
       ),
-      trailing: const Icon(
+      trailing: Icon(
         Icons.arrow_forward_ios,
         size: 14,
-        color: AppColors.border,
+        color: theme.colorScheme.onSurface.withOpacity(0.3),
       ),
     );
   }
 
-  Widget _buildDivider() {
-    return const Padding(
-      padding: EdgeInsets.only(left: 60.0),
-      child: Divider(height: 1, thickness: 0.5, color: AppColors.background),
+  Widget _buildDivider(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 60.0),
+      child: Divider(height: 1, thickness: 0.5, color: theme.dividerColor.withOpacity(0.12)),
     );
   }
 }

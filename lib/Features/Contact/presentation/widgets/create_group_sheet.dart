@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/utils/app_colour.dart';
 import '../providers/contact_providers.dart';
 import '../providers/create_group_providers.dart';
 
@@ -29,6 +28,7 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
 
     // Fallback static list lookup matching your Contacts Screen provider structure
     final contacts = ref.watch(masterContactsProvider);
+    final theme = Theme.of(context);
 
     return ConstrainedBox(
       // FIXED: Swapped out hardcoded container height for a flexible max constraint boundary.
@@ -37,9 +37,9 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
         maxHeight: MediaQuery.of(context).size.height * 0.85,
       ),
       child: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.only(
+        decoration: BoxDecoration(
+          color: theme.scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(12),
             topRight: Radius.circular(12),
           ),
@@ -50,10 +50,10 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
             // --- STICKY iOS TOP NAVIGATION BAR ---
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: const BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12)),
-                border: Border(bottom: BorderSide(color: AppColors.background, width: 1)),
+              decoration: BoxDecoration(
+                color: theme.scaffoldBackgroundColor,
+                borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12)),
+                border: Border(bottom: BorderSide(color: theme.dividerColor.withOpacity(0.12), width: 1)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -65,19 +65,19 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                     },
                     child: const Text(
                       'Cancel',
-                      style: TextStyle(color: AppColors.destructiveRed, fontSize: 16),
+                      style: TextStyle(color: Color(0xFFFF3B30), fontSize: 16),
                     ),
                   ),
                   Column(
                     children: [
-                      const Text(
+                      Text(
                         'New Group',
-                        style: TextStyle(color: AppColors.textDark, fontSize: 17, fontWeight: FontWeight.bold),
+                        style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 17, fontWeight: FontWeight.bold),
                       ),
                       if (selectedMembers.isNotEmpty)
                         Text(
                           '${selectedMembers.length} Selected',
-                          style: const TextStyle(color: AppColors.textLight, fontSize: 11),
+                          style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 11),
                         ),
                     ],
                   ),
@@ -93,8 +93,8 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                       'Create',
                       style: TextStyle(
                         color: selectedMembers.isEmpty || _groupNameController.text.trim().isEmpty
-                            ? AppColors.textLight.withOpacity(0.5)
-                            : AppColors.successGreen,
+                            ? theme.colorScheme.onSurface.withOpacity(0.3)
+                            : const Color(0xFF34C759),
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -121,7 +121,7 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.textWhite,
+                        color: theme.colorScheme.surface,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -129,18 +129,18 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                           // Dynamic Group Avatar Picker Node Placeholder
                           CircleAvatar(
                             radius: 30,
-                            backgroundColor: AppColors.background_s1,
-                            child: const Icon(CupertinoIcons.camera_fill, color: AppColors.primary, size: 22),
+                            backgroundColor: theme.brightness == Brightness.dark ? const Color(0xFF112D2D) : const Color(0xFFDFF1F1),
+                            child: Icon(CupertinoIcons.camera_fill, color: theme.colorScheme.primary, size: 22),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
                             child: TextField(
                               controller: _groupNameController,
                               onChanged: (value) => setState(() {}), // Force rebuild to refresh "Create" button validation state
-                              style: const TextStyle(color: AppColors.textDark, fontSize: 16),
-                              decoration: const InputDecoration(
+                              style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 16),
+                              decoration: InputDecoration(
                                 hintText: 'Enter Group Name',
-                                hintStyle: TextStyle(color: AppColors.textLight, fontSize: 16),
+                                hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 16),
                                 border: InputBorder.none,
                                 isDense: true,
                               ),
@@ -152,18 +152,18 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                     const SizedBox(height: 24.0),
 
                     // --- SECTION LABEL: ADD MEMBERS ---
-                    const Padding(
-                      padding: EdgeInsets.only(left: 8.0, bottom: 8.0),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
                       child: Text(
                         'ADD MEMBERS',
-                        style: TextStyle(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                        style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                       ),
                     ),
 
                     // --- MEMBERS CHECKLIST CONTAINER BLOCK ---
                     Container(
                       decoration: BoxDecoration(
-                        color: AppColors.textWhite,
+                        color: theme.colorScheme.surface,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: ListView.separated(
@@ -171,34 +171,35 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                         padding: EdgeInsets.zero,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: contacts.length,
-                        separatorBuilder: (context, index) => const Padding(
-                          padding: EdgeInsets.only(left: 68.0),
-                          child: Divider(height: 1, thickness: 0.5, color: AppColors.background),
+                        separatorBuilder: (context, index) => Padding(
+                          padding: const EdgeInsets.only(left: 68.0),
+                          child: Divider(height: 1, thickness: 0.5, color: theme.dividerColor.withOpacity(0.12)),
                         ),
                         itemBuilder: (context, index) {
                           final member = contacts[index];
                           final isChecked = selectedMembers.contains(member.id);
+                          final successColor = const Color(0xFF34C759);
 
                           return ListTile(
                             onTap: () => ref.read(selectedMembersProvider.notifier).toggleMember(member.id),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                             leading: CircleAvatar(
                               radius: 20,
-                              backgroundColor: AppColors.background_s2,
+                              backgroundColor: theme.brightness == Brightness.dark ? const Color(0xFF1A3E40) : const Color(0xFFB8D8DA),
                               backgroundImage: member.avatarUrl != null ? NetworkImage(member.avatarUrl!) : null,
                               child: member.avatarUrl == null
-                                  ? Text(member.name[0], style: const TextStyle(color: AppColors.textDark, fontWeight: FontWeight.bold))
+                                  ? Text(member.name[0], style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold))
                                   : null,
                             ),
                             title: Text(
                               member.name,
-                              style: const TextStyle(color: AppColors.textDark, fontWeight: FontWeight.w600, fontSize: 15),
+                              style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w600, fontSize: 15),
                             ),
                             subtitle: Text(
                               member.status,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: AppColors.textLight, fontSize: 12),
+                              style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 12),
                             ),
                             // Custom iOS Checkmark circle indicator matching successGreen design highlight
                             trailing: Container(
@@ -206,14 +207,14 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                               height: 24,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: isChecked ? AppColors.successGreen : Colors.transparent,
+                                color: isChecked ? successColor : Colors.transparent,
                                 border: Border.all(
-                                  color: isChecked ? AppColors.successGreen : AppColors.border.withOpacity(0.6),
+                                  color: isChecked ? successColor : theme.colorScheme.onSurface.withOpacity(0.3),
                                   width: 1.5,
                                 ),
                               ),
                               child: isChecked
-                                  ? const Icon(Icons.check, size: 16, color: AppColors.textWhite)
+                                  ? Icon(Icons.check, size: 16, color: theme.colorScheme.onPrimary)
                                   : null,
                             ),
                           );
