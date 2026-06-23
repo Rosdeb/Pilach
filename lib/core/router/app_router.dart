@@ -9,11 +9,26 @@ import 'package:messageapp/Features/Me/presentation/screens/edit_profile/edit_pr
 import 'package:messageapp/Features/Me/presentation/screens/email_setting/email_setting_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/qr_scan/ar_scan_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/security_privacy/security_privacy_screen.dart';
-import 'package:messageapp/features/auth/presentation/screens/splash_screen.dart';
+import 'package:messageapp/Features/auth/presentation/screens/splash_screen.dart';
+import 'package:messageapp/Features/auth/presentation/screens/login_screen.dart';
+import 'package:messageapp/Features/auth/presentation/screens/register_screen.dart';
+import 'package:messageapp/Features/auth/presentation/providers/auth_provider.dart';
 
 import '../../Features/bottom_nav_bar/presentation/screens/bottom_manu_wrappers.dart';
 import '../constants/app_constants.dart';
 
+class RiverpodRouterRefreshListenable extends ChangeNotifier {
+  RiverpodRouterRefreshListenable(Ref ref) {
+    ref.listen<AuthState>(
+      authProvider,
+      (previous, next) {
+        if (previous?.status != next.status) {
+          notifyListeners();
+        }
+      },
+    );
+  }
+}
 
 CustomTransitionPage<dynamic> buildSlideTransitionPage({
   required LocalKey key,
@@ -47,8 +62,36 @@ CustomTransitionPage<dynamic> buildSlideTransitionPage({
 
 
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final refreshListenable = RiverpodRouterRefreshListenable(ref);
+
   return GoRouter(
     initialLocation: AppPaths.splash,
+    refreshListenable: refreshListenable,
+    redirect: (context, state) {
+      final authState = ref.read(authProvider);
+      final status = authState.status;
+
+      final isSplashing = state.matchedLocation == AppPaths.splash;
+      final isLoggingIn = state.matchedLocation == AppPaths.login || state.matchedLocation == AppPaths.register;
+
+      if (status == AuthStatus.initial) {
+        return null; // Stay on splash while loading initial auth state
+      }
+
+      if (status == AuthStatus.unauthenticated) {
+        if (!isLoggingIn && !isSplashing) {
+          return AppPaths.login;
+        }
+      }
+
+      if (status == AuthStatus.authenticated) {
+        if (isLoggingIn || isSplashing) {
+          return AppPaths.bottom_manu;
+        }
+      }
+
+      return null;
+    },
     routes: [
 
       GoRoute(
@@ -57,6 +100,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => buildSlideTransitionPage(
           key: state.pageKey,
           child: const SplashScreen(),
+        ),
+      ),
+
+      GoRoute(
+        path: AppPaths.login,
+        name: AppRoutes.login,
+        pageBuilder: (context, state) => buildSlideTransitionPage(
+          key: state.pageKey,
+          child: const LoginScreen(),
+        ),
+      ),
+
+      GoRoute(
+        path: AppPaths.register,
+        name: AppRoutes.register,
+        pageBuilder: (context, state) => buildSlideTransitionPage(
+          key: state.pageKey,
+          child: const RegisterScreen(),
         ),
       ),
 

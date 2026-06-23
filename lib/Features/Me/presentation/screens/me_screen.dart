@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_advanced_switch/flutter_advanced_switch.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:messageapp/components/AppText/appText.dart';
 import 'package:messageapp/core/constants/app_constants.dart';
 import 'package:messageapp/core/utils/app_colour.dart';
+import 'package:messageapp/Features/auth/presentation/providers/auth_provider.dart';
 
 import '../providers/setting_providers.dart';
 
@@ -206,7 +208,29 @@ class MeScreen extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      onPressed: () {},
+                      onPressed: () {
+                        showCupertinoDialog(
+                          context: context,
+                          builder: (context) => CupertinoAlertDialog(
+                            title: const Text('Log Out'),
+                            content: const Text('Are you sure you want to log out?'),
+                            actions: [
+                              CupertinoDialogAction(
+                                child: const Text('Cancel'),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                              CupertinoDialogAction(
+                                isDestructiveAction: true,
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  ref.read(authProvider.notifier).logout();
+                                },
+                                child: const Text('Log Out'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                       child: const AppText(
                         'Log Out',
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
