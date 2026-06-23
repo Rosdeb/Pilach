@@ -5,7 +5,7 @@ Pilach is a feature-rich, high-performance messaging client built with Flutter a
 <p align="center">
   <img src="docs/Screenshot 2026-06-24 at 2.50.27 AM.png" width="320" alt="Chats Screen (Light Mode)" />
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="docs/Screenshot 2026-06-24 at 2.51.03 AM.png" width="320" alt="Direct Chat Screen (Dark Mode)" />
+  <img src="docs/Screenshot 2026-06-24 at 2.50.46 AM.png" width="320" alt="Settings Screen (Light Mode)" />
 </p>
 
 ---
