@@ -13,6 +13,17 @@ class ApiConstants {
   static const String logout = "/api/v1/auth/logout";
   static const String refreshToken = "/api/v1/auth/refresh";
   static const String verifyOtp = "/api/v1/auth/email/verify/otp";
+  
+  // 2FA Endpoints
+  static const String twoFactorMethods = "/api/v1/auth/2fa/methods";
+  static const String twoFactorEnrollEmailRequest = "/api/v1/auth/2fa/enroll/email/request";
+  static const String twoFactorEnrollEmailConfirm = "/api/v1/auth/2fa/enroll/email/confirm";
+  static const String twoFactorEnrollSmsRequest = "/api/v1/auth/2fa/enroll/sms/request";
+  static const String twoFactorEnrollSmsConfirm = "/api/v1/auth/2fa/enroll/sms/confirm";
+  static const String twoFactorChallengeSend = "/api/v1/auth/2fa/challenge/send";
+  static const String twoFactorChallengeVerify = "/api/v1/auth/2fa/challenge/verify";
+  static const String twoFactorBackupCodes = "/api/v1/auth/2fa/backup-codes";
+  static const String twoFactorBackupCodesRegenerate = "/api/v1/auth/2fa/backup-codes/regenerate";
 
   // ================================
   // 👤 User/Profile

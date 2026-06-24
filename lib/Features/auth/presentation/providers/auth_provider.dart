@@ -69,20 +69,29 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<bool> login(String email, String password) async {
+  Future<Map<String, dynamic>?> login(String email, String password) async {
     state = AuthState.loading();
 
     try {
-      final userData = await _authRepository.login(email, password);
-      state = AuthState.authenticated(userData['email'] ?? email);
-      return true;
+      final result = await _authRepository.login(email, password);
+      if (result['is2faRequired'] == true) {
+        state = AuthState.unauthenticated();
+        return result;
+      }
+      final userData = result['user'];
+      state = AuthState.authenticated(userData?['email'] ?? email);
+      return result;
     } on ApiException catch (e) {
       state = AuthState.error(e.message);
-      return false;
+      return null;
     } catch (e) {
       state = AuthState.error("Something went wrong");
-      return false;
+      return null;
     }
+  }
+
+  void setAuthenticated(String email) {
+    state = AuthState.authenticated(email);
   }
 
   Future<bool> register(String name, String email, String password) async {

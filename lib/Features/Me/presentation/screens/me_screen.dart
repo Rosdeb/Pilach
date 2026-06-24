@@ -14,11 +14,25 @@ import 'package:messageapp/Features/auth/presentation/providers/auth_provider.da
 import 'package:permission_handler/permission_handler.dart';
 
 import '../providers/setting_providers.dart';
+import '../providers/two_factor_provider.dart';
 
-class MeScreen extends ConsumerWidget {
+class MeScreen extends ConsumerStatefulWidget {
   const MeScreen({super.key});
 
-  void _showThemeSelectionDialog(BuildContext context, WidgetRef ref) {
+  @override
+  ConsumerState<MeScreen> createState() => _MeScreenState();
+}
+
+class _MeScreenState extends ConsumerState<MeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(twoFactorNotifierProvider.notifier).loadMethods();
+    });
+  }
+
+  void _showThemeSelectionDialog(BuildContext context) {
     showCupertinoModalPopup(
       context: context,
       builder: (BuildContext context) => CupertinoActionSheet(
@@ -59,7 +73,7 @@ class MeScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     // Watch the states from Riverpod
     final isPushEnabled = ref.watch(pushNotificationsProvider);
     final themeState = ref.watch(themeProvider);
@@ -285,7 +299,7 @@ class MeScreen extends ConsumerWidget {
                       iconColor: AppColors.successGreen,
                       title: 'Theme Mode',
                       trailingText: currentThemeName,
-                      onTap: () => _showThemeSelectionDialog(context, ref),
+                      onTap: () => _showThemeSelectionDialog(context),
                     ),
                     _buildDivider(context),
                     _buildListTile(

@@ -8,7 +8,10 @@ import 'package:messageapp/components/AppText/appText.dart';
 import 'package:messageapp/core/utils/app_colour.dart';
 import 'package:messageapp/core/constants/app_constants.dart';
 import 'package:messageapp/core/services/permission_service.dart';
+import 'package:messageapp/components/FloatingErrorBar/floatingbar.dart';
+import 'package:messageapp/Features/auth/presentation/providers/auth_provider.dart';
 import '../../providers/security_privacy_providers.dart';
+import '../../providers/two_factor_provider.dart';
 
 class SecurityPrivacyScreen extends ConsumerStatefulWidget {
   const SecurityPrivacyScreen({Key? key}) : super(key: key);
@@ -22,6 +25,9 @@ class _SecurityPrivacyScreenState extends ConsumerState<SecurityPrivacyScreen> w
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(twoFactorNotifierProvider.notifier).loadMethods();
+    });
   }
 
   @override
@@ -42,7 +48,8 @@ class _SecurityPrivacyScreenState extends ConsumerState<SecurityPrivacyScreen> w
   @override
   Widget build(BuildContext context) {
     final isBiometricEnabled = ref.watch(biometricProvider);
-    final isTwoFactorEnabled = ref.watch(twoFactorProvider);
+    final twoFactorState = ref.watch(twoFactorNotifierProvider);
+    final isTwoFactorEnabled = twoFactorState.enrolledMethods.any((m) => m is Map && m['isEnabled'] == true);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -98,12 +105,15 @@ class _SecurityPrivacyScreenState extends ConsumerState<SecurityPrivacyScreen> w
                           },
                         ),
                         _buildDivider(context),
-                        _buildSwitchRow(
+                        _buildActionRow(
                           context,
                           icon: CupertinoIcons.device_phone_portrait,
+                          iconColor: AppColors.successGreen,
                           title: 'Two-Factor Auth (2FA)',
-                          value: isTwoFactorEnabled,
-                          onChanged: (val) => ref.read(twoFactorProvider.notifier).state = val,
+                          trailingText: isTwoFactorEnabled ? 'Enabled' : 'Disabled',
+                          onTap: () {
+                            context.push(AppPaths.two_factor_settings);
+                          },
                         ),
                         _buildDivider(context),
                         _buildSwitchRow(
@@ -180,7 +190,7 @@ class _SecurityPrivacyScreenState extends ConsumerState<SecurityPrivacyScreen> w
                           title: 'Delete Account',
                           textColor: Colors.red,
                           showArrow: false,
-                          onTap: () {},
+                          onTap: () => _showDeleteAccountSheet(context),
                         ),
                       ],
                     ),
@@ -192,6 +202,266 @@ class _SecurityPrivacyScreenState extends ConsumerState<SecurityPrivacyScreen> w
           ),
         ],
       ),
+    );
+  }
+
+  void _showDeleteAccountSheet(BuildContext context) {
+    final passwordController = TextEditingController();
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            final twoFactorState = ref.watch(twoFactorNotifierProvider);
+            final activeMethods = twoFactorState.enrolledMethods
+                .where((m) => m is Map && m['isEnabled'] == true)
+                .toList();
+            final is2FaActive = activeMethods.isNotEmpty;
+            final isLoading = twoFactorState.isLoading;
+
+            return Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+              ),
+              padding: EdgeInsets.only(
+                top: 20,
+                left: 20,
+                right: 20,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 30,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.onSurface.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Colors.red, size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: AppText(
+                          "Delete Account",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  AppText(
+                    "Warning: Deleting your account is permanent. All your chats, contacts, profile info, and files will be permanently erased.",
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: theme.colorScheme.onSurface.withOpacity(0.7),
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  if (is2FaActive) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(CupertinoIcons.shield_fill, color: Colors.orange, size: 18),
+                              const SizedBox(width: 8),
+                              AppText(
+                                "Two-Factor Authentication is Active",
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          AppText(
+                            "You must remove Two-Factor Authentication or confirm with your password before deletion.",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSurface.withOpacity(0.7),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            ),
+                            icon: isLoading
+                                ? const CupertinoActivityIndicator(color: Colors.white)
+                                : const Icon(CupertinoIcons.shield_slash, size: 16),
+                            label: const Text("Remove 2FA Now", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                            onPressed: isLoading
+                                ? null
+                                : () async {
+                                    final confirmRemove = await showCupertinoDialog<bool>(
+                                      context: sheetContext,
+                                      builder: (dialogContext) => CupertinoAlertDialog(
+                                        title: const Text("Remove 2FA"),
+                                        content: const Text("Are you sure you want to disable all Two-Factor Authentication methods first?"),
+                                        actions: [
+                                          CupertinoDialogAction(
+                                            child: const Text("Cancel"),
+                                            onPressed: () => Navigator.pop(dialogContext, false),
+                                          ),
+                                          CupertinoDialogAction(
+                                            isDestructiveAction: true,
+                                            child: const Text("Remove"),
+                                            onPressed: () => Navigator.pop(dialogContext, true),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+
+                                    if (confirmRemove == true) {
+                                      bool anySuccess = false;
+                                      for (var method in activeMethods) {
+                                        final methodId = method['id']?.toString() ?? "";
+                                        if (methodId.isNotEmpty) {
+                                          final success = await ref.read(twoFactorNotifierProvider.notifier).disableMethod(methodId);
+                                          if (success) anySuccess = true;
+                                        }
+                                      }
+                                      setSheetState(() {});
+                                      if (anySuccess && sheetContext.mounted) {
+                                        showCupertinoDialog(
+                                          context: sheetContext,
+                                          builder: (dialogContext) => CupertinoAlertDialog(
+                                            title: const Text("2FA Removed"),
+                                            content: const Text("All active Two-Factor Authentication methods have been successfully removed."),
+                                            actions: [
+                                              CupertinoDialogAction(
+                                                child: const Text("OK"),
+                                                onPressed: () => Navigator.pop(dialogContext),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  AppText(
+                    "Confirm with your password:",
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  CupertinoTextField(
+                    controller: passwordController,
+                    placeholder: "Enter account password",
+                    obscureText: true,
+                    style: TextStyle(color: theme.colorScheme.onSurface),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.1)),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: theme.colorScheme.onSurface.withOpacity(0.2)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          onPressed: () => Navigator.pop(sheetContext),
+                          child: AppText("Cancel", style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          onPressed: () async {
+                            final password = passwordController.text.trim();
+                            if (password.isEmpty) {
+                              FloatingErrorBar.show(context, message: "Please enter your password to confirm deletion.");
+                              return;
+                            }
+                            Navigator.pop(sheetContext);
+                            showCupertinoDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (context) => const Center(child: CupertinoActivityIndicator(radius: 15)),
+                            );
+                            await Future.delayed(const Duration(seconds: 2));
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              FloatingErrorBar.show(context, message: "Your account has been deleted successfully.");
+                              await ref.read(authProvider.notifier).logout();
+                            }
+                          },
+                          child: const Text("Delete Account", style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

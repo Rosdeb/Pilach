@@ -23,6 +23,7 @@ final dioProvider = Provider<Dio>((ref) {
       headers: {
         'Content-Type': ApiConstants.contentType,
         'Accept': ApiConstants.contentType,
+        'X-Auth-Transport': 'bearer',
       },
     ),
   );

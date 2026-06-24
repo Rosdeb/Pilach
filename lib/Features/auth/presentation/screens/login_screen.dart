@@ -12,6 +12,9 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/asset_constants.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
+import 'package:messageapp/Features/auth/data/repositories/auth_repository.dart';
+import 'package:messageapp/Features/auth/presentation/screens/two_factor_email_verify_screen.dart';
+import 'package:messageapp/Features/auth/presentation/screens/two_factor_sms_verify_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -35,15 +38,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final success = await ref.read(authProvider.notifier).login(
+    final result = await ref.read(authProvider.notifier).login(
           _emailController.text,
           _passwordController.text,
         );
 
     if (mounted) {
-      if (!success) {
+      if (result == null) {
         final errorMsg = ref.read(authProvider).errorMessage ?? "Authentication failed";
         FloatingErrorBar.show(context, message: errorMsg);
+        return;
+      }
+
+      if (result['is2faRequired'] == true) {
+        final challengeId = result['challengeId'] as String;
+        final methods = result['methods'] as List<dynamic>;
+        final String selectedMethod = methods.isNotEmpty ? methods.first.toString() : 'EMAIL_OTP';
+
+        FloatingSuccessBar.show(context, message: "Sending 2FA security code...");
+
+        try {
+          await ref.read(authRepositoryProvider).sendTwoFactorChallenge(
+                challengeId: challengeId,
+                type: selectedMethod,
+              );
+
+          if (!mounted) return;
+
+          if (selectedMethod == 'SMS_OTP') {
+            context.push(
+              AppPaths.two_factor_sms_verify,
+              extra: TwoFactorSmsVerifyArgs(
+                phone: _emailController.text,
+                challengeId: challengeId,
+              ),
+            );
+          } else {
+            context.push(
+              AppPaths.two_factor_email_verify,
+              extra: TwoFactorEmailVerifyArgs(
+                email: _emailController.text,
+                challengeId: challengeId,
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            FloatingErrorBar.show(context, message: e.toString());
+          }
+        }
       } else {
         FloatingSuccessBar.show(context, message: "Logged in successfully!");
       }

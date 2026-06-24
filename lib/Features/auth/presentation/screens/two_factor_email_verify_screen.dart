@@ -1,24 +1,39 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pinput/pinput.dart';
+import 'package:messageapp/Features/Me/presentation/providers/two_factor_provider.dart';
+import 'package:messageapp/Features/auth/data/repositories/auth_repository.dart';
 import 'package:messageapp/Features/auth/presentation/providers/auth_provider.dart';
 import 'package:messageapp/components/FloatingErrorBar/floatingbar.dart';
 import 'package:messageapp/components/SuccessBar/successbar.dart';
 import 'package:messageapp/core/constants/app_constants.dart';
+import 'package:messageapp/core/network/api_exceptions.dart';
 
-class VerifyEmailScreen extends ConsumerStatefulWidget {
+class TwoFactorEmailVerifyArgs {
   final String email;
+  final String? challengeId;
 
-  const VerifyEmailScreen({Key? key, required this.email}) : super(key: key);
-
-  @override
-  ConsumerState<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
+  const TwoFactorEmailVerifyArgs({
+    required this.email,
+    this.challengeId,
+  });
 }
 
-class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
+class TwoFactorEmailVerifyScreen extends ConsumerStatefulWidget {
+  final TwoFactorEmailVerifyArgs args;
+
+  const TwoFactorEmailVerifyScreen({super.key, required this.args});
+
+  @override
+  ConsumerState<TwoFactorEmailVerifyScreen> createState() => _TwoFactorEmailVerifyScreenState();
+}
+
+class _TwoFactorEmailVerifyScreenState extends ConsumerState<TwoFactorEmailVerifyScreen> {
   final _pinController = TextEditingController();
   final _focusNode = FocusNode();
+  bool _isVerifying = false;
 
   @override
   void dispose() {
@@ -28,25 +43,62 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   }
 
   void _verifyOtp(String code) async {
-    final success = await ref.read(authProvider.notifier).verifyOtp(widget.email, code);
-    
-    if (!mounted) return;
+    if (code.length < 6) {
+      FloatingErrorBar.show(context, message: "Please enter the 6-digit code");
+      return;
+    }
 
-    if (success) {
-      FloatingSuccessBar.show(context, message: "Email verified successfully!");
-      context.go(AppPaths.login);
+    setState(() => _isVerifying = true);
+    
+    final challengeId = widget.args.challengeId;
+    if (challengeId != null) {
+      bool success = false;
+      String? errorMsg;
+      try {
+        await ref.read(authRepositoryProvider).verifyTwoFactorChallenge(
+          challengeId: challengeId,
+          type: "EMAIL_OTP",
+          code: code,
+        );
+        ref.read(authProvider.notifier).setAuthenticated(widget.args.email);
+        success = true;
+      } on ApiException catch (e) {
+        errorMsg = e.message;
+      } catch (_) {
+        errorMsg = "Verification failed";
+      } finally {
+        if (mounted) setState(() => _isVerifying = false);
+      }
+
+      if (!mounted) return;
+
+      if (success) {
+        FloatingSuccessBar.show(context, message: "Welcome back!");
+        context.go(AppPaths.bottom_manu);
+      } else {
+        FloatingErrorBar.show(context, message: errorMsg ?? "Verification failed");
+      }
     } else {
-      final errorMsg = ref.read(authProvider).errorMessage ?? "Verification failed";
-      FloatingErrorBar.show(context, message: errorMsg);
+      final success = await ref.read(twoFactorNotifierProvider.notifier).confirmEmailEnrollment(code);
+      if (mounted) setState(() => _isVerifying = false);
+
+      if (!mounted) return;
+
+      if (success) {
+        FloatingSuccessBar.show(context, message: "Email 2FA enrolled successfully!");
+        context.pop(); // Return to TwoFactorSettingsScreen
+      } else {
+        final errorMsg = ref.read(twoFactorNotifierProvider).errorMessage ?? "Verification failed";
+        FloatingErrorBar.show(context, message: errorMsg);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-    final isLoading = authState.status == AuthStatus.loading;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final isLoading = _isVerifying;
 
     final defaultPinTheme = PinTheme(
       width: 56,
@@ -78,7 +130,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Verify Email"),
+        title: Text(widget.args.challengeId != null ? "Two-Factor Verification" : "Verify Email 2FA"),
         elevation: 0,
         backgroundColor: Colors.transparent,
         foregroundColor: theme.colorScheme.onBackground,
@@ -102,7 +154,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        "We sent a 6-digit code to \n${widget.email}",
+                        "We sent a 6-digit code to \n${widget.args.email}",
                         textAlign: TextAlign.center,
                         maxLines: 5,
                         overflow: TextOverflow.ellipsis,
@@ -136,15 +188,11 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                       ),
                       const SizedBox(height: 32),
                       if (isLoading)
-                        const CircularProgressIndicator()
+                        const CupertinoActivityIndicator()
                       else
                         ElevatedButton(
                           onPressed: () {
-                            if (_pinController.text.length == 6) {
-                              _verifyOtp(_pinController.text);
-                            } else {
-                              FloatingErrorBar.show(context, message: "Please enter the 6-digit code");
-                            }
+                            _verifyOtp(_pinController.text);
                           },
                           style: ElevatedButton.styleFrom(
                             minimumSize: const Size.fromHeight(50),

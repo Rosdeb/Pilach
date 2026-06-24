@@ -39,6 +39,10 @@ class AppPaths {
   static const String chat_theme_selection = '/chat_theme_selection_screen';
   static const String story_details = '/story_details_screen';
   static const String chat_search = '/chat_search_screen';
+  static const String two_factor_settings = '/two_factor_settings_screen';
+  static const String two_factor_verify = '/two_factor_verify_screen';
+  static const String two_factor_email_verify = '/two_factor_email_verify_screen';
+  static const String two_factor_sms_verify = '/two_factor_sms_verify_screen';
 
 }
 
@@ -62,6 +66,10 @@ class AppRoutes {
   static const String chat_theme_selection = 'chat_theme_selection_screen';
   static const String story_details = 'story_details_screen';
   static const String chat_search = 'chat_search_screen';
+  static const String two_factor_settings = 'two_factor_settings_screen';
+  static const String two_factor_verify = 'two_factor_verify_screen';
+  static const String two_factor_email_verify = 'two_factor_email_verify_screen';
+  static const String two_factor_sms_verify = 'two_factor_sms_verify_screen';
 
 }
 

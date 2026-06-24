@@ -19,6 +19,10 @@ import 'package:messageapp/Features/auth/presentation/screens/splash_screen.dart
 import 'package:messageapp/Features/auth/presentation/screens/login_screen.dart';
 import 'package:messageapp/Features/auth/presentation/screens/register_screen.dart';
 import 'package:messageapp/Features/auth/presentation/screens/verify_email_screen.dart';
+import 'package:messageapp/Features/auth/presentation/screens/two_factor_verify_screen.dart';
+import 'package:messageapp/Features/auth/presentation/screens/two_factor_email_verify_screen.dart';
+import 'package:messageapp/Features/auth/presentation/screens/two_factor_sms_verify_screen.dart';
+import 'package:messageapp/Features/Me/presentation/screens/security_privacy/two_factor_settings_screen.dart';
 import 'package:messageapp/Features/auth/presentation/providers/auth_provider.dart';
 
 import '../../Features/bottom_nav_bar/presentation/screens/bottom_manu_wrappers.dart';
@@ -106,7 +110,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final status = authState.status;
 
       final isSplashing = state.uri.path == AppPaths.splash;
-      final isLoggingIn = state.uri.path == AppPaths.login || state.uri.path == AppPaths.register || state.uri.path == AppPaths.verify_email;
+      final isLoggingIn = state.uri.path == AppPaths.login ||
+          state.uri.path == AppPaths.register ||
+          state.uri.path == AppPaths.verify_email ||
+          state.uri.path == AppPaths.two_factor_verify ||
+          state.uri.path == AppPaths.two_factor_email_verify ||
+          state.uri.path == AppPaths.two_factor_sms_verify;
 
       if (status == AuthStatus.initial) {
         return null; // Stay on splash while loading initial auth state
@@ -201,6 +210,51 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           child: SecurityPrivacyScreen(),
         ),
+      ),
+
+      GoRoute(
+        path: AppPaths.two_factor_settings,
+        name: AppRoutes.two_factor_settings,
+        pageBuilder: (context, state) => buildSlideTransitionPage(
+          key: state.pageKey,
+          child: const TwoFactorSettingsScreen(),
+        ),
+      ),
+
+      GoRoute(
+        path: AppPaths.two_factor_verify,
+        name: AppRoutes.two_factor_verify,
+        pageBuilder: (context, state) {
+          final args = state.extra as TwoFactorVerifyArgs;
+          return buildSlideTransitionPage(
+            key: state.pageKey,
+            child: TwoFactorVerifyScreen(args: args),
+          );
+        },
+      ),
+
+      GoRoute(
+        path: AppPaths.two_factor_email_verify,
+        name: AppRoutes.two_factor_email_verify,
+        pageBuilder: (context, state) {
+          final args = state.extra as TwoFactorEmailVerifyArgs;
+          return buildSlideTransitionPage(
+            key: state.pageKey,
+            child: TwoFactorEmailVerifyScreen(args: args),
+          );
+        },
+      ),
+
+      GoRoute(
+        path: AppPaths.two_factor_sms_verify,
+        name: AppRoutes.two_factor_sms_verify,
+        pageBuilder: (context, state) {
+          final args = state.extra as TwoFactorSmsVerifyArgs;
+          return buildSlideTransitionPage(
+            key: state.pageKey,
+            child: TwoFactorSmsVerifyScreen(args: args),
+          );
+        },
       ),
 
       GoRoute(
