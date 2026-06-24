@@ -2,16 +2,17 @@ class ApiConstants {
   // ================================
   // 🌐 Base URLs
   // ================================
-  static const String baseUrl = "https://api.yourapp.com";
+  static const String baseUrl = "https://messenger.xdtunnel.icu";
   static const String socketUrl = "https://socket.yourapp.com";
 
   // ================================
   // 🔐 Auth Endpoints
   // ================================
-  static const String login = "/auth/login";
-  static const String register = "/auth/register";
-  static const String logout = "/auth/logout";
-  static const String refreshToken = "/auth/refresh-token";
+  static const String login = "/api/v1/auth/login";
+  static const String register = "/api/v1/auth/register";
+  static const String logout = "/api/v1/auth/logout";
+  static const String refreshToken = "/api/v1/auth/refresh";
+  static const String verifyOtp = "/api/v1/auth/email/verify/otp";
 
   // ================================
   // 👤 User/Profile

@@ -118,6 +118,8 @@ class _FloatingErrorBarState extends State<FloatingErrorBar>
                   Expanded(
                     child: Text(
                       widget.message,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.black,
                         fontSize: 14,

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:messageapp/components/AppText/appText.dart';
 import 'package:messageapp/core/constants/app_constants.dart';
 import 'package:messageapp/core/utils/app_colour.dart';
+import 'package:messageapp/components/PasswordTextField/password_text_field.dart';
 
 class ChangePasswordScreen extends ConsumerStatefulWidget {
   const ChangePasswordScreen({Key? key}) : super(key: key);
@@ -17,10 +18,6 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-
-  bool _obscureCurrent = true;
-  bool _obscureNew = true;
-  bool _obscureConfirm = true;
 
   bool _isLoading = false;
   String? _currentPasswordError;
@@ -121,12 +118,10 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                     const SizedBox(height: 32),
 
                     // --- CURRENT PASSWORD ---
-                    _buildPasswordField(
-                      context,
+                    PasswordTextField(
                       label: 'Current Password',
+                      hintText: 'Enter your current password',
                       controller: _currentPasswordController,
-                      obscureText: _obscureCurrent,
-                      onToggleVisibility: () => setState(() => _obscureCurrent = !_obscureCurrent),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Current password cannot be empty.';
@@ -136,16 +131,20 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                         }
                         return null;
                       },
+                      onChanged: (val) {
+                        if (_currentPasswordError != null) {
+                          setState(() => _currentPasswordError = null);
+                          _formKey.currentState!.validate();
+                        }
+                      },
                     ),
                     const SizedBox(height: 24),
 
                     // --- NEW PASSWORD ---
-                    _buildPasswordField(
-                      context,
+                    PasswordTextField(
                       label: 'New Password',
+                      hintText: 'Enter a strong new password',
                       controller: _newPasswordController,
-                      obscureText: _obscureNew,
-                      onToggleVisibility: () => setState(() => _obscureNew = !_obscureNew),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'New password cannot be empty.';
@@ -162,12 +161,10 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                     const SizedBox(height: 24),
 
                     // --- CONFIRM NEW PASSWORD ---
-                    _buildPasswordField(
-                      context,
+                    PasswordTextField(
                       label: 'Confirm New Password',
+                      hintText: 'Re-enter your new password',
                       controller: _confirmPasswordController,
-                      obscureText: _obscureConfirm,
-                      onToggleVisibility: () => setState(() => _obscureConfirm = !_obscureConfirm),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Please confirm your new password.';
@@ -207,55 +204,5 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
     );
   }
 
-  Widget _buildPasswordField(
-    BuildContext context, {
-    required String label,
-    required TextEditingController controller,
-    required bool obscureText,
-    required VoidCallback onToggleVisibility,
-    required String? Function(String?) validator,
-  }) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurface),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          obscureText: obscureText,
-          style: TextStyle(color: theme.colorScheme.onSurface),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: theme.colorScheme.surface,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            errorStyle: const TextStyle(height: 1.2),
-            errorMaxLines: 2,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            suffixIcon: IconButton(
-              icon: Icon(
-                obscureText ? CupertinoIcons.eye_slash : CupertinoIcons.eye,
-                color: theme.colorScheme.onSurface.withOpacity(0.5),
-                size: 20,
-              ),
-              onPressed: onToggleVisibility,
-            ),
-          ),
-          validator: validator,
-          onChanged: (val) {
-            if (label == 'Current Password' && _currentPasswordError != null) {
-              setState(() => _currentPasswordError = null);
-              _formKey.currentState!.validate();
-            }
-          },
-        ),
-      ],
-    );
-  }
+
 }

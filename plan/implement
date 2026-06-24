@@ -1,0 +1,263 @@
+baseUrl: https://messenger.xdtunnel.icu    endpoint: /api/v1/auth/login
+
+Mobile / API clients: send X-Auth-Transport: bearer. Tokens are returned in the response body under tokens and no cookie is set; send the access token back as Authorization: Bearer <token>.
+body: {
+          "email": "rosdevkoch@gmail.com",
+          "password": "12345678"
+      }
+
+response : {
+               "success": true,
+               "message": "Logged in successfully",
+               "statusCode": 200,
+               "data": {
+                   "id": "17e2377c-2221-4c39-b9b0-9ad4dc770f48",
+                   "name": "Rosdeb Koch",
+                   "avatar": null,
+                   "email": "rosdevkoch@gmail.com",
+                   "role": "USER"
+               },
+               "tokens": {
+                   "access": {
+                       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxN2UyMzc3Yy0yMjIxLTRjMzktYjliMC05YWQ0ZGM3NzBmNDgiLCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3ODIzMDY5NjIsImV4cCI6MTc4MjMwNzg2Mn0.a9ks_-rWZY2gPoZLs6QsmaWy_GITIcADIT0k5-Ghrxs",
+                       "expiresAt": "2026-06-24T13:31:02.756Z"
+                   },
+                   "refresh": {
+                       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxN2UyMzc3Yy0yMjIxLTRjMzktYjliMC05YWQ0ZGM3NzBmNDgiLCJ0b2tlblR5cGUiOiJyZWZyZXNoIiwiaWF0IjoxNzgyMzA2OTYyLCJleHAiOjE3ODQ4OTg5NjJ9.T7RWinqPgbluGpN7oYEa1jEHbOxKCFQw0VHkzCVU3z8",
+                       "expiresAt": "2026-07-24T13:16:02.756Z"
+                   }
+             }
+        }
+
+
+ Register use route or response :
+
+ endpoint : /api/v1/auth/register
+
+ body:
+{
+    "email": "rosdevkoch@gmail.com",
+    "password": "12345678",
+    "name": "Rosdeb Koch"
+}
+
+response : {
+               "success": true,
+               "message": "Account created successfully",
+               "statusCode": 201
+           }
+
+
+use error message or successBar message on @lib/components/FloatingErrorBar or /SuccessBar
+status code : 200 for SuccessBar or other for FloatingErrorBar
+
+
+
+Token refresh : /api/v1/auth/refresh
+body:
+{
+    "refreshToken": "enim amet mollit Ut ad"
+}
+
+response : {
+               "success": true,
+               "message": "Token refreshed",
+               "statusCode": 200,
+               "tokens": {
+                   "access": {
+                       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxN2UyMzc3Yy0yMjIxLTRjMzktYjliMC05YWQ0ZGM3NzBmNDgiLCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3ODIzMDg0NzUsImV4cCI6MTc4MjMwOTM3NX0.hdNODp1Z5dV86nk34qN1_SmCwsJgSV1_nujYYE80BUg",
+                       "expiresAt": "2026-06-24T13:56:15.566Z"
+                   },
+                   "refresh": {
+                       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxN2UyMzc3Yy0yMjIxLTRjMzktYjliMC05YWQ0ZGM3NzBmNDgiLCJ0b2tlblR5cGUiOiJyZWZyZXNoIiwiaWF0IjoxNzgyMzA4NDc1LCJleHAiOjE3ODQ5MDA0NzV9.5dt2VjtKoKvopQvnhDPC806RYe2FC7ywlJknnWWdx4M",
+                       "expiresAt": "2026-07-24T13:41:15.566Z"
+                   }
+               }
+           }
+
+
+
+ baseUrl: https://messenger.xdtunnel.icu    endpoint: /api/v1/auth/login
+
+
+
+ Mobile / API clients: send X-Auth-Transport: bearer. Tokens are returned in the response body under tokens and no cookie is set; send the access token back as Authorization: Bearer <token>.
+
+ body: {
+
+           "email": "rosdevkoch@gmail.com",
+
+           "password": "12345678"
+
+       }
+
+
+
+ response : {
+
+                "success": true,
+
+                "message": "Logged in successfully",
+
+                "statusCode": 200,
+
+                "data": {
+
+                    "id": "17e2377c-2221-4c39-b9b0-9ad4dc770f48",
+
+                    "name": "Rosdeb Koch",
+
+                    "avatar": null,
+
+                    "email": "rosdevkoch@gmail.com",
+
+                    "role": "USER"
+
+                },
+
+                "tokens": {
+
+                    "access": {
+
+                        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxN2UyMzc3Yy0yMjIxLTRjMzktYjliMC05YWQ0ZGM3NzBmNDgiLCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3ODIzMDY5NjIsImV4cCI6MTc4MjMwNzg2Mn0.a9ks_-rWZY2gPoZLs6QsmaWy_GITIcADIT0k5-Ghrxs",
+
+                        "expiresAt": "2026-06-24T13:31:02.756Z"
+
+                    },
+
+                    "refresh": {
+
+                        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxN2UyMzc3Yy0yMjIxLTRjMzktYjliMC05YWQ0ZGM3NzBmNDgiLCJ0b2tlblR5cGUiOiJyZWZyZXNoIiwiaWF0IjoxNzgyMzA2OTYyLCJleHAiOjE3ODQ4OTg5NjJ9.T7RWinqPgbluGpN7oYEa1jEHbOxKCFQw0VHkzCVU3z8",
+
+                        "expiresAt": "2026-07-24T13:16:02.756Z"
+
+                    }
+
+              }
+
+         }
+
+
+
+
+
+  Register use route or response :
+
+
+
+  endpoint : /api/v1/auth/register
+
+
+
+  body:
+
+ {
+
+     "email": "rosdevkoch@gmail.com",
+
+     "password": "12345678",
+
+     "name": "Rosdeb Koch"
+
+ }
+
+
+
+ response : {
+
+                "success": true,
+
+                "message": "Account created successfully",
+
+                "statusCode": 201
+
+            }
+
+
+
+
+
+ use error message or successBar message on @lib/components/FloatingErrorBar or /SuccessBar
+
+ status code : 200 for SuccessBar or other for FloatingErrorBar
+
+
+
+
+
+
+
+ Token refresh : /api/v1/auth/refresh
+
+ body:
+
+ {
+
+     "refreshToken": "enim amet mollit Ut ad"
+
+ }
+
+
+
+ response : {
+
+                "success": true,
+
+                "message": "Token refreshed",
+
+                "statusCode": 200,
+
+                "tokens": {
+
+                    "access": {
+
+                        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxN2UyMzc3Yy0yMjIxLTRjMzktYjliMC05YWQ0ZGM3NzBmNDgiLCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3ODIzMDg0NzUsImV4cCI6MTc4MjMwOTM3NX0.hdNODp1Z5dV86nk34qN1_SmCwsJgSV1_nujYYE80BUg",
+
+                        "expiresAt": "2026-06-24T13:56:15.566Z"
+
+                    },
+
+                    "refresh": {
+
+                        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxN2UyMzc3Yy0yMjIxLTRjMzktYjliMC05YWQ0ZGM3NzBmNDgiLCJ0b2tlblR5cGUiOiJyZWZyZXNoIiwiaWF0IjoxNzgyMzA4NDc1LCJleHAiOjE3ODQ5MDA0NzV9.5dt2VjtKoKvopQvnhDPC806RYe2FC7ywlJknnWWdx4M",
+
+                        "expiresAt": "2026-07-24T13:41:15.566Z"
+
+                    }
+
+                }
+
+            }
+
+
+
+
+
+             make proper pan also inclued the
+
+
+ *Verify email : first you make screen use this package pinput: ^6.0.2  for this type With Bottom Cursor
+ /api/v1/auth/email/verify/otp
+
+
+  body: {
+
+     "email": "rosdevkoch@gmail.com",
+
+     "code": "268712"
+
+ }
+
+
+
+ {
+
+     "success": true,
+
+     "message": "Email verified successfully",
+
+     "statusCode": 200
+
+ }
+
+make a proper plan the implent for prompt need alsu auto refresh system when server give me unathorize...

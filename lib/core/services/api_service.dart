@@ -1,38 +1,12 @@
 import 'package:dio/dio.dart';
+import 'package:messageapp/core/network/api_exceptions.dart';
 
 import '../constants/api_constants.dart';
 
 class ApiService {
   final Dio _dio;
 
-  ApiService() : _dio = Dio(
-    BaseOptions(
-      baseUrl: ApiConstants.baseUrl,
-      connectTimeout: const Duration(
-        milliseconds: ApiConstants.connectTimeout,
-      ),
-      receiveTimeout: const Duration(
-        milliseconds: ApiConstants.receiveTimeout,
-      ),
-      headers: {
-        'Content-Type': ApiConstants.contentType,
-        'Accept': ApiConstants.contentType,
-      },
-    ),
-  ) {
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          // Token later add korba
-          // options.headers['Authorization'] = 'Bearer $token';
-          return handler.next(options);
-        },
-        onError: (DioException error, handler) {
-          return handler.next(error);
-        },
-      ),
-    );
-  }
+  ApiService(this._dio);
 
   Future<Response> get(
       String endpoint, {
@@ -44,7 +18,7 @@ class ApiService {
         queryParameters: queryParameters,
       );
     } on DioException catch (e) {
-      throw _handleError(e);
+      throw ApiException.fromDioError(e);
     }
   }
 
@@ -58,7 +32,7 @@ class ApiService {
         data: data,
       );
     } on DioException catch (e) {
-      throw _handleError(e);
+      throw ApiException.fromDioError(e);
     }
   }
 
@@ -72,7 +46,7 @@ class ApiService {
         data: data,
       );
     } on DioException catch (e) {
-      throw _handleError(e);
+      throw ApiException.fromDioError(e);
     }
   }
 
@@ -86,7 +60,7 @@ class ApiService {
         data: data,
       );
     } on DioException catch (e) {
-      throw _handleError(e);
+      throw ApiException.fromDioError(e);
     }
   }
 
@@ -107,26 +81,9 @@ class ApiService {
         data: formData,
       );
     } on DioException catch (e) {
-      throw _handleError(e);
+      throw ApiException.fromDioError(e);
     }
   }
 
-  String _handleError(DioException error) {
-    if (error.response != null) {
-      return error.response?.data['message'] ?? 'Something went wrong';
-    }
 
-    switch (error.type) {
-      case DioExceptionType.connectionTimeout:
-        return 'Connection timeout';
-      case DioExceptionType.receiveTimeout:
-        return 'Receive timeout';
-      case DioExceptionType.badResponse:
-        return 'Bad response from server';
-      case DioExceptionType.cancel:
-        return 'Request cancelled';
-      default:
-        return 'No internet connection';
-    }
-  }
 }

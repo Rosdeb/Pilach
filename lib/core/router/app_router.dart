@@ -1,5 +1,6 @@
 import 'package:flutter/animation.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:messageapp/Features/Chat/presentation/screens/inbox_screen/direct_chat_screen.dart';
@@ -17,6 +18,7 @@ import 'package:messageapp/Features/Me/presentation/screens/security_privacy/cha
 import 'package:messageapp/Features/auth/presentation/screens/splash_screen.dart';
 import 'package:messageapp/Features/auth/presentation/screens/login_screen.dart';
 import 'package:messageapp/Features/auth/presentation/screens/register_screen.dart';
+import 'package:messageapp/Features/auth/presentation/screens/verify_email_screen.dart';
 import 'package:messageapp/Features/auth/presentation/providers/auth_provider.dart';
 
 import '../../Features/bottom_nav_bar/presentation/screens/bottom_manu_wrappers.dart';
@@ -72,12 +74,39 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: AppPaths.splash,
     refreshListenable: refreshListenable,
+    errorBuilder: (context, state) => Scaffold(
+      appBar: AppBar(title: const Text('Navigation Error')),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Routing Error:\n\n${state.error}',
+                    style: const TextStyle(color: Colors.red, fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => context.go(AppPaths.splash),
+                    child: const Text('Return Home'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
     redirect: (context, state) {
       final authState = ref.read(authProvider);
       final status = authState.status;
 
-      final isSplashing = state.matchedLocation == AppPaths.splash;
-      final isLoggingIn = state.matchedLocation == AppPaths.login || state.matchedLocation == AppPaths.register;
+      final isSplashing = state.uri.path == AppPaths.splash;
+      final isLoggingIn = state.uri.path == AppPaths.login || state.uri.path == AppPaths.register || state.uri.path == AppPaths.verify_email;
 
       if (status == AuthStatus.initial) {
         return null; // Stay on splash while loading initial auth state
@@ -124,6 +153,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           child: const RegisterScreen(),
         ),
+      ),
+
+      GoRoute(
+        path: AppPaths.verify_email,
+        name: AppRoutes.verify_email,
+        pageBuilder: (context, state) {
+          final email = state.extra as String? ?? '';
+          return buildSlideTransitionPage(
+            key: state.pageKey,
+            child: VerifyEmailScreen(email: email),
+          );
+        },
       ),
 
       GoRoute(

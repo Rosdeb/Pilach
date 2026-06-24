@@ -31,7 +31,7 @@ class _BottomMenuWrapperState extends ConsumerState<BottomMenuWrapper> {
   ];
 
   void _handleTabChange(int index) {
-    ref.read(bottomNavProvider.notifier).state = index;
+    ref.read(bottomNavProvider.notifier).changeIndex(index);
   }
 
   @override

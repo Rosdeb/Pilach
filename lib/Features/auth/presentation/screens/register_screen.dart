@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -6,8 +7,10 @@ import 'package:zoom_tap_animation/zoom_tap_animation.dart';
 
 import '../../../../components/AppText/appText.dart';
 import '../../../../components/FloatingErrorBar/floatingbar.dart';
+import '../../../../components/SuccessBar/successbar.dart';
 
 import '../../../../core/constants/asset_constants.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
 
@@ -53,7 +56,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         final errorMsg = ref.read(authProvider).errorMessage ?? "Registration failed";
         FloatingErrorBar.show(context, message: errorMsg);
       } else {
-        // Router listener will automatically handle redirection
+        FloatingSuccessBar.show(context, message: "Account created successfully!");
+        context.push(AppPaths.verify_email, extra: _emailController.text);
       }
     }
   }
@@ -200,10 +204,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                 ? const SizedBox(
                                     height: 24,
                                     width: 24,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2.5,
-                                    ),
+                                    child: CupertinoActivityIndicator(color: Colors.white),
                                   )
                                 : const AppText(
                                     "Sign Up",

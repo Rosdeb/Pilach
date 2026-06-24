@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:messageapp/core/network/api_exceptions.dart';
+import '../../../../core/providers/api_provider.dart';
+import '../../data/repositories/auth_repository.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
 
@@ -35,21 +39,31 @@ class AuthState {
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier();
+  final notifier = AuthNotifier(ref.watch(authRepositoryProvider));
+  
+  ref.listen<int>(unauthenticatedTriggerProvider, (previous, next) {
+    if (next > 0) {
+      notifier.logout();
+    }
+  });
+
+  return notifier;
 });
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier() : super(AuthState.initial()) {
+  final AuthRepository _authRepository;
+  
+  AuthNotifier(this._authRepository) : super(AuthState.initial()) {
     checkAuth();
   }
 
-  static const _tokenKey = 'access_token';
+  static const _tokenKey = 'auth_token';
 
   Future<void> checkAuth() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);
     if (token != null) {
-      state = AuthState.authenticated("user@example.com");
+      state = AuthState.authenticated("user");
     } else {
       state = AuthState.unauthenticated();
     }
@@ -57,58 +71,58 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<bool> login(String email, String password) async {
     state = AuthState.loading();
-    await Future.delayed(const Duration(milliseconds: 1500)); // Mock network delay
 
-    if (email.trim().isEmpty || password.isEmpty) {
-      state = AuthState.error("Email and password cannot be empty");
+    try {
+      final userData = await _authRepository.login(email, password);
+      state = AuthState.authenticated(userData['email'] ?? email);
+      return true;
+    } on ApiException catch (e) {
+      state = AuthState.error(e.message);
+      return false;
+    } catch (e) {
+      state = AuthState.error("Something went wrong");
       return false;
     }
-
-    if (!email.contains('@')) {
-      state = AuthState.error("Please enter a valid email address");
-      return false;
-    }
-
-    // Save mock token
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_tokenKey, "mock_token_123");
-
-    state = AuthState.authenticated(email);
-    return true;
   }
 
   Future<bool> register(String name, String email, String password) async {
     state = AuthState.loading();
-    await Future.delayed(const Duration(milliseconds: 1500)); // Mock network delay
 
-    if (name.trim().isEmpty || email.trim().isEmpty || password.isEmpty) {
-      state = AuthState.error("All fields are required");
+    try {
+      await _authRepository.register(name, email, password);
+      state = AuthState.unauthenticated();
+      return true;
+    } on ApiException catch (e) {
+      state = AuthState.error(e.message);
+      return false;
+    } catch (e) {
+      state = AuthState.error("Something went wrong");
       return false;
     }
+  }
 
-    if (!email.contains('@')) {
-      state = AuthState.error("Please enter a valid email address");
+  Future<bool> verifyOtp(String email, String code) async {
+    state = AuthState.loading();
+    try {
+      await _authRepository.verifyEmailOtp(email, code);
+      state = AuthState.unauthenticated(); // Ready to login
+      return true;
+    } on ApiException catch (e) {
+      state = AuthState.error(e.message);
+      return false;
+    } catch (e) {
+      state = AuthState.error("Something went wrong");
       return false;
     }
-
-    if (password.length < 6) {
-      state = AuthState.error("Password must be at least 6 characters long");
-      return false;
-    }
-
-    // Save mock token
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_tokenKey, "mock_token_123");
-
-    state = AuthState.authenticated(email);
-    return true;
   }
 
   Future<void> logout() async {
     state = AuthState.loading();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
-    await Future.delayed(const Duration(milliseconds: 800));
+    try {
+      await _authRepository.logout();
+    } catch (_) {
+      // Ignore API errors, we still want to log out locally
+    }
     state = AuthState.unauthenticated();
   }
 }

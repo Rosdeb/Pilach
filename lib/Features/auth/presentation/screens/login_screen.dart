@@ -7,6 +7,7 @@ import 'package:zoom_tap_animation/zoom_tap_animation.dart';
 
 import '../../../../components/AppText/appText.dart';
 import '../../../../components/FloatingErrorBar/floatingbar.dart';
+import '../../../../components/SuccessBar/successbar.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/asset_constants.dart';
 import '../providers/auth_provider.dart';
@@ -44,7 +45,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         final errorMsg = ref.read(authProvider).errorMessage ?? "Authentication failed";
         FloatingErrorBar.show(context, message: errorMsg);
       } else {
-        // Router listener will automatically handle redirection
+        FloatingSuccessBar.show(context, message: "Logged in successfully!");
       }
     }
   }
