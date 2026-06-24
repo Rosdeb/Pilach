@@ -59,11 +59,10 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen> {
                 children: [
                   // --- SECTION 1: NOTIFICATIONS ---
                   _buildSectionHeader(context, 'SYSTEM ALERTS'),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  Material(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    clipBehavior: Clip.antiAlias,
                     child: Column(
                       children: [
                         _buildSwitchRow(
@@ -88,11 +87,10 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen> {
 
                   // --- SECTION 2: MARKETING ---
                   _buildSectionHeader(context, 'MARKETING & CONTENT'),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  Material(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    clipBehavior: Clip.antiAlias,
                     child: Column(
                       children: [
                         _buildSwitchRow(

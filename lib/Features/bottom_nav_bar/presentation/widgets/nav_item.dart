@@ -22,6 +22,10 @@ class NavItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final selectedColor = theme.colorScheme.onSurface;
+    final unselectedColor = theme.colorScheme.onSurface.withValues(alpha: 0.5);
+
     return ZoomTapAnimation(
       onTap: () {
         ref.read(bottomNavProvider.notifier).changeIndex(index);
@@ -41,17 +45,15 @@ class NavItem extends ConsumerWidget {
           children: [
             Icon(
               icon,
-              color: isSelected ? const Color(0xFF1A1A1A) : const Color(0xFF757575),
-              size: isSelected ? 25 : 25,),
-
+              color: isSelected ? selectedColor : unselectedColor,
+              size: 25,
+            ),
             AppText(
               label,
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
-                color: isSelected
-                    ? const Color(0xFF000000)
-                    : const Color(0xFF757575),
+                color: isSelected ? selectedColor : unselectedColor,
               ),
             ),
           ],

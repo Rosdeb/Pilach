@@ -196,7 +196,14 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                       ),
                     ),
                   ),
-                  const SizedBox(height: 32),
+
+                  AppText(
+                    qrData,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.9), fontSize: 10, height: 1.4),
+                  ),
+
+                  const SizedBox(height: 25),
 
                   Text(
                     "Your QR code is private. Other people can scan this to add or connect with you instantly.",

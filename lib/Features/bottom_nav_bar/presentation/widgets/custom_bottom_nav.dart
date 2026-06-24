@@ -20,24 +20,19 @@ class CustomBottomNav extends ConsumerWidget {
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(24),
                 topRight: Radius.circular(24),
               ),
-              color: Colors.white.withValues(alpha: 0.65),
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 3,
-                    spreadRadius: 0,
-                    offset: const Offset(0, -4,), // negative Y moves the shadow directly UPWARDS
-                  ),
-                ],
-              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 3,
+                  spreadRadius: 0,
+                  offset: const Offset(0, -4),
+                ),
+              ],
             ),
           ),
 

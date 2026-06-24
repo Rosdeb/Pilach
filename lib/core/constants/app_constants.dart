@@ -32,7 +32,9 @@ class AppPaths {
   static const String bottom_manu = '/bottom_manu_wrappers';
   static const String email_setting = '/email_setting_screen';
   static const String security_privacy = '/security_privacy_screen';
+  static const String change_password = '/change_password_screen';
   static const String edit_profile = '/edit_profile_screen';
+
 }
 
 class AppRoutes {
@@ -48,6 +50,7 @@ class AppRoutes {
   static const String qr_screen = '/ar_scan_screen';
   static const String email_setting = '/email_setting_screen';
   static const String security_privacy = '/security_privacy_screen';
+  static const String change_password = '/change_password_screen';
   static const String edit_profile = '/edit_profile_screen';
 
 

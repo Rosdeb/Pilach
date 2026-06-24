@@ -2,8 +2,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_advanced_switch/flutter_advanced_switch.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:messageapp/components/AppText/appText.dart';
 import 'package:messageapp/core/utils/app_colour.dart';
+import 'package:messageapp/core/constants/app_constants.dart';
+import 'package:messageapp/core/services/permission_service.dart';
 import '../../providers/security_privacy_providers.dart';
 
 class SecurityPrivacyScreen extends ConsumerWidget {
@@ -52,11 +56,10 @@ class SecurityPrivacyScreen extends ConsumerWidget {
                 children: [
                   // --- SECTION 1: SECURITY ---
                   _buildSectionHeader(context, 'LOGIN SECURITY'),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  Material(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    clipBehavior: Clip.antiAlias,
                     child: Column(
                       children: [
                         _buildActionRow(
@@ -64,7 +67,9 @@ class SecurityPrivacyScreen extends ConsumerWidget {
                           icon: CupertinoIcons.lock,
                           iconColor: AppColors.successGreen,
                           title: 'Change Password',
-                          onTap: () {},
+                          onTap: () {
+                            context.push(AppPaths.change_password);
+                          },
                         ),
                         _buildDivider(context),
                         _buildSwitchRow(
@@ -89,11 +94,10 @@ class SecurityPrivacyScreen extends ConsumerWidget {
 
                   // --- SECTION 2: PRIVACY & PERMISSIONS ---
                   _buildSectionHeader(context, 'APP PERMISSIONS'),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  Material(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    clipBehavior: Clip.antiAlias,
                     child: Column(
                       children: [
                         _buildActionRow(
@@ -101,8 +105,8 @@ class SecurityPrivacyScreen extends ConsumerWidget {
                           iconColor: AppColors.successGreen,
                           icon: CupertinoIcons.location,
                           title: 'Location Services',
-                          trailingText: 'While Using',
-                          onTap: () {},
+                          trailingText: _getPermissionText(ref.watch(permissionStatusProvider(Permission.locationWhenInUse))),
+                          onTap: () => _handlePermissionRequest(context, ref, Permission.locationWhenInUse),
                         ),
                         _buildDivider(context),
                         _buildActionRow(
@@ -110,8 +114,8 @@ class SecurityPrivacyScreen extends ConsumerWidget {
                           iconColor: AppColors.successGreen,
                           icon: CupertinoIcons.photo,
                           title: 'Photos Access',
-                          trailingText: 'All Photos',
-                          onTap: () {},
+                          trailingText: _getPermissionText(ref.watch(permissionStatusProvider(Permission.photos))),
+                          onTap: () => _handlePermissionRequest(context, ref, Permission.photos),
                         ),
                         _buildDivider(context),
                         _buildActionRow(
@@ -119,7 +123,8 @@ class SecurityPrivacyScreen extends ConsumerWidget {
                           iconColor: AppColors.successGreen,
                           icon: CupertinoIcons.mic,
                           title: 'Microphone Permissions',
-                          onTap: () {},
+                          trailingText: _getPermissionText(ref.watch(permissionStatusProvider(Permission.microphone))),
+                          onTap: () => _handlePermissionRequest(context, ref, Permission.microphone),
                         ),
                       ],
                     ),
@@ -128,11 +133,10 @@ class SecurityPrivacyScreen extends ConsumerWidget {
 
                   // --- SECTION 3: DATA MANAGEMENT ---
                   _buildSectionHeader(context, 'DATA MANAGEMENT'),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  Material(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    clipBehavior: Clip.antiAlias,
                     child: Column(
                       children: [
                         _buildActionRow(
@@ -180,6 +184,55 @@ class SecurityPrivacyScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  String _getPermissionText(AsyncValue<PermissionStatus> statusAsync) {
+    return statusAsync.when(
+      data: (status) {
+        if (status.isGranted) return 'Granted';
+        if (status.isDenied) return 'Denied';
+        if (status.isPermanentlyDenied) return 'Blocked';
+        if (status.isLimited) return 'Limited';
+        if (status.isRestricted) return 'Restricted';
+        return 'Unknown';
+      },
+      loading: () => 'Checking...',
+      error: (_, __) => 'Error',
+    );
+  }
+
+  Future<void> _handlePermissionRequest(BuildContext context, WidgetRef ref, Permission permission) async {
+    final service = ref.read(permissionServiceProvider);
+    var status = await service.checkPermission(permission);
+    
+    if (!context.mounted) return;
+    
+    if (status.isPermanentlyDenied || status.isRestricted) {
+      final openSettings = await showCupertinoDialog<bool>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('Permission Required'),
+          content: const Text('This permission is permanently denied or restricted. Please enable it in your app settings.'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.pop(context, false),
+            ),
+            CupertinoDialogAction(
+              child: const Text('Open Settings'),
+              onPressed: () => Navigator.pop(context, true),
+            ),
+          ],
+        ),
+      );
+      if (openSettings == true) {
+        await service.openSettings();
+      }
+    } else if (!status.isGranted) {
+      status = await service.requestPermission(permission);
+    }
+    
+    ref.invalidate(permissionStatusProvider(permission));
   }
 
   // Helper row divider

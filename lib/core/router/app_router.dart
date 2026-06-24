@@ -9,6 +9,7 @@ import 'package:messageapp/Features/Me/presentation/screens/edit_profile/edit_pr
 import 'package:messageapp/Features/Me/presentation/screens/email_setting/email_setting_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/qr_scan/ar_scan_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/security_privacy/security_privacy_screen.dart';
+import 'package:messageapp/Features/Me/presentation/screens/security_privacy/change_password_screen.dart';
 import 'package:messageapp/Features/auth/presentation/screens/splash_screen.dart';
 import 'package:messageapp/Features/auth/presentation/screens/login_screen.dart';
 import 'package:messageapp/Features/auth/presentation/screens/register_screen.dart';
@@ -154,6 +155,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => buildSlideTransitionPage(
           key: state.pageKey,
           child: SecurityPrivacyScreen(),
+        ),
+      ),
+
+      GoRoute(
+        path: AppPaths.change_password,
+        name: AppRoutes.change_password,
+        pageBuilder: (context, state) => buildSlideTransitionPage(
+          key: state.pageKey,
+          child: const ChangePasswordScreen(),
         ),
       ),
 

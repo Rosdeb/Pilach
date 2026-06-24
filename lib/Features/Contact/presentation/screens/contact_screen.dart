@@ -108,11 +108,10 @@ class ContactScreen extends ConsumerWidget {
                       const SizedBox(height: 16.0),
 
                       // --- TOP ACTION CARD ITEMS ---
-                      Container(
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surface,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                      Material(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        clipBehavior: Clip.antiAlias,
                         child: Column(
                           children: [
                             _buildTopActionRow(context, icon: Icons.group_add_outlined, title: 'New Group',onTap: (){
@@ -164,11 +163,10 @@ class ContactScreen extends ConsumerWidget {
                                   ),
                                 ),
                                 // Round Background Block Container Box for targeted letter cluster list
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.surface,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
+                                Material(
+                                  color: theme.colorScheme.surface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  clipBehavior: Clip.antiAlias,
                                   child: ListView.separated(
                                     shrinkWrap: true,
                                     padding: EdgeInsets.zero,

@@ -341,11 +341,10 @@ class MeScreen extends ConsumerWidget {
 
   // Helper container that mimics iOS grouped list appearance
   Widget _buildSectionCard(BuildContext context, List<Widget> children) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
       child: Column(children: children),
     );
   }

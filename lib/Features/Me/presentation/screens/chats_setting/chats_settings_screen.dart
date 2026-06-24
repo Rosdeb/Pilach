@@ -117,29 +117,29 @@ class ChatsSettingsScreen extends ConsumerWidget {
                 children: [
                   const SizedBox(height: 8.0),
 
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      children: [
-                        _buildChatThemeTile(context, "Default chat theme", () {}),
-                        _buildDivider(context),
-                        _buildChatThemeTile(context, "Export chat", () {}),
-                      ],
+                  Material(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    clipBehavior: Clip.antiAlias,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Column(
+                        children: [
+                          _buildChatThemeTile(context, "Default chat theme", () {}),
+                          _buildDivider(context),
+                          _buildChatThemeTile(context, "Export chat", () {}),
+                        ],
+                      ),
                     ),
                   ),
 
                   const SizedBox(height: 24.0),
                   // --- SECTION 1: DISPLAY & THEME ---
                   _buildSectionHeader(context, 'DISPLAY'),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  Material(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    clipBehavior: Clip.antiAlias,
                     child: Column(
                       children: [
                         _buildActionRow(
@@ -167,11 +167,10 @@ class ChatsSettingsScreen extends ConsumerWidget {
 
                   // --- SECTION 2: CHAT PREFERENCES ---
                   _buildSectionHeader(context, 'CHAT SETTINGS'),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  Material(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    clipBehavior: Clip.antiAlias,
                     child: Column(
                       children: [
                         _buildSwitchRow(
@@ -200,11 +199,10 @@ class ChatsSettingsScreen extends ConsumerWidget {
 
                   // --- SECTION 3: MAINTENANCE & ARCHIVE ---
                   _buildSectionHeader(context, 'BACKUP & HISTORY'),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  Material(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    clipBehavior: Clip.antiAlias,
                     child: Column(
                       children: [
                         _buildActionRow(
