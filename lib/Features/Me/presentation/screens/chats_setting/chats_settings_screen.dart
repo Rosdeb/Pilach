@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_advanced_switch/flutter_advanced_switch.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:go_router/go_router.dart';
+import 'package:messageapp/core/constants/app_constants.dart';
 import 'package:messageapp/components/AppText/appText.dart';
 import 'package:messageapp/core/theme/theme_provider.dart';
 import 'package:messageapp/core/utils/app_colour.dart';
@@ -125,7 +127,9 @@ class ChatsSettingsScreen extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Column(
                         children: [
-                          _buildChatThemeTile(context, "Default chat theme", () {}),
+                          _buildChatThemeTile(context, "Default chat theme", () {
+                            context.push(AppPaths.chat_theme_selection);
+                          }),
                           _buildDivider(context),
                           _buildChatThemeTile(context, "Export chat", () {}),
                         ],

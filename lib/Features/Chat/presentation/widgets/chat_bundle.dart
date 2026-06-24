@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../../../../core/theme/chat_theme_model.dart';
 import '../screens/inbox_screen/direct_chat_screen.dart';
 
 class ChatBubble extends StatelessWidget {
   final MessageModel message;
+  final ChatTheme activeTheme;
 
-  const ChatBubble({super.key, required this.message});
+  const ChatBubble({super.key, required this.message, required this.activeTheme});
 
   @override
   Widget build(BuildContext context) {
@@ -21,8 +23,8 @@ class ChatBubble extends StatelessWidget {
             Container(
               decoration: BoxDecoration(
                 color: message.isMe
-                    ? const Color(0xFF0066E2) // Accurate screenshot outgoing blue hue
-                    : theme.colorScheme.surface,     // Surface background for incoming bubble
+                    ? activeTheme.sentMessageColor
+                    : activeTheme.receivedMessageColor,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
@@ -41,7 +43,9 @@ class ChatBubble extends StatelessWidget {
               child: Text(
                 message.text,
                 style: TextStyle(
-                  color: message.isMe ? Colors.white : theme.colorScheme.onSurface,
+                  color: message.isMe
+                      ? (activeTheme.sentMessageColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white)
+                      : (activeTheme.receivedMessageColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white),
                   fontSize: 15,
                   height: 1.25,
                 ),

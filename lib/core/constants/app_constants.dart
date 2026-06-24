@@ -35,6 +35,7 @@ class AppPaths {
   static const String change_password = '/change_password_screen';
   static const String edit_profile = '/edit_profile_screen';
   static const String all_stories = '/all_stories_screen';
+  static const String chat_theme_selection = '/chat_theme_selection_screen';
 
 }
 
@@ -54,6 +55,7 @@ class AppRoutes {
   static const String change_password = '/change_password_screen';
   static const String edit_profile = '/edit_profile_screen';
   static const String all_stories = '/all_stories_screen';
+  static const String chat_theme_selection = '/chat_theme_selection_screen';
 
 
 

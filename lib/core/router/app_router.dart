@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:messageapp/Features/Chat/presentation/screens/inbox_screen/direct_chat_screen.dart';
 import 'package:messageapp/Features/Discovers/presentation/screens/all_stories_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/block_userlist/block_userlist_screen.dart';
+import 'package:messageapp/Features/Me/presentation/screens/chats_setting/chat_theme_selection_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/chats_setting/chats_settings_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/edit_profile/edit_profile_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/email_setting/email_setting_screen.dart';
@@ -211,6 +212,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => buildSlideTransitionPage(
           key: state.pageKey,
           child: const AllStoriesScreen(),
+        ),
+      ),
+
+      GoRoute(
+        path: AppPaths.chat_theme_selection,
+        name: AppRoutes.chat_theme_selection,
+        pageBuilder: (context, state) => buildSlideTransitionPage(
+          key: state.pageKey,
+          child: const ChatThemeSelectionScreen(),
         ),
       ),
 
