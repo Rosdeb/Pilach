@@ -158,7 +158,7 @@ class ChatsSettingsScreen extends ConsumerWidget {
                           iconColor: Colors.teal,
                           title: 'Chat Wallpaper',
                           onTap: () {
-                            // Navigate to Wallpaper Customizer
+                            context.push(AppPaths.chat_wallpaper);
                           },
                         ),
                       ],

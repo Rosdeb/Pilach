@@ -10,6 +10,7 @@ import 'package:messageapp/Features/Discovers/presentation/screens/story_details
 import 'package:messageapp/Features/Me/presentation/screens/block_userlist/block_userlist_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/chats_setting/chat_theme_selection_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/chats_setting/chats_settings_screen.dart';
+import 'package:messageapp/Features/Me/presentation/screens/chats_setting/chat_wallpaper_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/edit_profile/edit_profile_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/email_setting/email_setting_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/qr_scan/ar_scan_screen.dart';
@@ -327,6 +328,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => buildSlideTransitionPage(
           key: state.pageKey,
           child: const ChatThemeSelectionScreen(),
+        ),
+      ),
+
+      GoRoute(
+        path: AppPaths.chat_wallpaper,
+        name: AppRoutes.chat_wallpaper,
+        pageBuilder: (context, state) => buildSlideTransitionPage(
+          key: state.pageKey,
+          child: const ChatWallpaperScreen(),
         ),
       ),
 

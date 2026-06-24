@@ -43,6 +43,7 @@ class AppPaths {
   static const String two_factor_verify = '/two_factor_verify_screen';
   static const String two_factor_email_verify = '/two_factor_email_verify_screen';
   static const String two_factor_sms_verify = '/two_factor_sms_verify_screen';
+  static const String chat_wallpaper = '/chat_wallpaper_screen';
 
 }
 
@@ -70,6 +71,7 @@ class AppRoutes {
   static const String two_factor_verify = 'two_factor_verify_screen';
   static const String two_factor_email_verify = 'two_factor_email_verify_screen';
   static const String two_factor_sms_verify = 'two_factor_sms_verify_screen';
+  static const String chat_wallpaper = 'chat_wallpaper_screen';
 
 }
 

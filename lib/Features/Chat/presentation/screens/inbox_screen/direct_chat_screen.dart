@@ -72,6 +72,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     final activeTheme = ref.watch(chatThemeProvider);
     final headerTextColor = activeTheme.backgroundColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
     final isEnterToSend = ref.watch(enterIsSendProvider);
+    final wallpaperUrl = ref.watch(chatWallpaperProvider);
 
     return Scaffold(
       backgroundColor: activeTheme.backgroundColor,
@@ -161,28 +162,38 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
         child: Column(
           children: [
             Expanded(
-              child: ListView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                children: [
-                  // Today Separator
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      margin: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: theme.dividerColor.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        'Today',
-                        style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 12, fontWeight: FontWeight.w500),
+              child: Container(
+                decoration: BoxDecoration(
+                  image: wallpaperUrl != null
+                      ? DecorationImage(
+                          image: NetworkImage(wallpaperUrl),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: ListView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                  children: [
+                    // Today Separator
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        margin: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          color: theme.dividerColor.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'Today',
+                          style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 12, fontWeight: FontWeight.w500),
+                        ),
                       ),
                     ),
-                  ),
-                  // Message list mapping
-                  ..._messages.map((msg) => ChatBubble(message: msg, activeTheme: activeTheme)),
-                ],
+                    // Message list mapping
+                    ..._messages.map((msg) => ChatBubble(message: msg, activeTheme: activeTheme)),
+                  ],
+                ),
               ),
             ),
 

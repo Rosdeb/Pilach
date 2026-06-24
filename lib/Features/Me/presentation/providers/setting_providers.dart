@@ -36,3 +36,25 @@ final saveToPhotosProvider = StateNotifierProvider<BoolPreferenceNotifier, bool>
 final enterIsSendProvider = StateNotifierProvider<BoolPreferenceNotifier, bool>((ref) {
   return BoolPreferenceNotifier(ref.watch(sharedPreferencesProvider), 'enter_is_send', false);
 });
+
+class StringPreferenceNotifier extends StateNotifier<String?> {
+  final SharedPreferences prefs;
+  final String prefKey;
+
+  StringPreferenceNotifier(this.prefs, this.prefKey, String? defaultValue)
+      : super(prefs.getString(prefKey) ?? defaultValue);
+
+  Future<void> update(String? value) async {
+    state = value;
+    if (value != null) {
+      await prefs.setString(prefKey, value);
+    } else {
+      await prefs.remove(prefKey);
+    }
+  }
+}
+
+// Provider to manage Chat Wallpaper URL
+final chatWallpaperProvider = StateNotifierProvider<StringPreferenceNotifier, String?>((ref) {
+  return StringPreferenceNotifier(ref.watch(sharedPreferencesProvider), 'chat_wallpaper', null);
+});
