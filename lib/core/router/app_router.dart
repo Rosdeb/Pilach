@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:messageapp/Features/Chat/presentation/screens/inbox_screen/direct_chat_screen.dart';
+import 'package:messageapp/Features/Discovers/presentation/screens/all_stories_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/block_userlist/block_userlist_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/chats_setting/chats_settings_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/edit_profile/edit_profile_screen.dart';
@@ -201,6 +202,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => buildSlideTransitionPage(
           key: state.pageKey,
           child: ChatsSettingsScreen(),
+        ),
+      ),
+
+      GoRoute(
+        path: AppPaths.all_stories,
+        name: AppRoutes.all_stories,
+        pageBuilder: (context, state) => buildSlideTransitionPage(
+          key: state.pageKey,
+          child: const AllStoriesScreen(),
         ),
       ),
 

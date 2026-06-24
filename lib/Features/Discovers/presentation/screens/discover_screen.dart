@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:messageapp/core/constants/app_constants.dart';
 import '../../../../components/AppText/appText.dart';
 import '../providers/discover_providers.dart';
 
@@ -59,7 +61,9 @@ class DiscoverScreen extends ConsumerWidget {
                     const SizedBox(height: 10),
 
                     // --- STORIES SECTION ---
-                    _buildSectionHeader(context, 'Stories', 'See All'),
+                    _buildSectionHeader(context, 'Stories', 'See All', onActionTap: () {
+                      context.push(AppPaths.all_stories);
+                    }),
                     const SizedBox(height: 12),
                     _buildStoriesTray(context),
 
@@ -83,7 +87,7 @@ class DiscoverScreen extends ConsumerWidget {
 
   // --- UI Helper Components ---
 
-  Widget _buildSectionHeader(BuildContext context, String title, String actionText) {
+  Widget _buildSectionHeader(BuildContext context, String title, String actionText, {VoidCallback? onActionTap}) {
     final theme = Theme.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -100,7 +104,7 @@ class DiscoverScreen extends ConsumerWidget {
         CupertinoButton(
           padding: EdgeInsets.zero,
           minSize: 0,
-          onPressed: () {},
+          onPressed: onActionTap ?? () {},
           child: Text(
             actionText,
             style: const TextStyle(

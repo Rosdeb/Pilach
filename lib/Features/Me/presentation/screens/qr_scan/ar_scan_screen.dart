@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 import '../../../../../components/AppText/appText.dart';
 import '../../../../../core/utils/app_colour.dart';
@@ -19,16 +20,23 @@ class QrScanScreen extends ConsumerStatefulWidget {
 
 class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
+  late MobileScannerController _scannerController;
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _scannerController = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+      torchEnabled: false,
+    );
+
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _scannerController.dispose();
     super.dispose();
   }
 
@@ -246,11 +254,23 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(30),
-                  child: Container(
-                    color: Colors.black87,
-                    child: const Center(
-                      child: Icon(CupertinoIcons.camera_viewfinder, color: Colors.white54, size: 40),
-                    ),
+                  child:  MobileScanner(
+                    controller: _scannerController,
+                    onDetect: (capture) {
+                      final List<Barcode> barcodes = capture.barcodes;
+                      for (final barcode in barcodes) {
+                        final String? scannedValue = barcode.rawValue;
+                        if (scannedValue != null) {
+                          // TODO: Handle the scanned QR code here!
+                          // Example: print("Scanned: $scannedValue");
+
+                          // Optional: Show a snackbar or navigate
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Scanned: $scannedValue')),
+                          );
+                        }
+                      }
+                    },
                   ),
                 ),
               ),
@@ -264,16 +284,28 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
             ],
           ),
           const Spacer(),
-          IconButton(
-            padding: const EdgeInsets.all(16),
-            style: IconButton.styleFrom(
-              backgroundColor: theme.colorScheme.surface,
-              shape: const CircleBorder(),
-              shadowColor: Colors.black.withOpacity(0.05),
-              elevation: 4,
-            ),
-            icon: Icon(CupertinoIcons.lightbulb_fill, color: theme.colorScheme.onSurface, size: 24),
-            onPressed: () {},
+          ValueListenableBuilder<MobileScannerState>(
+            valueListenable: _scannerController,
+            builder: (context, state, child) {
+              final isTorchOn = state.torchState == TorchState.on;
+              return IconButton(
+                padding: const EdgeInsets.all(16),
+                style: IconButton.styleFrom(
+                  backgroundColor: isTorchOn ? AppColors.primary : theme.colorScheme.surface,
+                  shape: const CircleBorder(),
+                  shadowColor: Colors.black.withOpacity(0.05),
+                  elevation: 4,
+                ),
+                icon: Icon(
+                  isTorchOn ? CupertinoIcons.lightbulb_fill : CupertinoIcons.lightbulb, 
+                  color: isTorchOn ? Colors.white : theme.colorScheme.onSurface, 
+                  size: 24,
+                ),
+                onPressed: () {
+                  _scannerController.toggleTorch();
+                },
+              );
+            },
           ),
           const SizedBox(height: 60),
         ],

@@ -9,7 +9,9 @@ import 'package:messageapp/components/AppText/appText.dart';
 import 'package:messageapp/core/constants/app_constants.dart';
 import 'package:messageapp/core/utils/app_colour.dart';
 import 'package:messageapp/core/theme/theme_provider.dart';
+import 'package:messageapp/core/services/permission_service.dart';
 import 'package:messageapp/Features/auth/presentation/providers/auth_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../providers/setting_providers.dart';
 
@@ -195,7 +197,55 @@ class MeScreen extends ConsumerWidget {
                       iconColor: AppColors.successGreen,
                       title: 'Push Notifications',
                       value: isPushEnabled,
-                      onChanged: (val) => ref.read(pushNotificationsProvider.notifier).state = val,
+                      onChanged: (val, controller) async {
+                        if (val) {
+                          // Turning ON: Request permission
+                          final permissionService = ref.read(permissionServiceProvider);
+                          PermissionStatus status = await permissionService.checkPermission(Permission.notification);
+                          
+                          if (status.isDenied) {
+                            status = await permissionService.requestPermission(Permission.notification);
+                          }
+                          
+                          if (status.isPermanentlyDenied) {
+                            if (context.mounted) {
+                              showCupertinoDialog(
+                                context: context,
+                                builder: (context) => CupertinoAlertDialog(
+                                  title: const Text('Permission Required'),
+                                  content: const Text('Please enable push notifications in your device settings to use this feature.'),
+                                  actions: [
+                                    CupertinoDialogAction(
+                                      child: const Text('Cancel'),
+                                      onPressed: () => Navigator.pop(context),
+                                    ),
+                                    CupertinoDialogAction(
+                                      child: const Text('Open Settings'),
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        permissionService.openSettings();
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+                            controller.value = false;
+                            ref.read(pushNotificationsProvider.notifier).state = false;
+                            return;
+                          }
+                          
+                          if (status.isGranted) {
+                            ref.read(pushNotificationsProvider.notifier).state = true;
+                          } else {
+                            controller.value = false;
+                            ref.read(pushNotificationsProvider.notifier).state = false;
+                          }
+                        } else {
+                          // Turning OFF: Just update the local state
+                          ref.read(pushNotificationsProvider.notifier).state = false;
+                        }
+                      },
                     ),
                   ]),
                   const SizedBox(height: 24),
@@ -405,13 +455,15 @@ class MeScreen extends ConsumerWidget {
     required Color iconColor,
     required String title,
     required bool value,
-    required ValueChanged<bool> onChanged,
+    required void Function(bool, ValueNotifier<bool>) onChanged,
   }) {
     final switchController = ValueNotifier<bool>(value);
 
     // Hook up a listener to catch toggle events from AdvancedSwitch and forward them safely to your parent tree callback.
     switchController.addListener(() {
-      onChanged(switchController.value);
+      if (switchController.value != value) {
+        onChanged(switchController.value, switchController);
+      }
     });
 
     final theme = Theme.of(context);

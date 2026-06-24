@@ -1,0 +1,370 @@
+# Flutter Complete Dark Mode System (Riverpod)
+
+I want to implement a complete, scalable, production-ready Dark Mode system across my Flutter application using **Riverpod (flutter_riverpod)**. The implementation should follow Flutter best practices, Material 3, and Clean Architecture.
+
+## Objective
+
+Refactor the entire application so every UI component automatically adapts to Light and Dark themes without using hardcoded colors.
+
+The implementation should be maintainable, reusable, and easy to extend.
+
+---
+
+# Theme Management
+
+Use Riverpod for state management.
+
+Create:
+
+* ThemeProvider
+* ThemeNotifier (StateNotifier or Notifier)
+* ThemeState
+* ThemeService
+* AppTheme
+
+The provider should expose:
+
+* current ThemeMode
+* isDarkMode
+* isLightMode
+* isSystemMode
+* toggleTheme()
+* setLightTheme()
+* setDarkTheme()
+* setSystemTheme()
+
+The selected theme must update the entire application instantly.
+
+---
+
+# Theme Persistence
+
+Persist the selected theme using SharedPreferences.
+
+Requirements:
+
+* Save selected ThemeMode.
+* Restore it on app startup.
+* Default to System Theme if no preference exists.
+* Never lose the selected theme after restarting the app.
+
+---
+
+# Theme Structure
+
+Create:
+
+lib/
+├── core/
+│    ├── theme/
+│    │      app_theme.dart
+│    │      light_theme.dart
+│    │      dark_theme.dart
+│    │      app_colors.dart
+│    │      app_gradients.dart
+│    │      app_text_theme.dart
+│    │      app_extensions.dart
+│    │      theme_provider.dart
+│    │      theme_service.dart
+
+Everything related to theming should live inside this folder.
+
+---
+
+# Material 3
+
+Use Material 3.
+
+Use ColorScheme instead of manually assigning colors.
+
+Example:
+
+* primary
+* secondary
+* tertiary
+* surface
+* surfaceContainer
+* background
+* error
+* outline
+* shadow
+* inversePrimary
+
+Avoid deprecated properties.
+
+---
+
+# Color System
+
+Remove every hardcoded color from the project.
+
+Replace colors for:
+
+* Scaffold
+* AppBar
+* Drawer
+* NavigationBar
+* BottomNavigationBar
+* BottomSheet
+* Dialog
+* PopupMenu
+* SnackBar
+* Card
+* Container
+* Divider
+* Border
+* Shadow
+* Chip
+* Badge
+* Checkbox
+* Switch
+* Radio
+* Slider
+* Progress Indicator
+* CircularProgressIndicator
+* LinearProgressIndicator
+* Icons
+* Text
+* Buttons
+* FloatingActionButton
+* SearchBar
+* SearchView
+* Dropdown
+* MenuAnchor
+* TextField
+* OTP Fields
+* ListTile
+* ExpansionTile
+* TabBar
+* TabView
+* NavigationRail
+* DataTable
+* Grid
+* Charts
+* Custom Widgets
+* Custom Painters
+
+No widget should contain hardcoded colors.
+
+---
+
+# Typography
+
+Create a centralized typography system.
+
+Support:
+
+* Display Large
+* Display Medium
+* Display Small
+* Headline
+* Title
+* Body
+* Label
+
+All text colors should come from ThemeData.
+
+Never manually assign Colors.black or Colors.white.
+
+---
+
+# Buttons
+
+Support all button types:
+
+* FilledButton
+* ElevatedButton
+* OutlinedButton
+* TextButton
+* IconButton
+* FloatingActionButton
+
+Buttons should automatically adapt to the active theme.
+
+---
+
+# Cards & Containers
+
+Every Card and Container should automatically use:
+
+* correct background
+* border
+* shadow
+* elevation
+* radius
+
+No duplicated decoration code.
+
+---
+
+# Icons
+
+Icons should automatically switch colors.
+
+Support:
+
+* active
+* inactive
+* disabled
+* warning
+* success
+* error
+
+---
+
+# Images
+
+Support:
+
+* Light Logo
+* Dark Logo
+* Light SVG
+* Dark SVG
+* Light Illustrations
+* Dark Illustrations
+
+Automatically switch assets based on the active theme.
+
+---
+
+# Gradients
+
+Create reusable gradients.
+
+Examples:
+
+* Primary
+* Success
+* Error
+* Premium
+* Gold
+* Purple
+* Green
+* Blue
+
+Dark mode should have its own optimized gradients.
+
+---
+
+# Theme Extension
+
+Use ThemeExtension for custom:
+
+* Colors
+* Gradients
+* Shadows
+* Borders
+* Card Styles
+
+Do not hardcode custom colors anywhere.
+
+---
+
+# Reusable Widgets
+
+Update every reusable widget.
+
+Examples:
+
+* AppButton
+* GradientButton
+* AppText
+* AppCard
+* ProfileTile
+* SettingsTile
+* ChatBubble
+* SubscriptionCard
+* ProductCard
+* LoadingWidget
+* ErrorWidget
+* EmptyWidget
+* SearchField
+* OTPField
+* AudioPlayer
+* VideoPlayer
+* Bottom Sheets
+* Dialogs
+
+Every widget must read colors from Theme.of(context).
+
+---
+
+# Animation
+
+Animate theme switching.
+
+Requirements:
+
+* AnimatedTheme
+* 300–500ms transition
+* Smooth color interpolation
+* No screen flickering
+
+---
+
+# Settings Screen
+
+Create a Theme Settings screen.
+
+Include:
+
+* Light Mode
+* Dark Mode
+* System Default
+
+Display the current selection.
+
+Persist changes immediately.
+
+---
+
+# Performance
+
+Optimize rebuilds using Riverpod best practices.
+
+* Avoid unnecessary widget rebuilds.
+* Use ref.watch() only where needed.
+* Use ref.read() for actions.
+* Keep providers granular.
+* Prefer immutable state.
+
+---
+
+# Code Quality
+
+Follow:
+
+* SOLID principles
+* Clean Architecture
+* Feature-first folder structure
+* Reusable widgets
+* Null safety
+* Dart best practices
+* Material 3 guidelines
+
+Avoid duplicate code.
+
+---
+
+# Deliverables
+
+Provide complete production-ready code for:
+
+* ThemeState
+* ThemeNotifier
+* ThemeProvider
+* ThemeService
+* AppTheme
+* LightTheme
+* DarkTheme
+* AppColors
+* AppGradients
+* ThemeExtension
+* SharedPreferences integration
+* main.dart setup
+* Riverpod initialization
+* Theme settings page
+* Theme toggle widget
+* Example screens
+
+The implementation should be scalable enough to support future themes (e.g., AMOLED, Blue Theme, Green Theme, High Contrast) with minimal code changes.

@@ -1,0 +1,161 @@
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:messageapp/components/AppText/appText.dart';
+
+class AllStoriesScreen extends ConsumerWidget {
+  const AllStoriesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            expandedHeight: 60.0,
+            toolbarHeight: 60.0,
+            backgroundColor: theme.scaffoldBackgroundColor,
+            surfaceTintColor: theme.scaffoldBackgroundColor,
+            elevation: 0,
+            centerTitle: true,
+            leading: IconButton(
+              icon: Icon(Icons.arrow_back_ios_new, color: theme.colorScheme.onSurface, size: 20),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            title: AppText(
+              "All Stories",
+              style: TextStyle(
+                color: theme.colorScheme.onSurface,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          
+          SliverPadding(
+            padding: const EdgeInsets.all(16.0),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.75, // Adjust for portrait story aspect ratio
+                crossAxisSpacing: 16.0,
+                mainAxisSpacing: 16.0,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  return _buildStoryCard(context, index);
+                },
+                childCount: 12, // Mock count
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStoryCard(BuildContext context, int index) {
+    final theme = Theme.of(context);
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Background mock
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              color: index % 2 == 0 
+                  ? theme.colorScheme.primary.withOpacity(0.1)
+                  : CupertinoColors.systemOrange.withOpacity(0.1),
+              child: Center(
+                child: Icon(
+                  CupertinoIcons.photo, 
+                  color: theme.colorScheme.onSurface.withOpacity(0.2),
+                  size: 32,
+                ),
+              ),
+            ),
+          ),
+          
+          // Gradient overlay for text readability
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withOpacity(0.6),
+                ],
+                stops: const [0.5, 1.0],
+              ),
+            ),
+          ),
+          
+          // User Info at bottom
+          Positioned(
+            bottom: 12,
+            left: 12,
+            right: 12,
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [CupertinoColors.activeOrange, CupertinoColors.systemPink],
+                    ),
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: theme.scaffoldBackgroundColor,
+                      shape: BoxShape.circle,
+                    ),
+                    padding: const EdgeInsets.all(1.5),
+                    child: CircleAvatar(
+                      radius: 14,
+                      backgroundColor: theme.colorScheme.onSurface.withOpacity(0.05),
+                      child: Icon(CupertinoIcons.person_fill, size: 14, color: theme.colorScheme.onSurface.withOpacity(0.4)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'User $index',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
