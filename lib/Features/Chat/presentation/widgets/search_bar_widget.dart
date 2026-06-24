@@ -8,12 +8,20 @@ class IOSSearchBar extends ConsumerWidget {
   final TextEditingController? controller;
   final String hintText;
   final ValueChanged<String>? onChanged;
+  final bool readOnly;
+  final VoidCallback? onTap;
+  final bool autofocus;
+  final EdgeInsetsGeometry? margin;
 
   const IOSSearchBar({
     super.key,
     this.controller,
     this.hintText = "Search",
     this.onChanged,
+    this.readOnly = false,
+    this.onTap,
+    this.autofocus = false,
+    this.margin,
   });
 
   @override
@@ -23,7 +31,7 @@ class IOSSearchBar extends ConsumerWidget {
 
     return Container(
       height: 38,
-      margin: EdgeInsets.symmetric(horizontal: AppSizes.paddingMedium,vertical: 10),
+      margin: margin ?? EdgeInsets.symmetric(horizontal: AppSizes.paddingMedium,vertical: 10),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(10),
@@ -45,9 +53,11 @@ class IOSSearchBar extends ConsumerWidget {
           Expanded(
             child: TextField(
               controller: controller,
+              readOnly: readOnly,
+              onTap: onTap,
+              autofocus: autofocus,
               onChanged: (value) {
                 ref.read(chatSearchProviders.notifier).state = value;
-
                 onChanged?.call(value);
               },
               style: TextStyle(
@@ -55,7 +65,7 @@ class IOSSearchBar extends ConsumerWidget {
                 fontSize: 16,
               ),
               decoration: InputDecoration(
-                hintText: "Search",
+                hintText: hintText,
                 hintStyle: TextStyle(
                   color: theme.colorScheme.onSurface.withOpacity(0.6),
                   fontSize: 15,

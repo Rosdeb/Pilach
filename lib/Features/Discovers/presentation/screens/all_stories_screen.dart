@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:messageapp/core/constants/app_constants.dart';
 import 'package:messageapp/components/AppText/appText.dart';
 
 class AllStoriesScreen extends ConsumerWidget {
@@ -62,18 +64,22 @@ class AllStoriesScreen extends ConsumerWidget {
   Widget _buildStoryCard(BuildContext context, int index) {
     final theme = Theme.of(context);
     
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
+    return GestureDetector(
+      onTap: () {
+        context.push(AppPaths.story_details, extra: index);
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ],
+        ),
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -155,6 +161,7 @@ class AllStoriesScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

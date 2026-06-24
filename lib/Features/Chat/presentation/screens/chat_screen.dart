@@ -2,6 +2,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:messageapp/core/constants/app_constants.dart';
 
 import '../../../Contact/presentation/widgets/create_contact_sheet.dart';
 import '../providers/chat_provider.dart';
@@ -95,8 +97,9 @@ class ChatScreen extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 2.0),
                   child: IOSSearchBar(
                     controller: searchController,
-                    onChanged: (value) {
-                      // Your search logic here
+                    readOnly: true,
+                    onTap: () {
+                      context.push(AppPaths.chat_search);
                     },
                   ),
                 ),

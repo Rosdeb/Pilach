@@ -72,7 +72,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
               children: [
                 const CircleAvatar(
                   radius: 20,
-                  backgroundImage: NetworkImage('https://images.unsplash.com/photo-1494790108377-be9c29b29330'),
+                  backgroundImage: NetworkImage('https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp'),
                 ),
                 Positioned(
                   right: 0,

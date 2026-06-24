@@ -10,11 +10,37 @@ import 'package:messageapp/core/constants/app_constants.dart';
 import 'package:messageapp/core/services/permission_service.dart';
 import '../../providers/security_privacy_providers.dart';
 
-class SecurityPrivacyScreen extends ConsumerWidget {
+class SecurityPrivacyScreen extends ConsumerStatefulWidget {
   const SecurityPrivacyScreen({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SecurityPrivacyScreen> createState() => _SecurityPrivacyScreenState();
+}
+
+class _SecurityPrivacyScreenState extends ConsumerState<SecurityPrivacyScreen> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(permissionStatusProvider(Permission.locationWhenInUse));
+      ref.invalidate(permissionStatusProvider(Permission.photos));
+      ref.invalidate(permissionStatusProvider(Permission.microphone));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final isBiometricEnabled = ref.watch(biometricProvider);
     final isTwoFactorEnabled = ref.watch(twoFactorProvider);
     final theme = Theme.of(context);

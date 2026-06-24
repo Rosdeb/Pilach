@@ -3,7 +3,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:messageapp/Features/Chat/presentation/screens/inbox_screen/direct_chat_screen.dart';
+import 'package:messageapp/Features/Chat/presentation/screens/chat_search_screen.dart';
 import 'package:messageapp/Features/Discovers/presentation/screens/all_stories_screen.dart';
+import 'package:messageapp/Features/Discovers/presentation/screens/story_details_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/block_userlist/block_userlist_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/chats_setting/chat_theme_selection_screen.dart';
 import 'package:messageapp/Features/Me/presentation/screens/chats_setting/chats_settings_screen.dart';
@@ -187,6 +189,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
+      GoRoute(
+        path: AppPaths.chat_search,
+        name: AppRoutes.chat_search,
+        pageBuilder: (context, state) => buildSlideTransitionPage(
+          key: state.pageKey,
+          child: const ChatSearchScreen(),
+        ),
+      ),
+
 
       GoRoute(
         path: AppPaths.qr_screen,
@@ -222,6 +233,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           child: const ChatThemeSelectionScreen(),
         ),
+      ),
+
+      GoRoute(
+        path: AppPaths.story_details,
+        name: AppRoutes.story_details,
+        pageBuilder: (context, state) {
+          final index = state.extra as int? ?? 0;
+          return buildSlideTransitionPage(
+            key: state.pageKey,
+            child: StoryDetailsScreen(storyIndex: index),
+          );
+        },
       ),
 
       // GoRoute(
