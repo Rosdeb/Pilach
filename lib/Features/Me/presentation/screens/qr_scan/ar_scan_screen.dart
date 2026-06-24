@@ -6,9 +6,11 @@ import 'package:pretty_qr_code/pretty_qr_code.dart';
 import '../../../../../components/AppText/appText.dart';
 import '../../../../../core/utils/app_colour.dart';
 
-// MOCK PROVIDER: Keep Auth/User Profile Provider unchanged
+import '../../../../../core/theme/theme_provider.dart';
+
 final userIdProvider = Provider<String>((ref) {
-  return "backend_user_id_123456789"; // This represents your backend ID data
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return prefs.getString('user_id') ?? "unknown_user_id";
 });
 
 class QrScanScreen extends ConsumerStatefulWidget {
@@ -205,10 +207,23 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                     ),
                   ),
 
-                  AppText(
-                    qrData,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.9), fontSize: 10, height: 1.4),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.onSurface.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: SelectableText(
+                      qrData,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface.withOpacity(0.8),
+                        fontSize: 11,
+                        letterSpacing: 0.5,
+                        height: 1.4,
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 25),

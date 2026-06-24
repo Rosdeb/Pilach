@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_advanced_switch/flutter_advanced_switch.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:go_router/go_router.dart';
@@ -8,10 +8,7 @@ import 'package:messageapp/core/constants/app_constants.dart';
 import 'package:messageapp/components/AppText/appText.dart';
 import 'package:messageapp/core/theme/theme_provider.dart';
 import 'package:messageapp/core/utils/app_colour.dart';
-
-// MOCK PROVIDERS: Keep other settings providers unchanged
-final saveToPhotosProvider = StateProvider<bool>((ref) => true);
-final enterIsSendProvider = StateProvider<bool>((ref) => false);
+import 'package:messageapp/Features/Me/presentation/providers/setting_providers.dart';
 
 class ChatsSettingsScreen extends ConsumerWidget {
   const ChatsSettingsScreen({Key? key}) : super(key: key);
@@ -177,24 +174,22 @@ class ChatsSettingsScreen extends ConsumerWidget {
                     clipBehavior: Clip.antiAlias,
                     child: Column(
                       children: [
-                        _buildSwitchRow(
-                          context,
+                        SwitchRow(
                           icon: CupertinoIcons.return_icon,
                           iconColor: Colors.blue,
                           title: 'Enter is Send',
                           value: isEnterIsSendEnabled,
                           onChanged: (val) =>
-                              ref.read(enterIsSendProvider.notifier).state = val,
+                              ref.read(enterIsSendProvider.notifier).update(val),
                         ),
                         _buildDivider(context),
-                        _buildSwitchRow(
-                          context,
+                        SwitchRow(
                           icon: CupertinoIcons.square_arrow_down,
                           iconColor: AppColors.successGreen,
                           title: 'Save to Photos',
                           value: isSaveToPhotosEnabled,
                           onChanged: (val) =>
-                              ref.read(saveToPhotosProvider.notifier).state = val,
+                              ref.read(saveToPhotosProvider.notifier).update(val),
                         ),
                       ],
                     ),
@@ -355,21 +350,26 @@ class ChatsSettingsScreen extends ConsumerWidget {
     );
   }
 
-  // Interactive Switch Row Component
-  Widget _buildSwitchRow(
-    BuildContext context, {
-    required IconData icon,
-    Color iconColor = AppColors.successGreen,
-    required String title,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    final switchController = ValueNotifier<bool>(value);
+}
 
-    switchController.addListener(() {
-      onChanged(switchController.value);
-    });
+class SwitchRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final bool value;
+  final ValueChanged<bool> onChanged;
 
+  const SwitchRow({
+    Key? key,
+    required this.icon,
+    this.iconColor = AppColors.successGreen,
+    required this.title,
+    required this.value,
+    required this.onChanged,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return ListTile(
       dense: true,
@@ -390,16 +390,19 @@ class ChatsSettingsScreen extends ConsumerWidget {
         ),
       ),
       trailing: Transform.scale(
-        scaleX: 0.75,
+        scaleX: 0.80,
         scaleY: 0.80,
-        child: AdvancedSwitch(
-          controller: switchController,
-          width: 45,
-          height: 24,
+        child: CupertinoSwitch(
+          value: value,
           activeColor: const Color(0xFF34C759),
-          inactiveColor: theme.colorScheme.onSurface.withOpacity(0.2),
+          trackColor: theme.colorScheme.onSurface.withOpacity(0.2),
+          onChanged: (val) {
+            HapticFeedback.lightImpact();
+            onChanged(val);
+          },
         ),
       ),
     );
   }
 }
+

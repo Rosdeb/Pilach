@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:messageapp/core/theme/chat_theme_model.dart';
 import 'package:messageapp/Features/Me/presentation/providers/chat_theme_provider.dart';
+import 'package:messageapp/Features/Me/presentation/providers/setting_providers.dart';
 import '../../widgets/chat_bundle.dart';
 
 class DirectChatScreen extends ConsumerStatefulWidget {
@@ -47,12 +48,30 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     super.dispose();
   }
 
+  void _sendMessage() {
+    final text = _messageController.text.trim();
+    if (text.isNotEmpty) {
+      setState(() {
+        _messages.add(
+          MessageModel(
+            text: text,
+            time: "Now",
+            isMe: true,
+            status: MessageStatus.sent,
+          ),
+        );
+        _messageController.clear();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final successColor = const Color(0xFF34C759);
     final activeTheme = ref.watch(chatThemeProvider);
     final headerTextColor = activeTheme.backgroundColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
+    final isEnterToSend = ref.watch(enterIsSendProvider);
 
     return Scaffold(
       backgroundColor: activeTheme.backgroundColor,
@@ -206,6 +225,12 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                               controller: _messageController,
                               minLines: 1,
                               maxLines: 5,
+                              textInputAction: isEnterToSend ? TextInputAction.send : TextInputAction.newline,
+                              onSubmitted: isEnterToSend
+                                  ? (value) {
+                                      _sendMessage();
+                                    }
+                                  : null,
                               textCapitalization: TextCapitalization.sentences,
                               style: TextStyle(
                                 color: theme.colorScheme.onSurface,

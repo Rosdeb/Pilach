@@ -54,6 +54,11 @@ class AuthRepository {
         }
       }
       
+      final userId = data['data']['id'];
+      if (userId != null) {
+        await prefs.setString('user_id', userId);
+      }
+
       return data['data']; // Returns user info
     }
     throw ApiException(data['message'] ?? 'Login failed');
