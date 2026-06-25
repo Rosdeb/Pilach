@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
@@ -18,9 +19,11 @@ class QrScanScreen extends ConsumerStatefulWidget {
   ConsumerState<QrScanScreen> createState() => _QrScanScreenState();
 }
 
-class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerProviderStateMixin {
+class _QrScanScreenState extends ConsumerState<QrScanScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late MobileScannerController _scannerController;
+
   @override
   void initState() {
     super.initState();
@@ -30,7 +33,6 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
       facing: CameraFacing.back,
       torchEnabled: false,
     );
-
   }
 
   @override
@@ -54,7 +56,11 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
         backgroundColor: theme.scaffoldBackgroundColor,
         centerTitle: true,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new, color: theme.colorScheme.onSurface, size: 20),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: theme.colorScheme.onSurface,
+            size: 20,
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: AppText(
@@ -67,7 +73,11 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
         ),
         actions: [
           IconButton(
-            icon: const Icon(CupertinoIcons.share, color: AppColors.successGreen, size: 22),
+            icon: const Icon(
+              CupertinoIcons.share,
+              color: AppColors.successGreen,
+              size: 22,
+            ),
             onPressed: () {
               // Share action logic
             },
@@ -102,8 +112,13 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                   ],
                 ),
                 labelColor: theme.colorScheme.onSurface,
-                unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.5),
-                labelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(
+                  0.5,
+                ),
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
                 tabs: const [
                   Tab(text: "My Code"),
                   Tab(text: "Scan Code"),
@@ -119,7 +134,12 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
               controller: _tabController,
               physics: const BouncingScrollPhysics(),
               children: [
-                _buildMyCodeTab(context, authState.id ?? "***", authState.name ?? "Unknow",authState.profileImage ?? "image_not_found"),
+                _buildMyCodeTab(
+                  context,
+                  authState.id ?? "***",
+                  authState.name ?? "Unknow",
+                  authState.profileImage ?? "image_not_found",
+                ),
                 _buildScanCodeTab(context),
               ],
             ),
@@ -130,11 +150,15 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
   }
 
   // --- TAB 1: MY CODE (Updated with pretty_qr_code) ---
-  Widget _buildMyCodeTab(BuildContext context, String qrData,String name,String image) {
-    final qrImage = QrImage(QrCode.fromData(
-      data: qrData,
-      errorCorrectLevel: QrErrorCorrectLevel.H,
-    ));
+  Widget _buildMyCodeTab(
+    BuildContext context,
+    String qrData,
+    String name,
+    String image,
+  ) {
+    final qrImage = QrImage(
+      QrCode.fromData(data: qrData, errorCorrectLevel: QrErrorCorrectLevel.H),
+    );
     final theme = Theme.of(context);
 
     return SingleChildScrollView(
@@ -153,7 +177,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                     color: Colors.black.withOpacity(0.03),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
-                  )
+                  ),
                 ],
               ),
               child: Column(
@@ -164,10 +188,18 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                     children: [
                       CircleAvatar(
                         radius: 25,
-                        backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                        backgroundImage: image != "image_not_found" ? NetworkImage(image) : null,
+                        backgroundColor: theme.colorScheme.primary.withOpacity(
+                          0.1,
+                        ),
+                        backgroundImage: image != "image_not_found"
+                            ? NetworkImage(image)
+                            : null,
                         child: image == "image_not_found"
-                            ? Icon(Icons.person, size: 25, color: theme.colorScheme.primary)
+                            ? Icon(
+                                Icons.person,
+                                size: 25,
+                                color: theme.colorScheme.primary,
+                              )
                             : null,
                       ),
                       const SizedBox(width: 14),
@@ -177,12 +209,21 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                           children: [
                             Text(
                               name,
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onSurface,
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               "Scan to connect with me",
-                              style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface.withOpacity(0.6)),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: theme.colorScheme.onSurface.withOpacity(
+                                  0.6,
+                                ),
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -212,22 +253,60 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                   ),
 
                   const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.onSurface.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: SelectableText(
-                      qrData,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface.withOpacity(0.8),
-                        fontSize: 11,
-                        letterSpacing: 0.5,
-                        height: 1.4,
+                  Stack(
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(16, 12, 48, 12),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: SelectableText(
+                          qrData,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: -0.5,
+                            height: 1.4,
+                          ),
+                        ),
                       ),
-                    ),
+
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () async {
+                              await Clipboard.setData(
+                                ClipboardData(text: qrData),
+                              );
+
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('ID copied'),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              child: const Icon(
+                                CupertinoIcons.doc_on_doc,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
 
                   const SizedBox(height: 25),
@@ -235,7 +314,11 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                   Text(
                     "Your QR code is private. Other people can scan this to add or connect with you instantly.",
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 13, height: 1.4),
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
                   ),
                 ],
               ),
@@ -257,7 +340,10 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
           Text(
             "Align the QR code within the frame to scan",
             textAlign: TextAlign.center,
-            style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 14),
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withOpacity(0.6),
+              fontSize: 14,
+            ),
           ),
           const SizedBox(height: 40),
 
@@ -273,7 +359,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(30),
-                  child:  MobileScanner(
+                  child: MobileScanner(
                     controller: _scannerController,
                     onDetect: (capture) {
                       final List<Barcode> barcodes = capture.barcodes;
@@ -296,9 +382,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
               SizedBox(
                 width: 260,
                 height: 260,
-                child: CustomPaint(
-                  painter: QRScannerOverlayPainter(),
-                ),
+                child: CustomPaint(painter: QRScannerOverlayPainter()),
               ),
             ],
           ),
@@ -310,14 +394,18 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
               return IconButton(
                 padding: const EdgeInsets.all(16),
                 style: IconButton.styleFrom(
-                  backgroundColor: isTorchOn ? AppColors.primary : theme.colorScheme.surface,
+                  backgroundColor: isTorchOn
+                      ? AppColors.primary
+                      : theme.colorScheme.surface,
                   shape: const CircleBorder(),
                   shadowColor: Colors.black.withOpacity(0.05),
                   elevation: 4,
                 ),
                 icon: Icon(
-                  isTorchOn ? CupertinoIcons.lightbulb_fill : CupertinoIcons.lightbulb, 
-                  color: isTorchOn ? Colors.white : theme.colorScheme.onSurface, 
+                  isTorchOn
+                      ? CupertinoIcons.lightbulb_fill
+                      : CupertinoIcons.lightbulb,
+                  color: isTorchOn ? Colors.white : theme.colorScheme.onSurface,
                   size: 24,
                 ),
                 onPressed: () {
@@ -344,10 +432,34 @@ class QRScannerOverlayPainter extends CustomPainter {
 
     const double cornerSize = 25;
 
-    canvas.drawPath(Path()..moveTo(0, cornerSize)..lineTo(0, 0)..lineTo(cornerSize, 0), paint);
-    canvas.drawPath(Path()..moveTo(size.width - cornerSize, 0)..lineTo(size.width, 0)..lineTo(size.width, cornerSize), paint);
-    canvas.drawPath(Path()..moveTo(0, size.height - cornerSize)..lineTo(0, size.height)..lineTo(cornerSize, size.height), paint);
-    canvas.drawPath(Path()..moveTo(size.width - cornerSize, size.height)..lineTo(size.width, size.height)..lineTo(size.width, size.height - cornerSize), paint);
+    canvas.drawPath(
+      Path()
+        ..moveTo(0, cornerSize)
+        ..lineTo(0, 0)
+        ..lineTo(cornerSize, 0),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.width - cornerSize, 0)
+        ..lineTo(size.width, 0)
+        ..lineTo(size.width, cornerSize),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(0, size.height - cornerSize)
+        ..lineTo(0, size.height)
+        ..lineTo(cornerSize, size.height),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.width - cornerSize, size.height)
+        ..lineTo(size.width, size.height)
+        ..lineTo(size.width, size.height - cornerSize),
+      paint,
+    );
   }
 
   @override

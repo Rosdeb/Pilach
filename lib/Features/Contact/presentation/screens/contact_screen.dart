@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -257,13 +258,15 @@ class ContactScreen extends ConsumerWidget {
         backgroundColor: contact.avatarUrl == null
             ? (theme.brightness == Brightness.dark ? const Color(0xFF1A3E40) : const Color(0xFFB8D8DA))
             : Colors.transparent,
-        backgroundImage: contact.avatarUrl != null ? NetworkImage(contact.avatarUrl!) : null,
+        backgroundImage: contact.avatarUrl != null ? CachedNetworkImageProvider(
+          contact.avatarUrl!,
+          cacheKey: contact.id,
+        ) : null,
         child: contact.avatarUrl == null
             ? Text(
           initials,
           style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.bold),
-        )
-            : null,
+        ) : null,
       ),
       title: Text(
         contact.name,

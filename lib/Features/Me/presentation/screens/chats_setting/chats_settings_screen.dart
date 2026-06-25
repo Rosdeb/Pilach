@@ -4,11 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:go_router/go_router.dart';
-import 'package:messageapp/core/constants/app_constants.dart';
-import 'package:messageapp/components/AppText/appText.dart';
-import 'package:messageapp/core/theme/theme_provider.dart';
-import 'package:messageapp/core/utils/app_colour.dart';
-import 'package:messageapp/Features/Me/presentation/providers/setting_providers.dart';
+import 'package:app/core/constants/app_constants.dart';
+import 'package:app/components/AppText/appText.dart';
+import 'package:app/core/theme/theme_provider.dart';
+import 'package:app/core/utils/app_colour.dart';
+import 'package:app/Features/Me/presentation/providers/setting_providers.dart';
 
 class ChatsSettingsScreen extends ConsumerWidget {
   const ChatsSettingsScreen({Key? key}) : super(key: key);

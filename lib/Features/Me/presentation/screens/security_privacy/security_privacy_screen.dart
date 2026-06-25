@@ -4,12 +4,12 @@ import 'package:flutter_advanced_switch/flutter_advanced_switch.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:messageapp/components/AppText/appText.dart';
-import 'package:messageapp/core/utils/app_colour.dart';
-import 'package:messageapp/core/constants/app_constants.dart';
-import 'package:messageapp/core/services/permission_service.dart';
-import 'package:messageapp/components/FloatingErrorBar/floatingbar.dart';
-import 'package:messageapp/Features/auth/presentation/providers/auth_provider.dart';
+import 'package:app/components/AppText/appText.dart';
+import 'package:app/core/utils/app_colour.dart';
+import 'package:app/core/constants/app_constants.dart';
+import 'package:app/core/services/permission_service.dart';
+import 'package:app/components/FloatingErrorBar/floatingbar.dart';
+import 'package:app/Features/auth/presentation/providers/auth_provider.dart';
 import '../../providers/security_privacy_providers.dart';
 import '../../providers/two_factor_provider.dart';
 

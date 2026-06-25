@@ -1,10 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:messageapp/components/AppText/appText.dart';
-import 'package:messageapp/core/constants/app_constants.dart';
-import 'package:messageapp/core/utils/app_colour.dart';
-import 'package:messageapp/components/PasswordTextField/password_text_field.dart';
+import 'package:app/components/AppText/appText.dart';
+import 'package:app/core/constants/app_constants.dart';
+import 'package:app/core/utils/app_colour.dart';
+import 'package:app/components/PasswordTextField/password_text_field.dart';
 
 class ChangePasswordScreen extends ConsumerStatefulWidget {
   const ChangePasswordScreen({Key? key}) : super(key: key);

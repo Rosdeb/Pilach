@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:messageapp/core/theme/theme_provider.dart';
+import 'package:app/core/theme/theme_provider.dart';
 
 class BoolPreferenceNotifier extends StateNotifier<bool> {
   final SharedPreferences prefs;

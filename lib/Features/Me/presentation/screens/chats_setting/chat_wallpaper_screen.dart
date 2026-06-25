@@ -1,9 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:messageapp/components/AppText/appText.dart';
-import 'package:messageapp/Features/Me/presentation/providers/chat_theme_provider.dart';
-import 'package:messageapp/Features/Me/presentation/providers/setting_providers.dart';
+import 'package:app/components/AppText/appText.dart';
+import 'package:app/Features/Me/presentation/providers/chat_theme_provider.dart';
+import 'package:app/Features/Me/presentation/providers/setting_providers.dart';
 
 class ChatWallpaperScreen extends ConsumerWidget {
   const ChatWallpaperScreen({super.key});

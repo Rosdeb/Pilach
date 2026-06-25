@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:messageapp/components/AppText/appText.dart';
+import 'package:app/components/AppText/appText.dart';
 
 import '../../../../../core/constants/app_constants.dart';
 import '../../providers/block_userlist_providers.dart';

@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zoom_tap_animation/zoom_tap_animation.dart';
-
 import '../../../../components/AppText/appText.dart';
 import '../../../../components/FloatingErrorBar/floatingbar.dart';
 import '../../../../components/SuccessBar/successbar.dart';
@@ -12,9 +11,9 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/asset_constants.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
-import 'package:messageapp/Features/auth/data/repositories/auth_repository.dart';
-import 'package:messageapp/Features/auth/presentation/screens/two_factor_email_verify_screen.dart';
-import 'package:messageapp/Features/auth/presentation/screens/two_factor_sms_verify_screen.dart';
+import 'package:app/Features/auth/data/repositories/auth_repository.dart';
+import 'package:app/Features/auth/presentation/screens/two_factor_email_verify_screen.dart';
+import 'package:app/Features/auth/presentation/screens/two_factor_sms_verify_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -119,8 +118,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       tag: 'app_logo',
                       child: SvgPicture.asset(
                         Assets.logo,
-                        height: 80,
-                        width: 80,
+                        height: 100,
+                        width: 100,
                       ),
                     ),
                   ),
@@ -266,66 +265,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   // Social Login
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // Google
-                      Expanded(
-                        child: ZoomTapAnimation(
+                       ZoomTapAnimation(
                           onTap: () {},
                           child: Container(
                             height: 52,
+                            width: 52,
                             decoration: BoxDecoration(
                               color: theme.colorScheme.surface,
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(50),
                               border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.08)),
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.g_mobiledata_rounded, color: theme.colorScheme.onSurface, size: 28),
-                                const SizedBox(width: 8),
-                                AppText(
-                                  "Google",
-                                  color: theme.colorScheme.onSurface,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ],
-                            ),
+                            child: Icon(Icons.g_mobiledata_rounded, color: theme.colorScheme.onSurface, size: 28),
                           ),
                         ),
-                      ),
                       const SizedBox(width: 16),
                       // Apple
-                      Expanded(
-                        child: ZoomTapAnimation(
+                      ZoomTapAnimation(
                           onTap: () {},
                           child: Container(
                             height: 52,
+                            width: 52,
                             decoration: BoxDecoration(
                               color: theme.colorScheme.surface,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.08)),
+                              borderRadius: BorderRadius.circular(50),
+                              border: Border.all(color: theme.colorScheme.onSurface.withValues(alpha:0.08)),
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.apple_rounded, color: theme.colorScheme.onSurface, size: 22),
-                                const SizedBox(width: 8),
-                                AppText(
-                                  "Apple",
-                                  color: theme.colorScheme.onSurface,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ],
-                            ),
+                            child: Icon(Icons.apple_rounded, color: theme.colorScheme.onSurface, size: 22),
                           ),
                         ),
-                      ),
                     ],
                   ),
 
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 25),
 
                   // Sign Up Footer Link
                   Row(

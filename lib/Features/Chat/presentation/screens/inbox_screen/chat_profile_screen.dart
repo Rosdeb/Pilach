@@ -2,9 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
-import 'package:messageapp/core/utils/app_colour.dart';
-import 'package:messageapp/components/AppText/appText.dart';
-import 'package:messageapp/core/constants/app_constants.dart';
+import 'package:app/core/utils/app_colour.dart';
+import 'package:app/components/AppText/appText.dart';
+import 'package:app/core/constants/app_constants.dart';
 
 class ChatProfileScreen extends StatelessWidget {
   const ChatProfileScreen({Key? key}) : super(key: key);

@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:messageapp/core/constants/app_constants.dart';
+import 'package:app/core/constants/app_constants.dart';
 
 import '../../../Contact/presentation/widgets/create_contact_sheet.dart';
 import '../providers/chat_provider.dart';

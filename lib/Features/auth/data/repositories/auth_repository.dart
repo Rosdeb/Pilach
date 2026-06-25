@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:messageapp/core/network/api_exceptions.dart';
-import 'package:messageapp/core/providers/api_provider.dart';
-import 'package:messageapp/core/services/api_service.dart';
-import 'package:messageapp/core/constants/api_constants.dart';
+import 'package:app/core/network/api_exceptions.dart';
+import 'package:app/core/providers/api_provider.dart';
+import 'package:app/core/services/api_service.dart';
+import 'package:app/core/constants/api_constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {

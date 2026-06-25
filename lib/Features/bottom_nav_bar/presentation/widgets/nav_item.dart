@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:messageapp/components/AppText/appText.dart';
+import 'package:app/components/AppText/appText.dart';
 import 'package:zoom_tap_animation/zoom_tap_animation.dart';
 
 import '../providers/bottom_nav_provider.dart';

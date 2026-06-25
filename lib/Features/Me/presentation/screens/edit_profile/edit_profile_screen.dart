@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:messageapp/components/AppText/appText.dart';
+import 'package:app/components/AppText/appText.dart';
 import '../../../../../core/utils/app_colour.dart';
 
 class EditProfileScreen extends StatelessWidget {

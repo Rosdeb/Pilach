@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:messageapp/core/utils/app_colour.dart';
+import 'package:app/core/utils/app_colour.dart';
 
 class AppGradients {
   static LinearGradient get primary => LinearGradient(

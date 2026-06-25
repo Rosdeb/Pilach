@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pinput/pinput.dart';
-import 'package:messageapp/Features/auth/presentation/providers/auth_provider.dart';
-import 'package:messageapp/components/FloatingErrorBar/floatingbar.dart';
-import 'package:messageapp/components/SuccessBar/successbar.dart';
-import 'package:messageapp/core/constants/app_constants.dart';
+import 'package:app/Features/auth/presentation/providers/auth_provider.dart';
+import 'package:app/components/FloatingErrorBar/floatingbar.dart';
+import 'package:app/components/SuccessBar/successbar.dart';
+import 'package:app/core/constants/app_constants.dart';
 
 class VerifyEmailScreen extends ConsumerStatefulWidget {
   final String email;

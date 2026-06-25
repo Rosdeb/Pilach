@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:messageapp/core/constants/app_constants.dart';
+import 'package:app/core/constants/app_constants.dart';
 
 import '../../../../components/AppText/appText.dart';
 import '../../data/models/block_userlist.dart';

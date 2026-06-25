@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "877037378701",
+    "project_id": "pilach",
+    "storage_bucket": "pilach.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:877037378701:android:c35fdf601179f033b916c4",
+        "android_client_info": {
+          "package_name": "com.pilach.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDQnmyXPw8yR2nV45mEDAPogZeftJAyYRQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

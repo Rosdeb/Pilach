@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:messageapp/core/theme/theme_provider.dart';
-import 'package:messageapp/core/theme/chat_theme_model.dart';
-import 'package:messageapp/core/theme/chat_themes.dart';
+import 'package:app/core/theme/theme_provider.dart';
+import 'package:app/core/theme/chat_theme_model.dart';
+import 'package:app/core/theme/chat_themes.dart';
 
 class ChatThemeNotifier extends Notifier<ChatTheme> {
   static const _themeKey = 'selected_chat_theme_id';

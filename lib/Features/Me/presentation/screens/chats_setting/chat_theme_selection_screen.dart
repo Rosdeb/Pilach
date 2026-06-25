@@ -1,10 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:messageapp/components/AppText/appText.dart';
-import 'package:messageapp/core/theme/chat_theme_model.dart';
-import 'package:messageapp/core/theme/chat_themes.dart';
-import 'package:messageapp/Features/Me/presentation/providers/chat_theme_provider.dart';
+import 'package:app/components/AppText/appText.dart';
+import 'package:app/core/theme/chat_theme_model.dart';
+import 'package:app/core/theme/chat_themes.dart';
+import 'package:app/Features/Me/presentation/providers/chat_theme_provider.dart';
 
 class ChatThemeSelectionScreen extends ConsumerWidget {
   const ChatThemeSelectionScreen({super.key});

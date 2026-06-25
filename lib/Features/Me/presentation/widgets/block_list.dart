@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:messageapp/Features/Me/data/models/block_userlist.dart';
+import 'package:app/Features/Me/data/models/block_userlist.dart';
 
 import 'block_listTile.dart';
 

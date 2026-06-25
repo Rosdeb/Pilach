@@ -1,6 +1,7 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:messageapp/core/constants/app_constants.dart';
+import 'package:app/core/constants/app_constants.dart';
 
 import '../../data/models/chat_model.dart';
 
@@ -30,8 +31,19 @@ class ChatTile extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundImage:
-            NetworkImage(chat.image),
+            child: ClipOval(
+              child: CachedNetworkImage(
+                imageUrl: chat.image ?? "",
+                fit: BoxFit.cover,
+                width: 48,
+                height: 48,
+                cacheKey: chat.name + chat.image,
+                placeholder: (context, url) =>
+                const CircularProgressIndicator(),
+                errorWidget: (context, url, error) =>
+                const Icon(Icons.person),
+              ),
+            ),
           ),
 
           if (chat.isOnline)

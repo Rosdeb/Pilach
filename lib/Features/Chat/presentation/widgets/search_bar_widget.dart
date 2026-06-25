@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:messageapp/core/constants/app_constants.dart';
+import 'package:app/core/constants/app_constants.dart';
 import '../providers/chat_provider.dart';
 
 class IOSSearchBar extends ConsumerWidget {

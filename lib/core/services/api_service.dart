@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:messageapp/core/network/api_exceptions.dart';
+import 'package:app/core/network/api_exceptions.dart';
 
 import '../constants/api_constants.dart';
 

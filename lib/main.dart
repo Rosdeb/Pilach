@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:messageapp/core/router/app_router.dart';
+import 'package:app/core/router/app_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:messageapp/app/app_initializer.dart';
-import 'package:messageapp/core/theme/app_theme.dart';
-import 'package:messageapp/core/theme/theme_provider.dart';
-import 'package:messageapp/core/utils/app_colour.dart';
+import 'package:app/app/app_initializer.dart';
+import 'package:app/core/theme/app_theme.dart';
+import 'package:app/core/theme/theme_provider.dart';
+import 'package:app/core/utils/app_colour.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

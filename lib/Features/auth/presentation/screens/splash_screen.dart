@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:messageapp/components/AppText/appText.dart';
-import 'package:messageapp/core/constants/asset_constants.dart';
-import 'package:messageapp/features/auth/presentation/providers/splash_provider.dart';
+import 'package:app/components/AppText/appText.dart';
+import 'package:app/core/constants/asset_constants.dart';
+import 'package:app/features/auth/presentation/providers/splash_provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});

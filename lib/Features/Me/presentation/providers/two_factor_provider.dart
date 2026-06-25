@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
-import 'package:messageapp/Features/auth/data/repositories/auth_repository.dart';
-import 'package:messageapp/core/network/api_exceptions.dart';
+import 'package:app/Features/auth/data/repositories/auth_repository.dart';
+import 'package:app/core/network/api_exceptions.dart';
 import 'security_privacy_providers.dart';
 
 class TwoFactorState {

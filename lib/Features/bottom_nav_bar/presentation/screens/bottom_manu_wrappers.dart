@@ -6,11 +6,11 @@ import 'package:cupertino_native/style/sf_symbol.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:messageapp/Features/Chat/presentation/screens/chat_screen.dart';
-import 'package:messageapp/Features/Contact/presentation/screens/contact_screen.dart';
-import 'package:messageapp/Features/Discovers/presentation/screens/discover_screen.dart';
-import 'package:messageapp/Features/Me/presentation/screens/me_screen.dart';
-import 'package:messageapp/Features/Me/presentation/providers/setting_providers.dart';
+import 'package:app/Features/Chat/presentation/screens/chat_screen.dart';
+import 'package:app/Features/Contact/presentation/screens/contact_screen.dart';
+import 'package:app/Features/Discovers/presentation/screens/discover_screen.dart';
+import 'package:app/Features/Me/presentation/screens/me_screen.dart';
+import 'package:app/Features/Me/presentation/providers/setting_providers.dart';
 
 import '../providers/bottom_nav_provider.dart';
 import '../widgets/custom_bottom_nav.dart';

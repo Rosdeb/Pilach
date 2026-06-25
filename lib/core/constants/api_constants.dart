@@ -13,7 +13,7 @@ class ApiConstants {
   static const String logout = "/api/v1/auth/logout";
   static const String refreshToken = "/api/v1/auth/refresh";
   static const String verifyOtp = "/api/v1/auth/email/verify/otp";
-  
+
   // 2FA Endpoints
   static const String twoFactorMethods = "/api/v1/auth/2fa/methods";
   static const String twoFactorEnrollEmailRequest = "/api/v1/auth/2fa/enroll/email/request";
@@ -61,6 +61,7 @@ class ApiConstants {
   // ================================
   static const String getNotifications = "/notifications";
   static const String markAsRead = "/notifications/read";
+  static const String fcmTokens = "/api/v1/fcm-tokens";
 
   // ================================
   // ⚙️ Settings

@@ -1,1 +1,1 @@
-export 'package:messageapp/core/utils/app_colour.dart';
+export 'package:app/core/utils/app_colour.dart';
