@@ -59,12 +59,18 @@ class _TwoFactorVerifyScreenState extends ConsumerState<TwoFactorVerifyScreen> {
     if (widget.args.isLoginChallenge) {
       try {
         setState(() => _isVerifying = true);
-        await ref.read(authRepositoryProvider).verifyTwoFactorChallenge(
+        final verifyResult = await ref.read(authRepositoryProvider).verifyTwoFactorChallenge(
           challengeId: widget.args.challengeId ?? '',
           type: widget.args.type,
           code: code,
         );
-        ref.read(authProvider.notifier).setAuthenticated(widget.args.verificationTarget);
+        final userData = verifyResult['data'];
+        await ref.read(authProvider.notifier).setAuthenticated(
+          userData?['email'] ?? widget.args.verificationTarget,
+          id: userData?['id'],
+          name: userData?['name'],
+          profileImage: userData?['profilePicture'] ?? userData?['avatar'],
+        );
         success = true;
       } on ApiException catch (e) {
         errorMsg = e.message;

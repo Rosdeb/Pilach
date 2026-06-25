@@ -7,11 +7,9 @@ import '../../../../../components/AppText/appText.dart';
 import '../../../../../core/utils/app_colour.dart';
 
 import '../../../../../core/theme/theme_provider.dart';
+import '../../../../auth/presentation/providers/auth_provider.dart';
 
-final userIdProvider = Provider<String>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return prefs.getString('user_id') ?? "unknown_user_id";
-});
+// userIdProvider removed in favor of reading directly from authProvider
 
 class QrScanScreen extends ConsumerStatefulWidget {
   const QrScanScreen({super.key});
@@ -44,7 +42,9 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
-    final backendId = ref.watch(userIdProvider);
+    final authState = ref.watch(authProvider);
+    final backendId = authState.id ?? "unknown_user_id";
+
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -119,7 +119,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
               controller: _tabController,
               physics: const BouncingScrollPhysics(),
               children: [
-                _buildMyCodeTab(context, backendId),
+                _buildMyCodeTab(context, authState.id ?? "***", authState.name ?? "Unknow",authState.profileImage ?? "image_not_found"),
                 _buildScanCodeTab(context),
               ],
             ),
@@ -130,7 +130,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
   }
 
   // --- TAB 1: MY CODE (Updated with pretty_qr_code) ---
-  Widget _buildMyCodeTab(BuildContext context, String qrData) {
+  Widget _buildMyCodeTab(BuildContext context, String qrData,String name,String image) {
     final qrImage = QrImage(QrCode.fromData(
       data: qrData,
       errorCorrectLevel: QrErrorCorrectLevel.H,
@@ -162,9 +162,13 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                   // User Profile info row
                   Row(
                     children: [
-                      const CircleAvatar(
+                      CircleAvatar(
                         radius: 25,
-                        backgroundImage: NetworkImage('https://cdn.motor1.com/images/mgl/bglVnv/s3/best-new-cars-coming-out-in-2025.webp'),
+                        backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                        backgroundImage: image != "image_not_found" ? NetworkImage(image) : null,
+                        child: image == "image_not_found"
+                            ? Icon(Icons.person, size: 25, color: theme.colorScheme.primary)
+                            : null,
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -172,7 +176,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> with SingleTickerPr
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "Alex Koch",
+                              name,
                               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
                             ),
                             const SizedBox(height: 2),

@@ -9,27 +9,31 @@ class TwoFactorState {
   final bool isLoading;
   final String? errorMessage;
   final bool isCodeSent;
+  final bool hasLoaded;
 
   TwoFactorState({
     required this.enrolledMethods,
     this.isLoading = false,
     this.errorMessage,
     this.isCodeSent = false,
+    this.hasLoaded = false,
   });
 
-  factory TwoFactorState.initial() => TwoFactorState(enrolledMethods: []);
+  factory TwoFactorState.initial() => TwoFactorState(enrolledMethods: [], hasLoaded: false);
 
   TwoFactorState copyWith({
     List<dynamic>? enrolledMethods,
     bool? isLoading,
     String? errorMessage,
     bool? isCodeSent,
+    bool? hasLoaded,
   }) {
     return TwoFactorState(
       enrolledMethods: enrolledMethods ?? this.enrolledMethods,
       isLoading: isLoading ?? this.isLoading,
       errorMessage: errorMessage,
       isCodeSent: isCodeSent ?? this.isCodeSent,
+      hasLoaded: hasLoaded ?? this.hasLoaded,
     );
   }
 }
@@ -42,11 +46,12 @@ class TwoFactorNotifier extends StateNotifier<TwoFactorState> {
     loadMethods();
   }
 
-  Future<void> loadMethods() async {
+  Future<void> loadMethods({bool forceRefresh = false}) async {
+    if (state.hasLoaded && !forceRefresh) return;
     state = state.copyWith(isLoading: true);
     try {
       final methods = await _authRepository.fetchTwoFactorMethods();
-      state = state.copyWith(enrolledMethods: methods, isLoading: false);
+      state = state.copyWith(enrolledMethods: methods, isLoading: false, hasLoaded: true);
       // Synchronize with twoFactorProvider in security_privacy_providers
       final hasActive2Fa = methods.any((m) => m is Map && m['isEnabled'] == true);
       _ref.read(twoFactorProvider.notifier).state = hasActive2Fa;
@@ -77,7 +82,7 @@ class TwoFactorNotifier extends StateNotifier<TwoFactorState> {
     try {
       await _authRepository.enrollEmailConfirm(code);
       state = state.copyWith(isLoading: false, isCodeSent: false);
-      await loadMethods();
+      await loadMethods(forceRefresh: true);
       return true;
     } on ApiException catch (e) {
       state = state.copyWith(errorMessage: e.message, isLoading: false);
@@ -108,7 +113,7 @@ class TwoFactorNotifier extends StateNotifier<TwoFactorState> {
     try {
       await _authRepository.enrollSmsConfirm(code);
       state = state.copyWith(isLoading: false, isCodeSent: false);
-      await loadMethods();
+      await loadMethods(forceRefresh: true);
       return true;
     } on ApiException catch (e) {
       state = state.copyWith(errorMessage: e.message, isLoading: false);
@@ -124,7 +129,7 @@ class TwoFactorNotifier extends StateNotifier<TwoFactorState> {
     try {
       await _authRepository.disableTwoFactorMethod(methodId);
       state = state.copyWith(isLoading: false);
-      await loadMethods();
+      await loadMethods(forceRefresh: true);
       return true;
     } on ApiException catch (e) {
       state = state.copyWith(errorMessage: e.message, isLoading: false);

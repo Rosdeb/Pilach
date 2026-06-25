@@ -171,9 +171,14 @@ class AuthRepository {
 
   Future<void> disableTwoFactorMethod(String methodId) async {
     final response = await _apiService.delete("${ApiConstants.twoFactorMethods}/$methodId");
-    if (response.data['success'] != true) {
-      throw ApiException(response.data['message'] ?? 'Failed to disable 2FA method');
+    final statusCode = response.statusCode ?? 200;
+    if (statusCode >= 200 && statusCode < 300) {
+      if (response.data is Map && response.data['success'] == false) {
+        throw ApiException(response.data['message'] ?? 'Failed to disable 2FA method');
+      }
+      return;
     }
+    throw ApiException('Failed to disable 2FA method');
   }
 
   Future<void> sendTwoFactorChallenge({
@@ -211,6 +216,28 @@ class AuthRepository {
       if (data['tokens'] != null) {
         await prefs.setString('auth_token', data['tokens']['access']['token']);
         await prefs.setString('refresh_token', data['tokens']['refresh']['token']);
+      } else {
+        final cookies = response.headers.map['set-cookie'] ?? [];
+        String? accessToken;
+        String? refreshToken;
+        
+        for (var cookie in cookies) {
+          if (cookie.contains('access_token=')) {
+            final match = RegExp(r'access_token=([^;]+)').firstMatch(cookie);
+            if (match != null) accessToken = match.group(1);
+          }
+          if (cookie.contains('refresh_token=')) {
+            final match = RegExp(r'refresh_token=([^;]+)').firstMatch(cookie);
+            if (match != null) refreshToken = match.group(1);
+          }
+        }
+        
+        if (accessToken != null) {
+          await prefs.setString('auth_token', accessToken);
+        }
+        if (refreshToken != null) {
+          await prefs.setString('refresh_token', refreshToken);
+        }
       }
       final userId = data['data']?['id'];
       if (userId != null) {

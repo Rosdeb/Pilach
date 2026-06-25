@@ -77,6 +77,7 @@ class _MeScreenState extends ConsumerState<MeScreen> {
     // Watch the states from Riverpod
     final isPushEnabled = ref.watch(pushNotificationsProvider);
     final themeState = ref.watch(themeProvider);
+    final authState = ref.watch(authProvider);
 
     final String currentThemeName;
     switch (themeState.themeMode) {
@@ -144,16 +145,20 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                   _buildSectionCard(context, [
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: const CircleAvatar(
+                      leading: CircleAvatar(
                         radius: 30,
-                        backgroundImage: NetworkImage('https://cdn.motor1.com/images/mgl/bglVnv/s3/best-new-cars-coming-out-in-2025.webp'), // Replace with actual asset/image
+                        backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                        backgroundImage: authState.profileImage != null ? NetworkImage(authState.profileImage!) : null,
+                        child: authState.profileImage == null
+                            ? Icon(Icons.person, size: 30, color: theme.colorScheme.primary)
+                            : null,
                       ),
-                      title: const AppText(
-                        'Alex Koch',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      title: AppText(
+                        authState.name ?? 'Guest User',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                       ),
                       subtitle: AppText(
-                        'alex.koch@brand.com',
+                        authState.email ?? 'No email available',
                         style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 14),
                       ),
                       trailing: Icon(Icons.qr_code_scanner, size: 20, color: theme.colorScheme.onSurface),

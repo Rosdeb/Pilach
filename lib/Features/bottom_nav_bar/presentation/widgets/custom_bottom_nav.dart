@@ -21,10 +21,10 @@ class CustomBottomNav extends ConsumerWidget {
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(24),
-                topRight: Radius.circular(24),
-              ),
+              // borderRadius: const BorderRadius.only(
+              //   topLeft: Radius.circular(24),
+              //   topRight: Radius.circular(24),
+              // ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),

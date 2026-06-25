@@ -55,12 +55,18 @@ class _TwoFactorSmsVerifyScreenState extends ConsumerState<TwoFactorSmsVerifyScr
       bool success = false;
       String? errorMsg;
       try {
-        await ref.read(authRepositoryProvider).verifyTwoFactorChallenge(
+        final verifyResult = await ref.read(authRepositoryProvider).verifyTwoFactorChallenge(
           challengeId: challengeId,
           type: "SMS_OTP",
           code: code,
         );
-        ref.read(authProvider.notifier).setAuthenticated(widget.args.phone);
+        final userData = verifyResult['data'];
+        await ref.read(authProvider.notifier).setAuthenticated(
+          userData?['email'] ?? widget.args.phone,
+          id: userData?['id'],
+          name: userData?['name'],
+          profileImage: userData?['profilePicture'] ?? userData?['avatar'],
+        );
         success = true;
       } on ApiException catch (e) {
         errorMsg = e.message;

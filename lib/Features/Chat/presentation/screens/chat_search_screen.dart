@@ -24,12 +24,6 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final allChats = ref.watch(chatProvider);
-    final searchQuery = ref.watch(chatSearchProviders).toLowerCase();
-
-    final filteredChats = allChats.where((chat) {
-      return chat.name.toLowerCase().contains(searchQuery); //|| chat.lastMessage.toLowerCase().contains(searchQuery);
-    }).toList();
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -51,36 +45,58 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
           margin: const EdgeInsets.only(right: 16.0, top: 10, bottom: 10, left: 8.0),
         ),
       ),
-      body: searchQuery.isEmpty
-          ? Center(
-              child: Text(
-                "Search for chats and messages",
-                style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6)),
-              ),
-            )
-          : filteredChats.isEmpty
-              ? Center(
-                  child: Text(
-                    "No results found",
-                    style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6)),
-                  ),
-                )
-              : ListView.separated(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  itemCount: filteredChats.length,
-                  separatorBuilder: (context, index) => Padding(
-                    padding: const EdgeInsets.only(left: 68.0),
-                    child: Divider(
-                      height: 1,
-                      thickness: 0.5,
-                      color: theme.dividerColor.withOpacity(0.12),
-                    ),
-                  ),
-                  itemBuilder: (context, index) {
-                    return ChatTile(chat: filteredChats[index]);
-                  },
-                ),
+      body: const _SearchResultsBody(),
+    );
+  }
+}
+
+class _SearchResultsBody extends ConsumerWidget {
+  const _SearchResultsBody({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final allChats = ref.watch(chatProvider);
+    final searchQuery = ref.watch(chatSearchProviders).toLowerCase();
+
+    if (searchQuery.isEmpty) {
+      return Center(
+        child: Text(
+          "Search for chats and messages",
+          style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6)),
+        ),
+      );
+    }
+
+    final filteredChats = allChats.where((chat) {
+      return chat.name.toLowerCase().contains(searchQuery);
+    }).toList();
+
+    if (filteredChats.isEmpty) {
+      return Center(
+        child: Text(
+          "No results found",
+          style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6)),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      itemCount: filteredChats.length,
+      separatorBuilder: (context, index) => Padding(
+        padding: const EdgeInsets.only(left: 68.0),
+        child: Divider(
+          height: 1,
+          thickness: 0.5,
+          color: theme.dividerColor.withOpacity(0.12),
+        ),
+      ),
+      itemBuilder: (context, index) {
+        // Use const or keys to ensure recycling efficiency where applicable.
+        return ChatTile(key: ValueKey(filteredChats[index].name), chat: filteredChats[index]);
+      },
     );
   }
 }

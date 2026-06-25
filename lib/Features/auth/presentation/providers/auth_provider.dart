@@ -10,29 +10,42 @@ enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
 
 class AuthState {
   final AuthStatus status;
+  final String? id;
   final String? email;
+  final String? name;
+  final String? profileImage;
   final String? errorMessage;
 
   AuthState({
     required this.status,
+    this.id,
     this.email,
+    this.name,
+    this.profileImage,
     this.errorMessage,
   });
 
   factory AuthState.initial() => AuthState(status: AuthStatus.initial);
   factory AuthState.loading() => AuthState(status: AuthStatus.loading);
-  factory AuthState.authenticated(String email) => AuthState(status: AuthStatus.authenticated, email: email);
+  factory AuthState.authenticated(String email, {String? id, String? name, String? profileImage}) => 
+      AuthState(status: AuthStatus.authenticated, id: id, email: email, name: name, profileImage: profileImage);
   factory AuthState.unauthenticated() => AuthState(status: AuthStatus.unauthenticated);
   factory AuthState.error(String message) => AuthState(status: AuthStatus.error, errorMessage: message);
 
   AuthState copyWith({
     AuthStatus? status,
+    String? id,
     String? email,
+    String? name,
+    String? profileImage,
     String? errorMessage,
   }) {
     return AuthState(
       status: status ?? this.status,
+      id: id ?? this.id,
       email: email ?? this.email,
+      name: name ?? this.name,
+      profileImage: profileImage ?? this.profileImage,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }
@@ -63,7 +76,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);
     if (token != null) {
-      state = AuthState.authenticated("user");
+      final id = prefs.getString('user_id');
+      final email = prefs.getString('auth_email') ?? "user";
+      final name = prefs.getString('auth_name');
+      final profileImage = prefs.getString('auth_profile_image');
+      state = AuthState.authenticated(email, id: id, name: name, profileImage: profileImage);
     } else {
       state = AuthState.unauthenticated();
     }
@@ -79,7 +96,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
         return result;
       }
       final userData = result['user'];
-      state = AuthState.authenticated(userData?['email'] ?? email);
+      final resolvedEmail = userData?['email'] ?? email;
+      final id = userData?['id'];
+      final name = userData?['name'];
+      final profileImage = userData?['profilePicture'] ?? userData?['avatar'];
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('auth_email', resolvedEmail);
+      if (id != null) await prefs.setString('user_id', id);
+      if (name != null) await prefs.setString('auth_name', name);
+      if (profileImage != null) await prefs.setString('auth_profile_image', profileImage);
+      
+      state = AuthState.authenticated(resolvedEmail, id: id, name: name, profileImage: profileImage);
       return result;
     } on ApiException catch (e) {
       state = AuthState.error(e.message);
@@ -90,8 +118,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  void setAuthenticated(String email) {
-    state = AuthState.authenticated(email);
+  Future<void> setAuthenticated(String email, {String? id, String? name, String? profileImage}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('auth_email', email);
+    if (id != null) await prefs.setString('user_id', id);
+    if (name != null) await prefs.setString('auth_name', name);
+    if (profileImage != null) await prefs.setString('auth_profile_image', profileImage);
+    state = AuthState.authenticated(email, id: id, name: name, profileImage: profileImage);
   }
 
   Future<bool> register(String name, String email, String password) async {
@@ -132,6 +165,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (_) {
       // Ignore API errors, we still want to log out locally
     }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_id');
+    await prefs.remove('auth_email');
+    await prefs.remove('auth_name');
+    await prefs.remove('auth_profile_image');
     state = AuthState.unauthenticated();
   }
 }
