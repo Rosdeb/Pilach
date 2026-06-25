@@ -74,10 +74,13 @@ CustomTransitionPage<dynamic> buildSlideTransitionPage({
 }
 
 
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshListenable = RiverpodRouterRefreshListenable(ref);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: AppPaths.splash,
     refreshListenable: refreshListenable,
     errorBuilder: (context, state) => Scaffold(
