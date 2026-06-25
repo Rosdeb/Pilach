@@ -1,0 +1,246 @@
+Phase 1 — Measure First
+
+Before changing code:
+
+flutter run --profile
+
+Then enable:
+
+showPerformanceOverlay: true
+
+Check:
+
+UI Thread (Build)
+Raster Thread (Render)
+
+If either spikes above:
+
+16ms = 60 FPS
+8ms = 120 FPS
+
+you'll see jank.
+
+Phase 2 — Fix Chat Screen (Highest Priority)
+Use ListView.builder
+
+❌ Bad
+
+Column(
+children: messages.map(...).toList(),
+)
+
+✅ Good
+
+ListView.builder(
+itemCount: messages.length,
+itemBuilder: (context,index){
+return MessageBubble(...);
+},
+)
+Add Keys
+MessageBubble(
+key: ValueKey(message.id),
+)
+
+This helps Flutter reuse widgets.
+
+Use const Widgets
+
+❌
+
+Text("Online")
+
+✅
+
+const Text("Online")
+
+Apply everywhere possible.
+
+Separate Message Bubble Widget
+
+Don't build the bubble directly inside ListView.
+
+ChatScreen
+├─ MessageList
+├─ MessageBubble
+├─ InputBar
+
+Each widget becomes smaller and rebuilds less.
+
+Phase 3 — Fix Keyboard Jank
+
+Most chat apps use:
+
+Scaffold(
+resizeToAvoidBottomInset: false,
+)
+
+Then manually handle keyboard.
+
+Example:
+
+AnimatedPadding(
+duration: Duration(milliseconds: 250),
+padding: EdgeInsets.only(
+bottom: MediaQuery.of(context).viewInsets.bottom,
+),
+child: MessageInput(),
+)
+
+Benefits:
+
+Less layout recalculation
+Smoother keyboard animation
+Reverse Message List
+
+Messenger and WhatsApp style:
+
+ListView.builder(
+reverse: true,
+)
+
+This improves scrolling performance for chat apps.
+
+Phase 4 — Image Optimization
+
+Install:
+
+cached_network_image:
+
+Replace:
+
+Image.network(url)
+
+with
+
+CachedNetworkImage(
+imageUrl: url,
+)
+
+For:
+
+Avatars
+Story images
+Profile photos
+Group images
+
+This alone can remove lots of scroll lag.
+
+Phase 5 — Riverpod Optimization
+Bad
+Widget build() {
+final state = ref.watch(chatProvider);
+
+return Scaffold(...);
+}
+
+Entire screen rebuilds.
+
+Better
+Consumer(
+builder: (_, ref, __) {
+final messages = ref.watch(chatProvider);
+
+return MessageList(messages);
+},
+)
+
+Only MessageList rebuilds.
+
+Best
+ref.watch(
+chatProvider.select(
+(state) => state.messages,
+),
+);
+
+Only rebuild when messages change.
+
+Phase 6 — Local Database Optimization
+
+If using Isar:
+
+final messages = await isar.messages
+    .where()
+    .chatIdEqualTo(chatId)
+    .findAll();
+
+Add indexes.
+
+Example:
+
+@Index()
+String chatId;
+@Index()
+DateTime createdAt;
+
+Without indexes:
+
+10000 messages
+↓
+slow query
+
+With indexes:
+
+10000 messages
+↓
+fast query
+Phase 7 — API Optimization
+
+Use Dio Singleton.
+
+class ApiClient {
+static final Dio dio = Dio();
+}
+
+Never create Dio repeatedly.
+
+❌
+
+Dio dio = Dio();
+
+inside every API call.
+
+Phase 8 — Background Message Sync
+
+Don't rebuild chat list every message.
+
+Bad:
+
+New Message
+↓
+Reload Entire Chat List
+
+Good:
+
+New Message
+↓
+Update Only Changed Chat
+
+Example:
+
+conversation.lastMessage = newMessage;
+
+instead of re-fetching everything.
+
+Phase 9 — Navigation Optimization
+
+For chat apps:
+
+Home
+Chat
+Profile
+Settings
+
+Use:
+
+IndexedStack
+
+instead of recreating screens.
+
+IndexedStack(
+index: currentTab,
+children: [...]
+)
+
+This is what Messenger-like apps do.

@@ -14,54 +14,49 @@ class AllStoriesScreen extends ConsumerWidget {
     
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      body: CustomScrollView(
+      appBar: AppBar(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        surfaceTintColor: theme.scaffoldBackgroundColor,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new, color: theme.colorScheme.onSurface, size: 20),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: AppText(
+          "All Stories",
+          style: TextStyle(
+            color: theme.colorScheme.onSurface,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      body: GridView.builder(
         physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            expandedHeight: 60.0,
-            toolbarHeight: 60.0,
-            backgroundColor: theme.scaffoldBackgroundColor,
-            surfaceTintColor: theme.scaffoldBackgroundColor,
-            elevation: 0,
-            centerTitle: true,
-            leading: IconButton(
-              icon: Icon(Icons.arrow_back_ios_new, color: theme.colorScheme.onSurface, size: 20),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            title: AppText(
-              "All Stories",
-              style: TextStyle(
-                color: theme.colorScheme.onSurface,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          
-          SliverPadding(
-            padding: const EdgeInsets.all(16.0),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.75, // Adjust for portrait story aspect ratio
-                crossAxisSpacing: 16.0,
-                mainAxisSpacing: 16.0,
-              ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  return _buildStoryCard(context, index);
-                },
-                childCount: 12, // Mock count
-              ),
-            ),
-          ),
-        ],
+        padding: const EdgeInsets.all(16.0),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.75, // Adjust for portrait story aspect ratio
+          crossAxisSpacing: 16.0,
+          mainAxisSpacing: 16.0,
+        ),
+        itemCount: 12, // Mock count
+        itemBuilder: (context, index) {
+          return StoryCard(index: index);
+        },
       ),
     );
   }
+}
 
-  Widget _buildStoryCard(BuildContext context, int index) {
+class StoryCard extends StatelessWidget {
+  final int index;
+  
+  const StoryCard({Key? key, required this.index}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     
     return GestureDetector(
@@ -80,88 +75,88 @@ class AllStoriesScreen extends ConsumerWidget {
             )
           ],
         ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Background mock
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              color: index % 2 == 0 
-                  ? theme.colorScheme.primary.withOpacity(0.1)
-                  : CupertinoColors.systemOrange.withOpacity(0.1),
-              child: Center(
-                child: Icon(
-                  CupertinoIcons.photo, 
-                  color: theme.colorScheme.onSurface.withOpacity(0.2),
-                  size: 32,
-                ),
-              ),
-            ),
-          ),
-          
-          // Gradient overlay for text readability
-          Container(
-            decoration: BoxDecoration(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Background mock
+            ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  Colors.black.withOpacity(0.6),
-                ],
-                stops: const [0.5, 1.0],
+              child: Container(
+                color: index % 2 == 0 
+                    ? theme.colorScheme.primary.withOpacity(0.1)
+                    : CupertinoColors.systemOrange.withOpacity(0.1),
+                child: Center(
+                  child: Icon(
+                    CupertinoIcons.photo, 
+                    color: theme.colorScheme.onSurface.withOpacity(0.2),
+                    size: 32,
+                  ),
+                ),
               ),
             ),
-          ),
-          
-          // User Info at bottom
-          Positioned(
-            bottom: 12,
-            left: 12,
-            right: 12,
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [CupertinoColors.activeOrange, CupertinoColors.systemPink],
-                    ),
-                  ),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: theme.scaffoldBackgroundColor,
-                      shape: BoxShape.circle,
-                    ),
-                    padding: const EdgeInsets.all(1.5),
-                    child: CircleAvatar(
-                      radius: 14,
-                      backgroundColor: theme.colorScheme.onSurface.withOpacity(0.05),
-                      child: Icon(CupertinoIcons.person_fill, size: 14, color: theme.colorScheme.onSurface.withOpacity(0.4)),
-                    ),
-                  ),
+            
+            // Gradient overlay for text readability
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.6),
+                  ],
+                  stops: const [0.5, 1.0],
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'User $index',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
+            
+            // User Info at bottom
+            Positioned(
+              bottom: 12,
+              left: 12,
+              right: 12,
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [CupertinoColors.activeOrange, CupertinoColors.systemPink],
+                      ),
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.scaffoldBackgroundColor,
+                        shape: BoxShape.circle,
+                      ),
+                      padding: const EdgeInsets.all(1.5),
+                      child: CircleAvatar(
+                        radius: 14,
+                        backgroundColor: theme.colorScheme.onSurface.withOpacity(0.05),
+                        child: Icon(CupertinoIcons.person_fill, size: 14, color: theme.colorScheme.onSurface.withOpacity(0.4)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'User $index',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

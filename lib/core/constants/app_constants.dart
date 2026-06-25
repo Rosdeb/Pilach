@@ -29,6 +29,7 @@ class AppPaths {
 
   // Chat dynamic
   static const String chat = '/direct_chat_screen';
+  static const String chat_profile = '/chat_profile_screen';
   static const String chats_setting = '/chats_settings_screen';
   static const String bottom_manu = '/bottom_manu_wrappers';
   static const String email_setting = '/email_setting_screen';
@@ -55,6 +56,7 @@ class AppRoutes {
   static const String main = 'main';
   static const String profile = 'profile';
   static const String chat = 'direct_chat_screen';
+  static const String chat_profile = 'chat_profile_screen';
   static const String chats_setting = 'chats_settings_screen';
   static const String bottom_manu = 'bottom_manu_wrappers';
   static const String block_userlist = 'block_userlist_screen';

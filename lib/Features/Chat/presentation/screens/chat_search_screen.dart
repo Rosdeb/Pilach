@@ -32,6 +32,7 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
     }).toList();
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: theme.scaffoldBackgroundColor,

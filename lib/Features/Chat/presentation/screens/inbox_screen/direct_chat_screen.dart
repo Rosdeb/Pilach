@@ -1,7 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:messageapp/core/constants/app_constants.dart';
 
 import 'package:messageapp/core/theme/chat_theme_model.dart';
 import 'package:messageapp/Features/Me/presentation/providers/chat_theme_provider.dart';
@@ -86,58 +89,61 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         titleSpacing: 0,
-        title: Row(
-          children: [
-            Stack(
-              children: [
-                const CircleAvatar(
-                  radius: 20,
-                  backgroundImage: NetworkImage('https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp'),
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: successColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: theme.scaffoldBackgroundColor, width: 1.5),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+        title: GestureDetector(
+          onTap: () => context.push(AppPaths.chat_profile),
+          child: Row(
+            children: [
+              Stack(
                 children: [
-                  Text(
-                    'Alexandra Sterling',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: headerTextColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  const CircleAvatar(
+                    radius: 20,
+                    backgroundImage: CachedNetworkImageProvider('https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp'),
                   ),
-                  Text(
-                    'Online',
-                    style: TextStyle(
-                      color: successColor.withOpacity(0.9),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: successColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: theme.scaffoldBackgroundColor, width: 1.5),
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Alexandra Sterling',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: headerTextColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Online',
+                      style: TextStyle(
+                        color: successColor.withOpacity(0.9),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
-          ],
+            ],
+          ),
         ),
         actions: [
           IconButton(
@@ -166,33 +172,39 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                 decoration: BoxDecoration(
                   image: wallpaperUrl != null
                       ? DecorationImage(
-                          image: NetworkImage(wallpaperUrl),
+                          image: CachedNetworkImageProvider(wallpaperUrl),
                           fit: BoxFit.cover,
                         )
                       : null,
                 ),
-                child: ListView(
+                child: ListView.builder(
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                  children: [
-                    // Today Separator
-                    Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        margin: const EdgeInsets.symmetric(vertical: 16),
-                        decoration: BoxDecoration(
-                          color: theme.dividerColor.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
+                  itemCount: _messages.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          margin: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: theme.dividerColor.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            'Today',
+                            style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 12, fontWeight: FontWeight.w500),
+                          ),
                         ),
-                        child: Text(
-                          'Today',
-                          style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 12, fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                    ),
-                    // Message list mapping
-                    ..._messages.map((msg) => ChatBubble(message: msg, activeTheme: activeTheme)),
-                  ],
+                      );
+                    }
+                    final msg = _messages[index - 1];
+                    return ChatBubble(
+                      key: ValueKey(msg.hashCode), 
+                      message: msg, 
+                      activeTheme: activeTheme
+                    );
+                  },
                 ),
               ),
             ),

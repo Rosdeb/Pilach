@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:messageapp/Features/Chat/presentation/screens/inbox_screen/direct_chat_screen.dart';
+import 'package:messageapp/Features/Chat/presentation/screens/inbox_screen/chat_profile_screen.dart';
 import 'package:messageapp/Features/Chat/presentation/screens/chat_search_screen.dart';
 import 'package:messageapp/Features/Discovers/presentation/screens/all_stories_screen.dart';
 import 'package:messageapp/Features/Discovers/presentation/screens/story_details_screen.dart';
@@ -282,6 +283,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => buildSlideTransitionPage(
           key: state.pageKey,
           child: DirectChatScreen(),
+        ),
+      ),
+
+      GoRoute(
+        path: AppPaths.chat_profile,
+        name: AppRoutes.chat_profile,
+        pageBuilder: (context, state) => buildSlideTransitionPage(
+          key: state.pageKey,
+          child: const ChatProfileScreen(),
         ),
       ),
 

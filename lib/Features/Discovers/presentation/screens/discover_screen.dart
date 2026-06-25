@@ -166,45 +166,12 @@ class DiscoverScreen extends ConsumerWidget {
           }
 
           // Sample User Stories
-          return Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(2.5),
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [CupertinoColors.activeOrange, CupertinoColors.systemPink],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: theme.scaffoldBackgroundColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: CircleAvatar(
-                      radius: 28,
-                      backgroundColor: theme.colorScheme.onSurface.withOpacity(0.05),
-                      child: Icon(CupertinoIcons.person_fill, color: theme.colorScheme.onSurface.withOpacity(0.4)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'User $index',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurface),
-                ),
-              ],
-            ),
-          );
+          return StoryAvatar(index: index);
         },
       ),
     );
   }
+
 
   Widget _buildRadarScanner(BuildContext context, WidgetRef ref, bool isScanning) {
     final theme = Theme.of(context);
@@ -260,6 +227,53 @@ class DiscoverScreen extends ConsumerWidget {
           color: theme.colorScheme.primary.withOpacity(opacity),
           width: 1.5,
         ),
+      ),
+    );
+  }
+}
+
+class StoryAvatar extends StatelessWidget {
+  final int index;
+
+  const StoryAvatar({Key? key, required this.index}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Padding(
+      padding: const EdgeInsets.only(right: 16.0),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(2.5),
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [CupertinoColors.activeOrange, CupertinoColors.systemPink],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: theme.scaffoldBackgroundColor,
+                shape: BoxShape.circle,
+              ),
+              child: CircleAvatar(
+                radius: 28,
+                backgroundColor: theme.colorScheme.onSurface.withOpacity(0.05),
+                child: Icon(CupertinoIcons.person_fill, color: theme.colorScheme.onSurface.withOpacity(0.4)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'User $index',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurface),
+          ),
+        ],
       ),
     );
   }
