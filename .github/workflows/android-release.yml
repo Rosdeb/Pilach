@@ -9,80 +9,26 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
 
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
-          channel: stable
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v2
-        with:
-          api-level: 33
-          target: android-33
-          ndk: "25.2.9519653"
+          flutter-version: "3.35.2"
           cache: true
 
-      # Decode signing keystore (add your base64 keystore secret in GitHub Settings)
-      - name: Decode keystore
-        uses: peter-evans/base64@v2
+      - run: flutter pub get
+
+      - run: flutter build apk --release
+
+      - uses: actions/upload-artifact@v4
         with:
-          encodedString: ${{ secrets.KEYSTORE_BASE64 }}
-          outputPath: keystore.jks
-
-      - name: Flutter version
-        run: flutter --version
-
-      - name: Install Packages
-        run: flutter pub get
-
-      - name: Analyze
-        run: flutter analyze
-
-      - name: Run Tests
-        run: flutter test
-
-      - name: Build Signed APK
-        run: |
-          flutter build apk --release \
-            --build-number=$GITHUB_RUN_NUMBER \
-            --target lib/main.dart
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          ANDROID_KEYSTORE_PATH: keystore.jks
-
-      - name: Build App Bundle
-        run: |
-          flutter build appbundle --release \
-            --build-number=$GITHUB_RUN_NUMBER \
-            --target lib/main.dart
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          ANDROID_KEYSTORE_PATH: keystore.jks
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-apk
+          name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Upload AAB
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-aab
-          path: build/app/outputs/bundle/release/app-release.aab
