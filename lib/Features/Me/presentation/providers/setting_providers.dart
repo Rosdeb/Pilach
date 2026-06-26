@@ -18,7 +18,7 @@ class BoolPreferenceNotifier extends StateNotifier<bool> {
 
 // Provider to manage Push Notifications state
 final pushNotificationsProvider = StateNotifierProvider<BoolPreferenceNotifier, bool>((ref) {
-  return BoolPreferenceNotifier(ref.watch(sharedPreferencesProvider), 'push_notifications', true);
+  return BoolPreferenceNotifier(ref.watch(sharedPreferencesProvider), 'push_notifications', false);
 });
 
 // Provider to manage Dark Mode state (legacy wrapper)

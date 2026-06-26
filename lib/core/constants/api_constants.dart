@@ -28,9 +28,9 @@ class ApiConstants {
   // ================================
   // 👤 User/Profile
   // ================================
-  static const String getProfile = "/user/profile";
-  static const String updateProfile = "/user/update";
-  static const String uploadAvatar = "/user/avatar";
+  static const String getProfile = "/api/v1/profile/me";
+  static const String updateProfile = "/api/v1/profile";
+  static const String uploadAvatar = "/api/v1/profile/avatar";
 
   // ================================
   // 🏘️ Community

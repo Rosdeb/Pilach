@@ -12,9 +12,11 @@ import 'package:app/core/theme/theme_provider.dart';
 import 'package:app/core/services/permission_service.dart';
 import 'package:app/Features/auth/presentation/providers/auth_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../providers/setting_providers.dart';
 import '../providers/two_factor_provider.dart';
+import '../providers/profile_provider.dart';
 
 class MeScreen extends ConsumerStatefulWidget {
   const MeScreen({super.key});
@@ -23,13 +25,93 @@ class MeScreen extends ConsumerStatefulWidget {
   ConsumerState<MeScreen> createState() => _MeScreenState();
 }
 
-class _MeScreenState extends ConsumerState<MeScreen> {
+class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(twoFactorNotifierProvider.notifier).loadMethods();
-    });
+    WidgetsBinding.instance.addObserver(this);
+    ref.read(twoFactorNotifierProvider.notifier).loadMethods();
+    _syncNotificationPermissionState();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Re-check permission whenever the app comes back to foreground
+      _syncNotificationPermissionState();
+    }
+  }
+
+  Future<void> _syncNotificationPermissionState() async {
+    final permissionService = ref.read(permissionServiceProvider);
+    final status = await permissionService.checkPermission(Permission.notification);
+
+    if (status.isGranted) {
+      // Permission is granted — reflect whatever the user last saved
+      final prefs = ref.read(sharedPreferencesProvider);
+      final saved = prefs.getBool('push_notifications') ?? true;
+      ref.read(pushNotificationsProvider.notifier).update(saved);
+    } else {
+      // Permission not granted — force toggle off
+      ref.read(pushNotificationsProvider.notifier).update(false);
+    }
+  }
+
+  /// Called when the user flips the Push Notifications toggle.
+  Future<void> _handlePushToggle(bool enable) async {
+    final permissionService = ref.read(permissionServiceProvider);
+
+    if (enable) {
+      PermissionStatus status =
+          await permissionService.checkPermission(Permission.notification);
+
+      if (status.isDenied) {
+        status = await permissionService.requestPermission(Permission.notification);
+      }
+
+      if (status.isPermanentlyDenied) {
+        if (mounted) {
+          await showCupertinoDialog(
+            context: context,
+            builder: (c) => CupertinoAlertDialog(
+              title: const Text('Permission Required'),
+              content: const Text(
+                  'Please enable push notifications in your device settings.'),
+              actions: [
+                CupertinoDialogAction(
+                  child: const Text('Cancel'),
+                  onPressed: () => Navigator.pop(c),
+                ),
+                CupertinoDialogAction(
+                  child: const Text('Open Settings'),
+                  onPressed: () {
+                    Navigator.pop(c);
+                    permissionService.openSettings();
+                  },
+                ),
+              ],
+            ),
+          );
+        }
+        // Keep toggle off since permission is permanently denied
+        await ref.read(pushNotificationsProvider.notifier).update(false);
+        return;
+      }
+
+      if (status.isGranted) {
+        await ref.read(pushNotificationsProvider.notifier).update(true);
+      } else {
+        await ref.read(pushNotificationsProvider.notifier).update(false);
+      }
+    } else {
+      await ref.read(pushNotificationsProvider.notifier).update(false);
+    }
   }
 
   void _showThemeSelectionDialog(BuildContext context) {
@@ -74,24 +156,6 @@ class _MeScreenState extends ConsumerState<MeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Watch the states from Riverpod
-    final isPushEnabled = ref.watch(pushNotificationsProvider);
-    final themeState = ref.watch(themeProvider);
-    final authState = ref.watch(authProvider);
-
-    final String currentThemeName;
-    switch (themeState.themeMode) {
-      case ThemeMode.light:
-        currentThemeName = 'Light Mode';
-        break;
-      case ThemeMode.dark:
-        currentThemeName = 'Dark Mode';
-        break;
-      case ThemeMode.system:
-        currentThemeName = 'System Default';
-        break;
-    }
-
     final size = MediaQuery.of(context).size;
     final theme = Theme.of(context);
 
@@ -106,12 +170,11 @@ class _MeScreenState extends ConsumerState<MeScreen> {
             floating: false,
             snap: false,
             automaticallyImplyLeading: false,
-            expandedHeight: 65.0, // Gives room for the large iOS title layout
+            expandedHeight: 65.0,
             toolbarHeight: 65.0,
-            backgroundColor: theme.scaffoldBackgroundColor, // Semi-transparent base
-            surfaceTintColor:  theme.scaffoldBackgroundColor,
+            backgroundColor: theme.scaffoldBackgroundColor,
+            surfaceTintColor: theme.scaffoldBackgroundColor,
             centerTitle: false,
-            // This is where the magic glass blur effect happens
             flexibleSpace: ClipRect(
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
@@ -134,38 +197,54 @@ class _MeScreenState extends ConsumerState<MeScreen> {
           // --- BODY CONTENT ---
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSizes.paddingMedium),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSizes.paddingMedium),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Use your requested SizedBox here to push content beautifully down
                   const SizedBox(height: 16.0),
 
-                  // --- Your profile card and settings items continue here ---
+                  // --- PROFILE CARD ---
                   _buildSectionCard(context, [
-                    ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: CircleAvatar(
-                        radius: 30,
-                        backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                        backgroundImage: authState.profileImage != null ? NetworkImage(authState.profileImage!) : null,
-                        child: authState.profileImage == null
-                            ? Icon(Icons.person, size: 30, color: theme.colorScheme.primary)
-                            : null,
-                      ),
-                      title: AppText(
-                        authState.name ?? 'Guest User',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                      ),
-                      subtitle: AppText(
-                        authState.email ?? 'No email available',
-                        style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 14),
-                      ),
-                      trailing: Icon(Icons.qr_code_scanner, size: 20, color: theme.colorScheme.onSurface),
-                      onTap: () {
-
-                        context.push(AppPaths.qr_screen);
-
+                    Consumer(
+                      builder: (context, ref, child) {
+                        ref.watch(profileNotifierProvider);
+                        final authState = ref.watch(authProvider);
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          leading: CircleAvatar(
+                            radius: 30,
+                            backgroundColor: theme.colorScheme.primary
+                                .withValues(alpha: 0.1),
+                            backgroundImage: authState.profileImage != null
+                                ? CachedNetworkImageProvider(
+                                    authState.profileImage!)
+                                : null,
+                            child: authState.profileImage == null
+                                ? Icon(Icons.person,
+                                    size: 30,
+                                    color: theme.colorScheme.primary)
+                                : null,
+                          ),
+                          title: AppText(
+                            authState.name ?? 'Guest User',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 18),
+                          ),
+                          subtitle: AppText(
+                            authState.email ?? 'No email available',
+                            style: TextStyle(
+                                color: theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.6),
+                                fontSize: 14),
+                          ),
+                          trailing: Icon(Icons.qr_code_scanner,
+                              size: 20, color: theme.colorScheme.onSurface),
+                          onTap: () {
+                            context.push(AppPaths.qr_screen);
+                          },
+                        );
                       },
                     ),
                   ]),
@@ -179,9 +258,7 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                       icon: Icons.person_outline,
                       iconColor: AppColors.successGreen,
                       title: 'Edit Profile',
-                      onTap: () {
-                        context.push(AppPaths.edit_profile);
-                      },
+                      onTap: () => context.push(AppPaths.edit_profile),
                     ),
                     _buildDivider(context),
                     _buildListTile(
@@ -189,9 +266,7 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                       icon: Icons.mail_outline,
                       iconColor: AppColors.successGreen,
                       title: 'Email Settings',
-                      onTap: () {
-                        context.push(AppPaths.email_setting);
-                      },
+                      onTap: () => context.push(AppPaths.email_setting),
                     ),
                     _buildDivider(context),
                     _buildListTile(
@@ -199,71 +274,29 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                       icon: Icons.chat_bubble_outline,
                       iconColor: AppColors.successGreen,
                       title: 'Chats',
-                      onTap: () {
-                        context.push(AppPaths.chats_setting);
-                      },
+                      onTap: () => context.push(AppPaths.chats_setting),
                     ),
-
                   ]),
                   const SizedBox(height: 24),
 
                   // --- PREFERENCES SECTION ---
                   _buildSectionHeader('PREFERENCES'),
                   _buildSectionCard(context, [
-                    _buildSwitchTile(
-                      context,
-                      icon: Icons.notifications_none,
-                      iconColor: AppColors.successGreen,
-                      title: 'Push Notifications',
-                      value: isPushEnabled,
-                      onChanged: (val, controller) async {
-                        if (val) {
-                          // Turning ON: Request permission
-                          final permissionService = ref.read(permissionServiceProvider);
-                          PermissionStatus status = await permissionService.checkPermission(Permission.notification);
-                          
-                          if (status.isDenied) {
-                            status = await permissionService.requestPermission(Permission.notification);
-                          }
-                          
-                          if (status.isPermanentlyDenied) {
-                            if (context.mounted) {
-                              showCupertinoDialog(
-                                context: context,
-                                builder: (context) => CupertinoAlertDialog(
-                                  title: const Text('Permission Required'),
-                                  content: const Text('Please enable push notifications in your device settings to use this feature.'),
-                                  actions: [
-                                    CupertinoDialogAction(
-                                      child: const Text('Cancel'),
-                                      onPressed: () => Navigator.pop(context),
-                                    ),
-                                    CupertinoDialogAction(
-                                      child: const Text('Open Settings'),
-                                      onPressed: () {
-                                        Navigator.pop(context);
-                                        permissionService.openSettings();
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }
-                            controller.value = false;
-                            ref.read(pushNotificationsProvider.notifier).state = false;
-                            return;
-                          }
-                          
-                          if (status.isGranted) {
-                            ref.read(pushNotificationsProvider.notifier).state = true;
-                          } else {
-                            controller.value = false;
-                            ref.read(pushNotificationsProvider.notifier).state = false;
-                          }
-                        } else {
-                          // Turning OFF: Just update the local state
-                          ref.read(pushNotificationsProvider.notifier).state = false;
-                        }
+                    Consumer(
+                      builder: (context, ref, child) {
+                        // Watch the provider — rebuilds automatically when value changes
+                        final isPushEnabled =
+                            ref.watch(pushNotificationsProvider);
+                        return _buildSwitchTile(
+                          context,
+                          icon: Icons.notifications_none,
+                          iconColor: AppColors.successGreen,
+                          title: 'Push Notifications',
+                          value: isPushEnabled,
+                          onChanged: (bool enabled) {
+                            _handlePushToggle(enabled);
+                          },
+                        );
                       },
                     ),
                   ]),
@@ -277,10 +310,7 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                       icon: Icons.security,
                       iconColor: AppColors.successGreen,
                       title: 'Security & Privacy',
-                      onTap: () {
-                        context.push(AppPaths.security_privacy);
-
-                      },
+                      onTap: () => context.push(AppPaths.security_privacy),
                     ),
                     _buildDivider(context),
                     _buildListTile(
@@ -288,9 +318,7 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                       icon: Icons.block,
                       iconColor: AppColors.successGreen,
                       title: 'Blocked Users',
-                      onTap: () {
-                        context.push(AppPaths.block_userlist);
-                      },
+                      onTap: () => context.push(AppPaths.block_userlist),
                     ),
                   ]),
                   const SizedBox(height: 24),
@@ -298,13 +326,30 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                   // --- APP CONFIGURATION SECTION ---
                   _buildSectionHeader('APP CONFIGURATION'),
                   _buildSectionCard(context, [
-                    _buildListTile(
-                      context,
-                      icon: Icons.brightness_medium,
-                      iconColor: AppColors.successGreen,
-                      title: 'Theme Mode',
-                      trailingText: currentThemeName,
-                      onTap: () => _showThemeSelectionDialog(context),
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final themeState = ref.watch(themeProvider);
+                        final String currentThemeName;
+                        switch (themeState.themeMode) {
+                          case ThemeMode.light:
+                            currentThemeName = 'Light Mode';
+                            break;
+                          case ThemeMode.dark:
+                            currentThemeName = 'Dark Mode';
+                            break;
+                          case ThemeMode.system:
+                            currentThemeName = 'System Default';
+                            break;
+                        }
+                        return _buildListTile(
+                          context,
+                          icon: Icons.brightness_medium,
+                          iconColor: AppColors.successGreen,
+                          title: 'Theme Mode',
+                          trailingText: currentThemeName,
+                          onTap: () => _showThemeSelectionDialog(context),
+                        );
+                      },
                     ),
                     _buildDivider(context),
                     _buildListTile(
@@ -345,7 +390,8 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                           context: context,
                           builder: (context) => CupertinoAlertDialog(
                             title: const Text('Log Out'),
-                            content: const Text('Are you sure you want to log out?'),
+                            content:
+                                const Text('Are you sure you want to log out?'),
                             actions: [
                               CupertinoDialogAction(
                                 child: const Text('Cancel'),
@@ -365,7 +411,8 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                       },
                       child: const AppText(
                         'Log Out',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
@@ -375,12 +422,20 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                   Center(
                     child: Column(
                       children: [
-                        AppText('Terms of Service • Privacy Policy',
-                          style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 12),
+                        AppText(
+                          'Terms of Service • Privacy Policy',
+                          style: TextStyle(
+                              color: theme.colorScheme.onSurface
+                                  .withOpacity(0.6),
+                              fontSize: 12),
                         ),
                         const SizedBox(height: 4),
-                        AppText('©2026 Pilach Chat Inc.',
-                          style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 12),
+                        AppText(
+                          '©2026 Pilach Chat Inc.',
+                          style: TextStyle(
+                              color: theme.colorScheme.onSurface
+                                  .withOpacity(0.6),
+                              fontSize: 12),
                         ),
                       ],
                     ),
@@ -395,20 +450,23 @@ class _MeScreenState extends ConsumerState<MeScreen> {
     );
   }
 
-  // Helper widget to construct iOS style header labels
+  // ─── Helper: iOS-style section label ─────────────────────────────────────
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
-      child: AppText(title,style: const TextStyle(
-        color: Colors.grey,
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        letterSpacing: 0.5,
-      ),),
+      child: AppText(
+        title,
+        style: const TextStyle(
+          color: Colors.grey,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          letterSpacing: 0.5,
+        ),
+      ),
     );
   }
 
-  // Helper container that mimics iOS grouped list appearance
+  // ─── Helper: grouped card container ──────────────────────────────────────
   Widget _buildSectionCard(BuildContext context, List<Widget> children) {
     return Material(
       color: Theme.of(context).colorScheme.surface,
@@ -418,15 +476,18 @@ class _MeScreenState extends ConsumerState<MeScreen> {
     );
   }
 
-  // Helper custom tile line separator
+  // ─── Helper: separator line ───────────────────────────────────────────────
   Widget _buildDivider(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 56.0),
-      child: Divider(height: 1, thickness: 0.5, color: Theme.of(context).dividerColor),
+      child: Divider(
+          height: 1,
+          thickness: 0.5,
+          color: Theme.of(context).dividerColor),
     );
   }
 
-  // Standard Action Row Helper
+  // ─── Helper: standard action row ─────────────────────────────────────────
   Widget _buildListTile(
     BuildContext context, {
     required IconData icon,
@@ -449,7 +510,10 @@ class _MeScreenState extends ConsumerState<MeScreen> {
       ),
       title: Text(
         title,
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w400, color: theme.colorScheme.onSurface),
+        style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: theme.colorScheme.onSurface),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -457,34 +521,34 @@ class _MeScreenState extends ConsumerState<MeScreen> {
           if (trailingText != null)
             Text(
               trailingText,
-              style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 16),
+              style: TextStyle(
+                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  fontSize: 16),
             ),
           if (trailingText != null && showArrow) const SizedBox(width: 8),
-          if (showArrow) Icon(Icons.arrow_forward_ios, size: 14, color: theme.colorScheme.onSurface.withOpacity(0.3)),
+          if (showArrow)
+            Icon(Icons.arrow_forward_ios,
+                size: 14,
+                color: theme.colorScheme.onSurface.withOpacity(0.3)),
         ],
       ),
       onTap: onTap,
     );
   }
 
-  // Toggle Switch Row Helper
+  // ─── Helper: toggle row — uses plain Switch so value always reflects ──────
+  // Root-cause fix: AdvancedSwitch caches its controller reference internally,
+  // so recreating a ValueNotifier inside a build method has no effect on the
+  // rendered state. A plain Switch reads `value` on every build and always
+  // stays in sync with the provider.
   Widget _buildSwitchTile(
     BuildContext context, {
     required IconData icon,
     required Color iconColor,
     required String title,
     required bool value,
-    required void Function(bool, ValueNotifier<bool>) onChanged,
+    required void Function(bool) onChanged,
   }) {
-    final switchController = ValueNotifier<bool>(value);
-
-    // Hook up a listener to catch toggle events from AdvancedSwitch and forward them safely to your parent tree callback.
-    switchController.addListener(() {
-      if (switchController.value != value) {
-        onChanged(switchController.value, switchController);
-      }
-    });
-
     final theme = Theme.of(context);
     return ListTile(
       dense: true,
@@ -498,17 +562,19 @@ class _MeScreenState extends ConsumerState<MeScreen> {
       ),
       title: Text(
         title,
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w400, color: theme.colorScheme.onSurface),
+        style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: theme.colorScheme.onSurface),
       ),
       trailing: Transform.scale(
-        scaleX: 0.75,
-        scaleY: 0.80,
+        scaleX: 0.85,
+        scaleY: 0.85,
         child: AdvancedSwitch(
-          controller: switchController,
-          width: 45,
-          height: 24,
+          initialValue: value,
+          onChanged: (val) => onChanged(val),
           activeColor: const Color(0xFF34C759),
-          inactiveColor: theme.colorScheme.onSurface.withOpacity(0.2),
+          inactiveColor: theme.colorScheme.onSurface.withOpacity(0.15),
         ),
       ),
     );
