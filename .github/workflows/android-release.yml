@@ -38,9 +38,9 @@ jobs:
 
       # Decode signing keystore (add your base64 keystore secret in GitHub Settings)
       - name: Decode keystore
-        uses: timheuer/base64-action@v1
+        uses: peter-evans/base64@v2
         with:
-          base64String: ${{ secrets.KEYSTORE_BASE64 }}
+          encodedString: ${{ secrets.KEYSTORE_BASE64 }}
           outputPath: keystore.jks
 
       - name: Flutter version
