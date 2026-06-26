@@ -321,6 +321,8 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen>
                       height: 1.4,
                     ),
                   ),
+
+
                 ],
               ),
             ),
