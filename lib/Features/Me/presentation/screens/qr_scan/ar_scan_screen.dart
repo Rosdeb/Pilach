@@ -290,6 +290,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen>
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
+                                    backgroundColor: Colors.green,
                                     content: Text('ID copied'),
                                     duration: Duration(seconds: 2),
                                   ),

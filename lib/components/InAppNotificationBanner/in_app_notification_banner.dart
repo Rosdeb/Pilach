@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:app/services/native_notifier.dart';
 
 class InAppNotificationBanner extends StatefulWidget {
   final String title;
@@ -30,16 +32,25 @@ class InAppNotificationBanner extends StatefulWidget {
     }
   }
 
-  static void show({
+  static Future<void> show({
     required OverlayState overlayState,
     required String title,
     required String message,
     String? avatarUrl,
     VoidCallback? onTap,
     Duration duration = const Duration(seconds: 4),
-  }) {
-    _dismissCurrent();
+    bool forceNative = false,
+  }) async {
+    if (forceNative) {
+      await NativeNotifier.show(
+        title: title,
+        body: message,
+        avatarUrl: avatarUrl,
+      );
+      return;
+    }
 
+    _dismissCurrent();
     late OverlayEntry entry;
     entry = OverlayEntry(
       builder: (_) => InAppNotificationBanner(
@@ -57,7 +68,6 @@ class InAppNotificationBanner extends StatefulWidget {
         },
       ),
     );
-
     _currentEntry = entry;
     overlayState.insert(entry);
   }
