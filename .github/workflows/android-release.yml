@@ -28,7 +28,22 @@ jobs:
         with:
           channel: stable
 
-      - name: Flutter Version
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+        with:
+          api-level: 33
+          target: android-33
+          ndk: "25.2.9519653"
+          cache: true
+
+      # Decode signing keystore (add your base64 keystore secret in GitHub Settings)
+      - name: Decode keystore
+        uses: timheuer/base64-action@v1
+        with:
+          base64String: ${{ secrets.KEYSTORE_BASE64 }}
+          outputPath: keystore.jks
+
+      - name: Flutter version
         run: flutter --version
 
       - name: Install Packages
@@ -40,11 +55,25 @@ jobs:
       - name: Run Tests
         run: flutter test
 
-      - name: Build APK
-        run: flutter build apk --release
+      - name: Build Signed APK
+        run: |
+          flutter build apk --release \
+            --build-number=$GITHUB_RUN_NUMBER \
+            --target lib/main.dart
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PATH: keystore.jks
 
       - name: Build App Bundle
-        run: flutter build appbundle --release
+        run: |
+          flutter build appbundle --release \
+            --build-number=$GITHUB_RUN_NUMBER \
+            --target lib/main.dart
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PATH: keystore.jks
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
