@@ -536,11 +536,6 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
     );
   }
 
-  // ─── Helper: toggle row — uses plain Switch so value always reflects ──────
-  // Root-cause fix: AdvancedSwitch caches its controller reference internally,
-  // so recreating a ValueNotifier inside a build method has no effect on the
-  // rendered state. A plain Switch reads `value` on every build and always
-  // stays in sync with the provider.
   Widget _buildSwitchTile(
     BuildContext context, {
     required IconData icon,
