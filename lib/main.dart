@@ -12,6 +12,7 @@ Future<void> main() async {
   await AppInitializer.init();
   final prefs = await SharedPreferences.getInstance();
 
+
   runApp(ProviderScope(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
