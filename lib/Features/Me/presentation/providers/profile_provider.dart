@@ -36,57 +36,49 @@ class ProfileNotifier extends StateNotifier<AsyncValue<ProfileModel?>> {
     required String? bio,
     required String? avatarUrl,
   }) async {
-    try {
-      final updatedProfile = await _repository.updateProfile(
-        name: name,
-        bio: bio,
+    final updatedProfile = await _repository.updateProfile(
+      name: name,
+      bio: bio,
+      avatarUrl: avatarUrl,
+    );
+    state = AsyncValue.data(updatedProfile);
+
+    // Update AuthProvider
+    final auth = _ref.read(authProvider);
+    await _ref.read(authProvider.notifier).setAuthenticated(
+      auth.email ?? "user",
+      id: updatedProfile.userId,
+      name: updatedProfile.name,
+      profileImage: updatedProfile.avatarUrl,
+    );
+    return true;
+  }
+
+  Future<String?> uploadAvatar(String filePath) async {
+    final avatarUrl = await _repository.uploadAvatar(filePath);
+    // If we already have profile data, update it with new avatarUrl
+    final currentProfile = state.value;
+    if (currentProfile != null) {
+      final updatedProfile = currentProfile.copyWith(avatarUrl: avatarUrl);
+      state = AsyncValue.data(updatedProfile);
+
+      // Also update backend profile with new avatarUrl to persist it
+      await _repository.updateProfile(
+        name: updatedProfile.name,
+        bio: updatedProfile.bio,
         avatarUrl: avatarUrl,
       );
-      state = AsyncValue.data(updatedProfile);
-      
+
       // Update AuthProvider
       final auth = _ref.read(authProvider);
       await _ref.read(authProvider.notifier).setAuthenticated(
         auth.email ?? "user",
         id: updatedProfile.userId,
         name: updatedProfile.name,
-        profileImage: updatedProfile.avatarUrl,
+        profileImage: avatarUrl,
       );
-      return true;
-    } catch (e) {
-      return false;
     }
-  }
-
-  Future<String?> uploadAvatar(String filePath) async {
-    try {
-      final avatarUrl = await _repository.uploadAvatar(filePath);
-      // If we already have profile data, update it with new avatarUrl
-      final currentProfile = state.value;
-      if (currentProfile != null) {
-        final updatedProfile = currentProfile.copyWith(avatarUrl: avatarUrl);
-        state = AsyncValue.data(updatedProfile);
-        
-        // Also update backend profile with new avatarUrl to persist it
-        await _repository.updateProfile(
-          name: updatedProfile.name,
-          bio: updatedProfile.bio,
-          avatarUrl: avatarUrl,
-        );
-
-        // Update AuthProvider
-        final auth = _ref.read(authProvider);
-        await _ref.read(authProvider.notifier).setAuthenticated(
-          auth.email ?? "user",
-          id: updatedProfile.userId,
-          name: updatedProfile.name,
-          profileImage: avatarUrl,
-        );
-      }
-      return avatarUrl;
-    } catch (e) {
-      return null;
-    }
+    return avatarUrl;
   }
 }
 
