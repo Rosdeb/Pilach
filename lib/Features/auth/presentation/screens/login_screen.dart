@@ -87,7 +87,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           }
         }
       } else {
-        FloatingSuccessBar.show(context, message: "Logged in successfully!");
+        //FloatingSuccessBar.show(context, message: "Logged in successfully!");
+        print("Logged in successfully!");
       }
     }
   }

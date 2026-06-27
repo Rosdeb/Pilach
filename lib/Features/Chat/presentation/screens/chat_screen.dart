@@ -138,7 +138,7 @@ class ChatScreen extends ConsumerWidget {
                               child: Divider(
                                 height: 1,
                                 thickness: 0.5,
-                                color: theme.dividerColor.withOpacity(0.12),
+                                color: theme.dividerColor,
                               ),
                             ),
                         ],

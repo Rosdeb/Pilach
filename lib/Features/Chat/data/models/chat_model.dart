@@ -7,6 +7,9 @@ class ChatModel {
   final int unreadCount;
   final bool isOnline;
   final bool isMuted;
+  final bool isRead;
+  final String? draft;
+  final bool isPinned;
 
   ChatModel({
     required this.id,
@@ -17,6 +20,9 @@ class ChatModel {
     required this.unreadCount,
     required this.isOnline,
     this.isMuted = false,
+    this.isRead = false,
+    this.draft,
+    this.isPinned = false,
   });
 
   ChatModel copyWith({
@@ -28,6 +34,9 @@ class ChatModel {
     int? unreadCount,
     bool? isOnline,
     bool? isMuted,
+    bool? isRead,
+    String? draft,
+    bool? isPinned,
   }) {
     return ChatModel(
       id: id ?? this.id,
@@ -38,6 +47,9 @@ class ChatModel {
       unreadCount: unreadCount ?? this.unreadCount,
       isOnline: isOnline ?? this.isOnline,
       isMuted: isMuted ?? this.isMuted,
+      isRead: isRead ?? this.isRead,
+      draft: draft ?? this.draft,
+      isPinned: isPinned ?? this.isPinned,
     );
   }
 }
