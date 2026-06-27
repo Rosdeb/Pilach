@@ -321,6 +321,7 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
                       onTap: () => context.push(AppPaths.block_userlist),
                     ),
                   ]),
+
                   const SizedBox(height: 24),
 
                   // --- APP CONFIGURATION SECTION ---
