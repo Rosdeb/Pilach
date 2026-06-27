@@ -1,15 +1,70 @@
 import 'dart:ui';
+import 'package:app/core/theme/app_colors.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:app/core/constants/app_constants.dart';
+import 'package:app/core/constants/app_constants.dart' hide AppPaths;
+import 'package:app/core/constants/app_paths.dart';
 import '../../../../components/AppText/appText.dart';
+import '../../models/QuickActionItem.dart';
 import '../providers/discover_providers.dart';
+import '../widgets/action_quick_card.dart';
 import '../widgets/radar_animations.dart';
 
 class DiscoverScreen extends ConsumerWidget {
-  const DiscoverScreen({super.key});
+   DiscoverScreen({super.key});
+
+  final  actions = [
+
+    QuickActionItem(
+      title: "Groups",
+      icon: CupertinoIcons.person_3_fill,
+      route: 'AppPaths.groups',
+    ),
+
+    QuickActionItem(
+      title: "Events",
+      icon: CupertinoIcons.calendar,
+      route: AppPaths.event_screen,
+    ),
+
+    QuickActionItem(
+      title: "Market",
+      icon: CupertinoIcons.shopping_cart,
+      route: AppPaths.market_screen,
+    ),
+
+    QuickActionItem(
+      title: "Jobs",
+      icon: CupertinoIcons.briefcase_fill,
+      route: 'AppPaths.jobs',
+    ),
+
+    QuickActionItem(
+      title: "News",
+      icon: CupertinoIcons.news,
+      route: AppPaths.news_screen,
+    ),
+
+    QuickActionItem(
+      title: "Donate",
+      icon: CupertinoIcons.heart_fill,
+      route: AppPaths.donate_screen,
+    ),
+
+    QuickActionItem(
+      title: "Language",
+      icon: CupertinoIcons.globe,
+      route: 'AppPaths.language',
+    ),
+
+    QuickActionItem(
+      title: "Theme",
+      icon: CupertinoIcons.paintbrush_fill,
+      route: 'AppPaths.theme',
+    ),
+  ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -37,7 +92,7 @@ class DiscoverScreen extends ConsumerWidget {
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
                   child: FlexibleSpaceBar(
-                    titlePadding: const EdgeInsets.only(left: 24.0, bottom: 16.0),
+                    titlePadding: const EdgeInsets.only(left: 20.0, bottom: 16.0),
                     centerTitle: false,
                     title: AppText(
                       'Discover',
@@ -72,6 +127,19 @@ class DiscoverScreen extends ConsumerWidget {
 
                     // --- NEARBY SCAN SECTION ---
                     _buildSectionHeader(context, 'Nearby People', state.isScanning ? 'Scanning...' : 'Paused'),
+                    //const SizedBox(height: 20),
+                    // Container(
+                    //   margin: const EdgeInsets.symmetric(horizontal: 16),
+                    //   padding: const EdgeInsets.all(14),
+                    //   decoration: BoxDecoration(
+                    //     color: theme.colorScheme.surfaceContainerHighest.withOpacity(.35),
+                    //     borderRadius: BorderRadius.circular(18),
+                    //   ),
+                    //   child: const Text(
+                    //     "Share your daily moments with the community.",
+                    //   ),
+                    // ),
+
                     const SizedBox(height: 20),
                     RadarScanner(
                       isScanning: state.isScanning,
@@ -81,6 +149,42 @@ class DiscoverScreen extends ConsumerWidget {
                     ),
 
                     const SizedBox(height: 40),
+
+                    // _buildSectionHeader(
+                    //   context,
+                    //   "Quick Actions",
+                    //   "",
+                    // ),
+                    //
+                    // const SizedBox(height:16),
+                    //
+                    // Padding(
+                    //   padding: const EdgeInsets.symmetric(horizontal:16),
+                    //   child: GridView.builder(
+                    //     shrinkWrap: true,
+                    //     physics: const NeverScrollableScrollPhysics(),
+                    //     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    //       crossAxisCount: 4,
+                    //       crossAxisSpacing: 8,
+                    //       mainAxisSpacing: 10,
+                    //       childAspectRatio: 0.95,
+                    //     ),
+                    //     itemCount: actions.length,
+                    //     itemBuilder: (context, index) {
+                    //       return QuickActionCard(
+                    //         icon: actions[index].icon,
+                    //         title: actions[index].title,
+                    //         onTap: () {
+                    //           context.push(actions[index].route);
+                    //         },
+                    //
+                    //       );
+                    //
+                    //     },
+                    //
+                    //   )
+                    // ),
+                    // const SizedBox(height:50),
                   ],
                 ),
               ),

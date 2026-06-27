@@ -89,7 +89,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen>
           const SizedBox(height: 10),
           // --- iOS Style Segmented Tab Bar ---
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40.0),
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
             child: Container(
               height: 36,
               decoration: BoxDecoration(
@@ -164,7 +164,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen>
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 36.0, vertical: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20),
         child: Column(
           children: [
             Container(

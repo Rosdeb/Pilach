@@ -1,3 +1,7 @@
+import 'package:app/Features/Events/presentation/screens/event_screen.dart';
+import 'package:app/Features/Market/presentation/screens/market_screen.dart';
+import 'package:app/Features/News/presentation/screens/news_screen.dart';
+import 'package:app/Features/Donate/presentation/screens/donate_screen.dart';
 import 'package:flutter/animation.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -28,18 +32,16 @@ import 'package:app/Features/Me/presentation/screens/security_privacy/two_factor
 import 'package:app/Features/auth/presentation/providers/auth_provider.dart';
 
 import '../../Features/bottom_nav_bar/presentation/screens/bottom_manu_wrappers.dart';
-import '../constants/app_constants.dart';
+import '../constants/app_constants.dart' hide AppPaths;
+import '../constants/app_paths.dart';
 
 class RiverpodRouterRefreshListenable extends ChangeNotifier {
   RiverpodRouterRefreshListenable(Ref ref) {
-    ref.listen<AuthState>(
-      authProvider,
-      (previous, next) {
-        if (previous?.status != next.status) {
-          notifyListeners();
-        }
-      },
-    );
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if (previous?.status != next.status) {
+        notifyListeners();
+      }
+    });
   }
 }
 
@@ -52,27 +54,16 @@ CustomTransitionPage<dynamic> buildSlideTransitionPage({
     key: key,
     child: child,
     transitionDuration: const Duration(milliseconds: 300),
-    transitionsBuilder: (
-        context,
-        animation,
-        secondaryAnimation,
-        child,
-        ) {
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
       final tween = Tween<Offset>(
         begin: begin,
         end: Offset.zero,
-      ).chain(
-        CurveTween(curve: Curves.easeInOut),
-      );
+      ).chain(CurveTween(curve: Curves.easeInOut));
 
-      return SlideTransition(
-        position: animation.drive(tween),
-        child: child,
-      );
+      return SlideTransition(position: animation.drive(tween), child: child);
     },
   );
 }
-
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -115,7 +106,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final status = authState.status;
 
       final isSplashing = state.uri.path == AppPaths.splash;
-      final isLoggingIn = state.uri.path == AppPaths.login ||
+      final isLoggingIn =
+          state.uri.path == AppPaths.login ||
           state.uri.path == AppPaths.register ||
           state.uri.path == AppPaths.verify_email ||
           state.uri.path == AppPaths.two_factor_verify ||
@@ -141,7 +133,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-
       GoRoute(
         path: AppPaths.splash,
         name: AppRoutes.splash,
@@ -307,14 +298,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-
       GoRoute(
         path: AppPaths.qr_screen,
         name: AppRoutes.qr_screen,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: QrScanScreen(),
-        ),
+        pageBuilder: (context, state) =>
+            buildSlideTransitionPage(key: state.pageKey, child: QrScanScreen()),
       ),
 
       GoRoute(
@@ -364,6 +352,46 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
+      GoRoute(
+        path: AppPaths.event_screen,
+        name: AppRoutes.event_screen,
+        pageBuilder: (context, state) {
+          return buildSlideTransitionPage(
+            key: state.pageKey,
+            child: const EventScreen(),
+          );
+        },
+      ),
+      GoRoute(
+        path: AppPaths.market_screen,
+        name: AppRoutes.market_screen,
+        pageBuilder: (context, state) {
+          return buildSlideTransitionPage(
+            key: state.pageKey,
+            child: const MarketScreen(),
+          );
+        },
+      ),
+      GoRoute(
+        path: AppPaths.news_screen,
+        name: AppRoutes.news_screen,
+        pageBuilder: (context, state) {
+          return buildSlideTransitionPage(
+            key: state.pageKey,
+            child: const NewsScreen(),
+          );
+        },
+      ),
+      GoRoute(
+        path: AppPaths.donate_screen,
+        name: AppRoutes.donate_screen,
+        pageBuilder: (context, state) {
+          return buildSlideTransitionPage(
+            key: state.pageKey,
+            child: const DonateScreen(),
+          );
+        },
+      ),
 
       // GoRoute(
       //   path: '/communities',
@@ -380,7 +408,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       //   path: '/profile',
       //   builder: (context, state) => const ProfileScreen(),
       // ),
-
     ],
   );
 });
