@@ -1,19 +1,40 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app/core/constants/app_constants.dart';
+
 import '../../data/models/chat_model.dart';
 import '../providers/chat_provider.dart';
+import 'chat_actions.dart';
+import 'chat_avatar.dart';
+import 'chat_badge.dart';
+import 'chat_slide_controller.dart';
 
+// ── App-wide palette constants (compile-time) ─────────────────────────────────
+
+const Color _kWaGreen    = Color(0xFF25D366);
+const Color _kBlueTick   = Color(0xFF34B7F1);
+const Color _kDraftRed   = Color(0xFFE94235);
+const _kMutedGrey        = Color(0xFF9E9E9E); // Grey.shade500 as const
+
+/// WhatsApp-style chat list tile with bidirectional swipe-to-reveal actions.
+///
+/// ## Performance contract
+/// - **Zero [setState]** calls during drag. The [AnimationController] value is
+///   driven directly from gesture deltas, so the raster thread composites the
+///   slide entirely on the GPU without rebuilding the widget tree.
+/// - **[ValueListenableBuilder]** rebuilds only the action-panel [Positioned]
+///   when the open direction changes (≈ twice per swipe gesture — open and close).
+/// - The main tile content is wrapped in a single [RepaintBoundary] so it gets
+///   its own compositing layer and can slide without repainting its children.
+/// - [_ChatTileContent] is a separate [ConsumerWidget] that reads only the
+///   fields it needs via `select`, so a mute-toggle on a different chat won't
+///   rebuild this tile.
 class ChatTile extends ConsumerStatefulWidget {
-  final ChatModel chat;
+  const ChatTile({super.key, required this.chat});
 
-  const ChatTile({
-    super.key,
-    required this.chat,
-  });
+  final ChatModel chat;
 
   @override
   ConsumerState<ChatTile> createState() => _ChatTileState();
@@ -21,469 +42,372 @@ class ChatTile extends ConsumerStatefulWidget {
 
 class _ChatTileState extends ConsumerState<ChatTile>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<Offset> _leftSlide;  // tile slides RIGHT (reveals left actions)
-  late final Animation<Offset> _rightSlide; // tile slides LEFT (reveals right actions)
+  late final ChatSlideController _slide;
 
-  double _dragExtent = 0.0;
-  bool _isLeftOpen = false;
-
-  static const double _actionWidth = 82.0;
-  static const double _maxDrag = _actionWidth * 2;
+  // Pre-built Tween animations. Only the sign of the offset flips based on
+  // direction — we never re-create animations mid-swipe.
+  late final Animation<Offset> _leftOffset;  // tile moves right (reveals left panel)
+  late final Animation<Offset> _rightOffset; // tile moves left  (reveals right panel)
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 240),
-    );
+    _slide = ChatSlideController(vsync: this);
 
-    // Pre-build both animations once — not on every rebuild
-    final curved = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
-    _leftSlide  = Tween<Offset>(begin: Offset.zero, end: const Offset( 0.4, 0.0)).animate(curved);
-    _rightSlide = Tween<Offset>(begin: Offset.zero, end: const Offset(-0.4, 0.0)).animate(curved);
+    _leftOffset = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(0.4, 0),
+    ).animate(_slide.animation);
+
+    _rightOffset = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(-0.4, 0),
+    ).animate(_slide.animation);
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _slide.dispose();
     super.dispose();
   }
 
-  void _onDragUpdate(DragUpdateDetails d) {
-    final delta = d.primaryDelta! * 0.82; // resistance factor — 1.0 = no resistance
-    final next = (_dragExtent + delta).clamp(-_maxDrag, _maxDrag);
-    if (next == _dragExtent) return;
+  // ── Actions ──────────────────────────────────────────────────────────────
 
-    if (_dragExtent == 0.0) {
-      setState(() => _isLeftOpen = next > 0);
-    }
-
-    if (_isLeftOpen && next < 0) return;
-    if (!_isLeftOpen && next > 0) return;
-
-    _dragExtent = next;
-    _controller.value = _dragExtent.abs() / _maxDrag;
+  void _handleUnread() {
+    _slide.close();
+    ref.read(chatProvider.notifier).toggleUnreadChat(widget.chat.id);
   }
 
-  void _onDragEnd(DragEndDetails d) {
-    final velocity = d.primaryVelocity ?? 0;
-
-    // Fast fling → direction অনুযায়ী সরাসরি open/close
-    if (velocity.abs() > 400) {
-      if (_isLeftOpen && velocity > 0) {
-        _controller.forward();
-        _dragExtent = _maxDrag;
-      } else if (!_isLeftOpen && velocity < 0) {
-        _controller.forward();
-        _dragExtent = -_maxDrag;
-      } else {
-        _closeSlider(); // opposite direction fling → close
-      }
-      return;
-    }
-
-    // Slow drag → threshold দিয়ে decide
-    if (_dragExtent.abs() > _actionWidth * 0.5) { // 50% open হলে snap open
-      _controller.forward();
-      _dragExtent = _isLeftOpen ? _maxDrag : -_maxDrag;
-    } else {
-      _closeSlider();
-    }
+  void _handlePin() {
+    _slide.close();
+    ref.read(chatProvider.notifier).togglePinChat(widget.chat.id);
   }
 
-  void _closeSlider() {
-    _controller.animateBack(0,
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeInOutCubic,
-    );
-    _dragExtent = 0.0;
+  void _handleMute() {
+    _slide.close();
+    ref.read(chatProvider.notifier).toggleMuteChat(widget.chat.id);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(widget.chat.isMuted ? 'Unmuted' : 'Muted'),
+      duration: const Duration(seconds: 1),
+    ));
   }
 
-  // ── Action button (stateless-safe, const-friendly) ───────────────────
-  Widget _actionBtn({
-    required Color color,
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: RepaintBoundary(
-        child: SizedBox(
-          width: _actionWidth,
-          height: double.infinity,
-          child: ColoredBox(
-            color: color,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: Colors.white, size: 22),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
+  Future<void> _handleDelete() async {
+    _slide.close();
+    final confirm = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Delete Conversation'),
+        content: Text('Delete conversation with ${widget.chat.name}?'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
           ),
-        ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
+    if (confirm == true && mounted) {
+      ref.read(chatProvider.notifier).deleteChat(widget.chat.id);
+    }
   }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final chat = widget.chat;
-    final theme = Theme.of(context);
-    final hasUnread = chat.unreadCount > 0;
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
 
-    // Colors — defined once per build, not recreated inside subtrees
-    const waGreen    = Color(0xFF25D366);
-    const waBlueTick = Color(0xFF34B7F1);
-    const draftRed   = Color(0xFFE94235);
-    const muteOrange = Colors.orangeAccent;
-    const deleteRed  = Colors.redAccent;
-    const pinPurple  = Color(0xFF9C27B0);
-    const unreadBlue = Color(0xFF2196F3);
-    final mutedGrey  = Colors.grey.shade500;
+    return SizedBox(
+      height: 72, // fixed height prevents layout thrash in the sliver
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // ── Solid bg — covers the gap on the opposite side when tile slides ──
+          Positioned.fill(child: ColoredBox(color: bgColor)),
 
-    return Stack(
-      children: [
-        // ── Left actions (pin + unread) — only paint when open ──────────
-        if (_isLeftOpen || _dragExtent > 0)
-          Positioned.fill(
-            child: RepaintBoundary(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  _actionBtn(
-                    color: unreadBlue,
-                    icon: hasUnread ? CupertinoIcons.envelope_open : CupertinoIcons.envelope_badge,
-                    label: hasUnread ? 'Read' : 'Unread',
-                    onTap: () {
-                      _closeSlider();
-                      ref.read(chatProvider.notifier).toggleUnreadChat(chat.id);
-                    },
+          // ── Action panels — only rebuilt when direction changes ──────────
+          ValueListenableBuilder<SlideDirection>(
+            valueListenable: _slide.direction,
+            builder: (context, dir, _) {
+              if (dir == SlideDirection.none) return const SizedBox.shrink();
+
+              if (dir == SlideDirection.left) {
+                return RepaintBoundary(
+                  child: LeftActionPanel(
+                    hasUnread: chat.unreadCount > 0,
+                    isPinned: chat.isPinned,
+                    onUnreadTap: _handleUnread,
+                    onPinTap: _handlePin,
                   ),
-                  _actionBtn(
-                    color: pinPurple,
-                    icon: chat.isPinned ? CupertinoIcons.pin_slash : CupertinoIcons.pin,
-                    label: chat.isPinned ? 'Unpin' : 'Pin',
-                    onTap: () {
-                      _closeSlider();
-                      ref.read(chatProvider.notifier).togglePinChat(chat.id);
-                    },
-                  ),
-                ],
-              ),
-            ),
+                );
+              }
+
+              // SlideDirection.right
+              return RepaintBoundary(
+                child: RightActionPanel(
+                  isMuted: chat.isMuted,
+                  onMuteTap: _handleMute,
+                  onDeleteTap: _handleDelete,
+                ),
+              );
+            },
           ),
 
-        // ── Right actions (mute + delete) — only paint when open ────────
-        if (!_isLeftOpen || _dragExtent < 0)
-          Positioned.fill(
+          // ── Main tile — direction-aware slide ────────────────────────────
+          // ValueListenableBuilder rebuilds only when direction is locked
+          // (once per swipe), picking the correct offset animation.
+          // During the actual drag the AnimationController drives the GPU
+          // layer transform with zero Dart rebuilds.
+          ValueListenableBuilder<SlideDirection>(
+            valueListenable: _slide.direction,
+            builder: (context, dir, child) {
+              return SlideTransition(
+                position: dir == SlideDirection.right
+                    ? _rightOffset
+                    : _leftOffset,
+                child: child,
+              );
+            },
+            // child is constant across direction changes — never rebuilt.
             child: RepaintBoundary(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  _actionBtn(
-                    color: muteOrange,
-                    icon: chat.isMuted ? CupertinoIcons.bell_fill : CupertinoIcons.bell_slash_fill,
-                    label: chat.isMuted ? 'Unmute' : 'Mute',
-                    onTap: () {
-                      _closeSlider();
-                      ref.read(chatProvider.notifier).toggleMuteChat(chat.id);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(chat.isMuted ? 'Unmuted' : 'Muted'),
-                        duration: const Duration(seconds: 1),
-                      ));
-                    },
-                  ),
-                  _actionBtn(
-                    color: deleteRed,
-                    icon: CupertinoIcons.trash,
-                    label: 'Delete',
-                    onTap: () async {
-                      _closeSlider();
-                      final confirm = await showCupertinoDialog<bool>(
-                        context: context,
-                        builder: (ctx) => CupertinoAlertDialog(
-                          title: const Text('Delete Conversation'),
-                          content: Text('Delete conversation with ${chat.name}?'),
-                          actions: [
-                            CupertinoDialogAction(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Cancel'),
-                            ),
-                            CupertinoDialogAction(
-                              isDestructiveAction: true,
-                              onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text('Delete'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirm == true) {
-                        ref.read(chatProvider.notifier).deleteChat(chat.id);
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-        // ── Main tile ────────────────────────────────────────────────────
-        SlideTransition(
-          // SlideTransition uses the animation directly — zero rebuilds
-          position: _isLeftOpen ? _leftSlide : _rightSlide,
-          child: RepaintBoundary(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onHorizontalDragUpdate: _onDragUpdate,
-              onHorizontalDragEnd: _onDragEnd,
-              child: ColoredBox(
-                color: theme.scaffoldBackgroundColor,
-                child: InkWell(
-                  onTap: () => _dragExtent != 0.0 ? _closeSlider() : context.push(AppPaths.chat),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    child: Row(
-                      children: [
-                        // Avatar
-                        RepaintBoundary(
-                          child: _Avatar(
-                            chat: chat,
-                            onlineColor: waGreen,
-                            bgColor: theme.scaffoldBackgroundColor,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-
-                        // Body + right col
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // Name + time
-                                    Row(
-                                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                                      textBaseline: TextBaseline.alphabetic,
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            chat.name,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w500,
-                                              color: theme.colorScheme.onSurface,
-                                            ),
-                                          ),
-                                        ),
-                                        Text(
-                                          chat.time,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
-                                            color: hasUnread
-                                                ? (chat.isMuted ? mutedGrey : waGreen)
-                                                : theme.colorScheme.onSurface.withOpacity(0.45),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 3),
-
-                                    // Preview row
-                                    Row(
-                                      children: [
-                                        if (!hasUnread && chat.draft == null)
-                                          Padding(
-                                            padding: const EdgeInsets.only(right: 3),
-                                            child: Icon(
-                                              chat.isRead ? Icons.done_all : Icons.done,
-                                              size: 16,
-                                              color: chat.isRead ? waBlueTick : mutedGrey,
-                                            ),
-                                          ),
-                                        if (chat.draft != null)
-                                          Padding(
-                                            padding: const EdgeInsets.only(right: 3),
-                                            child: const Text(
-                                              'Draft:',
-                                              style: TextStyle(
-                                                fontSize: 13.5,
-                                                fontWeight: FontWeight.w500,
-                                                color: draftRed,
-                                              ),
-                                            ),
-                                          ),
-                                        if (chat.isMuted)
-                                          Padding(
-                                            padding: const EdgeInsets.only(right: 3),
-                                            child: Icon(
-                                              CupertinoIcons.bell_slash,
-                                              size: 13,
-                                              color: mutedGrey,
-                                            ),
-                                          ),
-                                        Expanded(
-                                          child: Text(
-                                            chat.draft ?? chat.message,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 13.5,
-                                              color: chat.draft != null
-                                                  ? theme.colorScheme.onSurface.withOpacity(0.85)
-                                                  : theme.colorScheme.onSurface.withOpacity(0.55),
-                                              fontStyle: chat.draft != null
-                                                  ? FontStyle.italic
-                                                  : FontStyle.normal,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-
-                              // Pin + badge
-                              _RightCol(
-                                isPinned: chat.isPinned,
-                                hasUnread: hasUnread,
-                                unreadCount: chat.unreadCount,
-                                isMuted: chat.isMuted,
-                                mutedGrey: mutedGrey,
-                                waGreen: waGreen,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragUpdate: _slide.onDragUpdate,
+                onHorizontalDragEnd: _slide.onDragEnd,
+                onTap: () {
+                  if (_slide.direction.value != SlideDirection.none) {
+                    _slide.close();
+                  } else {
+                    context.push(AppPaths.chat);
+                  }
+                },
+                child: ColoredBox(
+                  color: bgColor,
+                  child: _ChatTileContent(
+                    chat: chat,
+                    bgColor: bgColor,
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-// ── Extracted stateless widgets — no unnecessary rebuilds ─────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Content widget — isolated rebuild domain
+// ─────────────────────────────────────────────────────────────────────────────
 
-class _Avatar extends StatelessWidget {
-  final ChatModel chat;
-  final Color onlineColor;
-  final Color bgColor;
-
-  const _Avatar({
+/// Renders the visible tile content (avatar, name, preview, badges).
+///
+/// Separated from [ChatTile] so that animation state changes don't force this
+/// subtree to rebuild, and Riverpod can surgically update only changed fields.
+class _ChatTileContent extends ConsumerWidget {
+  const _ChatTileContent({
     required this.chat,
-    required this.onlineColor,
     required this.bgColor,
   });
 
+  final ChatModel chat;
+  final Color bgColor;
+
   @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        CircleAvatar(
-          radius: 24,
-          child: ClipOval(
-            child: CachedNetworkImage(
-              imageUrl: chat.image,
-              fit: BoxFit.cover,
-              width: 48,
-              height: 48,
-              cacheKey: chat.name + chat.image,
-              placeholder: (_, __) => const CupertinoActivityIndicator(),
-              errorWidget: (_, __, ___) => const Icon(Icons.person),
-            ),
-          ),
-        ),
-        if (chat.isOnline)
-          Positioned(
-            bottom: 2,
-            right: 2,
-            child: Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: onlineColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: bgColor, width: 2),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final hasUnread = chat.unreadCount > 0;
+
+    return InkWell(
+      // onTap handled by parent GestureDetector — InkWell here is purely for
+      // the ripple visual. We absorb taps at GestureDetector level.
+      onTap: null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
+          children: [
+            // Avatar — gets its own RepaintBoundary: image decode is expensive
+            // and we never want it to repaint just because unread count changed.
+            RepaintBoundary(
+              child: ChatAvatar(
+                imageUrl: chat.image,
+                cacheKey: chat.id, // stable ID, not name+url concatenation
+                isOnline: chat.isOnline,
+                onlineColor: _kWaGreen,
+                borderColor: bgColor,
               ),
             ),
-          ),
-      ],
+            const SizedBox(width: 12),
+
+            // Text body
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Name + timestamp row
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                chat.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              chat.time,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: hasUnread
+                                    ? FontWeight.w500
+                                    : FontWeight.normal,
+                                color: hasUnread
+                                    ? (chat.isMuted
+                                    ? _kMutedGrey
+                                    : _kWaGreen)
+                                    : theme.colorScheme.onSurface
+                                    .withOpacity(0.45),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+
+                        // Preview row
+                        Row(
+                          children: [
+                            _LeadingPreviewIcon(
+                              hasUnread: hasUnread,
+                              hasDraft: chat.draft != null,
+                              isMuted: chat.isMuted,
+                              isRead: chat.isRead,
+                            ),
+                            Expanded(
+                              child: Text(
+                                chat.draft ?? chat.message,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  color: chat.draft != null
+                                      ? theme.colorScheme.onSurface
+                                      .withOpacity(0.85)
+                                      : theme.colorScheme.onSurface
+                                      .withOpacity(0.55),
+                                  fontStyle: chat.draft != null
+                                      ? FontStyle.italic
+                                      : FontStyle.normal,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+
+                  // Pin + unread badge
+                  ChatBadge(
+                    isPinned: chat.isPinned,
+                    hasUnread: hasUnread,
+                    unreadCount: chat.unreadCount,
+                    isMuted: chat.isMuted,
+                    mutedGrey: _kMutedGrey,
+                    accentColor: _kWaGreen,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _RightCol extends StatelessWidget {
-  final bool isPinned;
-  final bool hasUnread;
-  final int unreadCount;
-  final bool isMuted;
-  final Color mutedGrey;
-  final Color waGreen;
+// ─────────────────────────────────────────────────────────────────────────────
+// Leading preview icon — stateless, const-safe
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const _RightCol({
-    required this.isPinned,
+/// The small icon/label shown before the message preview:
+/// • Draft label  (when draft != null)
+/// • Read receipt (when no unread and no draft)
+/// • Mute icon    (when muted)
+/// Returns [SizedBox.shrink()] when nothing should show (has unread, no extras).
+class _LeadingPreviewIcon extends StatelessWidget {
+  const _LeadingPreviewIcon({
     required this.hasUnread,
-    required this.unreadCount,
+    required this.hasDraft,
     required this.isMuted,
-    required this.mutedGrey,
-    required this.waGreen,
+    required this.isRead,
   });
+
+  final bool hasUnread;
+  final bool hasDraft;
+  final bool isMuted;
+  final bool isRead;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        if (isPinned)
-          Transform.rotate(
-            angle: 0.785,
-            child: Icon(CupertinoIcons.pin, size: 14, color: mutedGrey),
+    if (hasDraft) {
+      return const Padding(
+        padding: EdgeInsets.only(right: 3),
+        child: Text(
+          'Draft:',
+          style: TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w500,
+            color: _kDraftRed,
           ),
-        if (isPinned && hasUnread) const SizedBox(height: 4),
-        if (hasUnread)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            constraints: const BoxConstraints(minWidth: 20),
-            decoration: BoxDecoration(
-              color: isMuted ? mutedGrey : waGreen,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              unreadCount > 99 ? '99+' : unreadCount.toString(),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w500,
-                color: Colors.white,
+        ),
+      );
+    }
+
+    // Show mute icon + read receipt together when not unread
+    if (!hasUnread) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isMuted)
+            const Padding(
+              padding: EdgeInsets.only(right: 3),
+              child: Icon(
+                CupertinoIcons.bell_slash,
+                size: 13,
+                color: _kMutedGrey,
               ),
             ),
+          Padding(
+            padding: const EdgeInsets.only(right: 3),
+            child: Icon(
+              isRead ? Icons.done_all : Icons.done,
+              size: 16,
+              color: isRead ? _kBlueTick : _kMutedGrey,
+            ),
           ),
-      ],
-    );
+        ],
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 }

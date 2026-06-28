@@ -2,8 +2,6 @@ import 'package:app/Features/Events/presentation/screens/event_screen.dart';
 import 'package:app/Features/Market/presentation/screens/market_screen.dart';
 import 'package:app/Features/News/presentation/screens/news_screen.dart';
 import 'package:app/Features/Donate/presentation/screens/donate_screen.dart';
-import 'package:flutter/animation.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -30,40 +28,99 @@ import 'package:app/Features/auth/presentation/screens/two_factor_email_verify_s
 import 'package:app/Features/auth/presentation/screens/two_factor_sms_verify_screen.dart';
 import 'package:app/Features/Me/presentation/screens/security_privacy/two_factor_settings_screen.dart';
 import 'package:app/Features/auth/presentation/providers/auth_provider.dart';
-
 import '../../Features/bottom_nav_bar/presentation/screens/bottom_manu_wrappers.dart';
 import '../constants/app_constants.dart' hide AppPaths;
 import '../constants/app_paths.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth refresh listenable
+// ─────────────────────────────────────────────────────────────────────────────
+
 class RiverpodRouterRefreshListenable extends ChangeNotifier {
   RiverpodRouterRefreshListenable(Ref ref) {
     ref.listen<AuthState>(authProvider, (previous, next) {
-      if (previous?.status != next.status) {
-        notifyListeners();
-      }
+      if (previous?.status != next.status) notifyListeners();
     });
   }
 }
 
-CustomTransitionPage<dynamic> buildSlideTransitionPage({
+// ─────────────────────────────────────────────────────────────────────────────
+// Transition builders
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// iOS-style slide: new page comes in from right, old page slides left (parallax).
+/// Runs entirely as GPU layer transforms — zero Dart rebuilds during animation.
+CustomTransitionPage<T> _slidePage<T>({
   required LocalKey key,
   required Widget child,
-  Offset begin = const Offset(1.0, 0.0),
 }) {
-  return CustomTransitionPage(
+  return CustomTransitionPage<T>(
     key: key,
     child: child,
-    transitionDuration: const Duration(milliseconds: 300),
+    maintainState: true,
+    // 260 ms feels native on both 60 Hz and 120 Hz devices.
+    transitionDuration: const Duration(milliseconds: 260),
+    reverseTransitionDuration: const Duration(milliseconds: 200),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final tween = Tween<Offset>(
-        begin: begin,
+      // Incoming page slides in from the right.
+      final slideIn = Tween<Offset>(
+        begin: const Offset(1.0, 0.0),
         end: Offset.zero,
-      ).chain(CurveTween(curve: Curves.easeInOut));
+      ).animate(CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,      // fast start → smooth land
+        reverseCurve: Curves.easeInCubic,
+      ));
 
-      return SlideTransition(position: animation.drive(tween), child: child);
+      // Outgoing page slides slightly left (iOS depth / parallax cue).
+      // secondaryAnimation runs 0→1 as the new page pushes over this one.
+      final slideOut = Tween<Offset>(
+        begin: Offset.zero,
+        end: const Offset(-0.25, 0.0),
+      ).animate(CurvedAnimation(
+        parent: secondaryAnimation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      ));
+
+      return SlideTransition(
+        position: slideOut,   // previous page drifts left
+        child: SlideTransition(
+          position: slideIn,  // new page arrives from right
+          child: child,
+        ),
+      );
     },
   );
 }
+
+/// Fade-only transition — best for overlay-style screens (search, modals).
+CustomTransitionPage<T> _fadePage<T>({
+  required LocalKey key,
+  required Widget child,
+}) {
+  return CustomTransitionPage<T>(
+    key: key,
+    child: child,
+    maintainState: true,
+    transitionDuration: const Duration(milliseconds: 180),
+    reverseTransitionDuration: const Duration(milliseconds: 140),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return FadeTransition(
+        opacity: CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+          reverseCurve: Curves.easeIn,
+        ),
+        child: child,
+      );
+    },
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Router
+// ─────────────────────────────────────────────────────────────────────────────
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -74,340 +131,223 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     navigatorKey: rootNavigatorKey,
     initialLocation: AppPaths.splash,
     refreshListenable: refreshListenable,
+
     errorBuilder: (context, state) => Scaffold(
       appBar: AppBar(title: const Text('Navigation Error')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Routing Error:\n\n${state.error}',
-                    style: const TextStyle(color: Colors.red, fontSize: 14),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () => context.go(AppPaths.splash),
-                    child: const Text('Return Home'),
-                  ),
-                ],
-              ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Routing Error:\n\n${state.error}',
+                  style: const TextStyle(color: Colors.red, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () => context.go(AppPaths.splash),
+                  child: const Text('Return Home'),
+                ),
+              ],
             ),
           ),
         ),
       ),
     ),
+
     redirect: (context, state) {
       final authState = ref.read(authProvider);
       final status = authState.status;
+      final path = state.uri.path;
 
-      final isSplashing = state.uri.path == AppPaths.splash;
-      final isLoggingIn =
-          state.uri.path == AppPaths.login ||
-          state.uri.path == AppPaths.register ||
-          state.uri.path == AppPaths.verify_email ||
-          state.uri.path == AppPaths.two_factor_verify ||
-          state.uri.path == AppPaths.two_factor_email_verify ||
-          state.uri.path == AppPaths.two_factor_sms_verify;
+      final isSplash = path == AppPaths.splash;
+      final isAuth =
+          path == AppPaths.login ||
+              path == AppPaths.register ||
+              path == AppPaths.verify_email ||
+              path == AppPaths.two_factor_verify ||
+              path == AppPaths.two_factor_email_verify ||
+              path == AppPaths.two_factor_sms_verify;
 
-      if (status == AuthStatus.initial) {
-        return null; // Stay on splash while loading initial auth state
-      }
+      if (status == AuthStatus.initial) return null;
 
       if (status == AuthStatus.unauthenticated) {
-        if (!isLoggingIn && !isSplashing) {
-          return AppPaths.login;
-        }
+        if (!isAuth && !isSplash) return AppPaths.login;
       }
 
       if (status == AuthStatus.authenticated) {
-        if (isLoggingIn || isSplashing) {
-          return AppPaths.bottom_manu;
-        }
+        if (isAuth || isSplash) return AppPaths.bottom_manu;
       }
 
       return null;
     },
+
     routes: [
+      // ── Auth flow ──────────────────────────────────────────────────────────
       GoRoute(
         path: AppPaths.splash,
         name: AppRoutes.splash,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: const SplashScreen(),
-        ),
+        pageBuilder: (c, s) => _fadePage(key: s.pageKey, child: const SplashScreen()),
       ),
-
       GoRoute(
         path: AppPaths.login,
         name: AppRoutes.login,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: const LoginScreen(),
-        ),
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const LoginScreen()),
       ),
-
       GoRoute(
         path: AppPaths.register,
         name: AppRoutes.register,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: const RegisterScreen(),
-        ),
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const RegisterScreen()),
       ),
-
       GoRoute(
         path: AppPaths.verify_email,
         name: AppRoutes.verify_email,
-        pageBuilder: (context, state) {
-          final email = state.extra as String? ?? '';
-          return buildSlideTransitionPage(
-            key: state.pageKey,
-            child: VerifyEmailScreen(email: email),
-          );
-        },
-      ),
-
-      GoRoute(
-        path: AppPaths.bottom_manu,
-        name: AppRoutes.bottom_manu,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: BottomMenuWrapper(),
+        pageBuilder: (c, s) => _slidePage(
+          key: s.pageKey,
+          child: VerifyEmailScreen(email: s.extra as String? ?? ''),
         ),
       ),
-
-      GoRoute(
-        path: AppPaths.block_userlist,
-        name: AppRoutes.block_userlist,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: const BlockedUsersScreen(),
-        ),
-      ),
-
-      GoRoute(
-        path: AppPaths.email_setting,
-        name: AppRoutes.email_setting,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: EmailSettingsScreen(),
-        ),
-      ),
-
-      GoRoute(
-        path: AppPaths.security_privacy,
-        name: AppRoutes.security_privacy,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: SecurityPrivacyScreen(),
-        ),
-      ),
-
-      GoRoute(
-        path: AppPaths.two_factor_settings,
-        name: AppRoutes.two_factor_settings,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: const TwoFactorSettingsScreen(),
-        ),
-      ),
-
       GoRoute(
         path: AppPaths.two_factor_verify,
         name: AppRoutes.two_factor_verify,
-        pageBuilder: (context, state) {
-          final args = state.extra as TwoFactorVerifyArgs;
-          return buildSlideTransitionPage(
-            key: state.pageKey,
-            child: TwoFactorVerifyScreen(args: args),
-          );
-        },
+        pageBuilder: (c, s) => _slidePage(
+          key: s.pageKey,
+          child: TwoFactorVerifyScreen(args: s.extra as TwoFactorVerifyArgs),
+        ),
       ),
-
       GoRoute(
         path: AppPaths.two_factor_email_verify,
         name: AppRoutes.two_factor_email_verify,
-        pageBuilder: (context, state) {
-          final args = state.extra as TwoFactorEmailVerifyArgs;
-          return buildSlideTransitionPage(
-            key: state.pageKey,
-            child: TwoFactorEmailVerifyScreen(args: args),
-          );
-        },
+        pageBuilder: (c, s) => _slidePage(
+          key: s.pageKey,
+          child: TwoFactorEmailVerifyScreen(args: s.extra as TwoFactorEmailVerifyArgs),
+        ),
       ),
-
       GoRoute(
         path: AppPaths.two_factor_sms_verify,
         name: AppRoutes.two_factor_sms_verify,
-        pageBuilder: (context, state) {
-          final args = state.extra as TwoFactorSmsVerifyArgs;
-          return buildSlideTransitionPage(
-            key: state.pageKey,
-            child: TwoFactorSmsVerifyScreen(args: args),
-          );
-        },
-      ),
-
-      GoRoute(
-        path: AppPaths.change_password,
-        name: AppRoutes.change_password,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: const ChangePasswordScreen(),
+        pageBuilder: (c, s) => _slidePage(
+          key: s.pageKey,
+          child: TwoFactorSmsVerifyScreen(args: s.extra as TwoFactorSmsVerifyArgs),
         ),
       ),
 
+      // ── Main shell ─────────────────────────────────────────────────────────
       GoRoute(
-        path: AppPaths.edit_profile,
-        name: AppRoutes.edit_profile,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: EditProfileScreen(),
-        ),
+        path: AppPaths.bottom_manu,
+        name: AppRoutes.bottom_manu,
+        pageBuilder: (c, s) => _fadePage(key: s.pageKey, child: BottomMenuWrapper()),
       ),
 
+      // ── Chat ───────────────────────────────────────────────────────────────
       GoRoute(
         path: AppPaths.chat,
         name: AppRoutes.chat,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: DirectChatScreen(),
-        ),
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: DirectChatScreen()),
       ),
-
       GoRoute(
         path: AppPaths.chat_profile,
         name: AppRoutes.chat_profile,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: const ChatProfileScreen(),
-        ),
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const ChatProfileScreen()),
       ),
-
       GoRoute(
+        // Search feels more like an overlay → fade, not slide
         path: AppPaths.chat_search,
         name: AppRoutes.chat_search,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: const ChatSearchScreen(),
-        ),
+        pageBuilder: (c, s) => _fadePage(key: s.pageKey, child: const ChatSearchScreen()),
       ),
 
+      // ── Me / Settings ──────────────────────────────────────────────────────
       GoRoute(
-        path: AppPaths.qr_screen,
-        name: AppRoutes.qr_screen,
-        pageBuilder: (context, state) =>
-            buildSlideTransitionPage(key: state.pageKey, child: QrScanScreen()),
+        path: AppPaths.edit_profile,
+        name: AppRoutes.edit_profile,
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: EditProfileScreen()),
       ),
-
+      GoRoute(
+        path: AppPaths.email_setting,
+        name: AppRoutes.email_setting,
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: EmailSettingsScreen()),
+      ),
+      GoRoute(
+        path: AppPaths.security_privacy,
+        name: AppRoutes.security_privacy,
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: SecurityPrivacyScreen()),
+      ),
+      GoRoute(
+        path: AppPaths.two_factor_settings,
+        name: AppRoutes.two_factor_settings,
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const TwoFactorSettingsScreen()),
+      ),
+      GoRoute(
+        path: AppPaths.change_password,
+        name: AppRoutes.change_password,
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const ChangePasswordScreen()),
+      ),
+      GoRoute(
+        path: AppPaths.block_userlist,
+        name: AppRoutes.block_userlist,
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const BlockedUsersScreen()),
+      ),
       GoRoute(
         path: AppPaths.chats_setting,
         name: AppRoutes.chats_setting,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: ChatsSettingsScreen(),
-        ),
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: ChatsSettingsScreen()),
       ),
-
-      GoRoute(
-        path: AppPaths.all_stories,
-        name: AppRoutes.all_stories,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: const AllStoriesScreen(),
-        ),
-      ),
-
       GoRoute(
         path: AppPaths.chat_theme_selection,
         name: AppRoutes.chat_theme_selection,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: const ChatThemeSelectionScreen(),
-        ),
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const ChatThemeSelectionScreen()),
       ),
-
       GoRoute(
         path: AppPaths.chat_wallpaper,
         name: AppRoutes.chat_wallpaper,
-        pageBuilder: (context, state) => buildSlideTransitionPage(
-          key: state.pageKey,
-          child: const ChatWallpaperScreen(),
-        ),
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const ChatWallpaperScreen()),
+      ),
+      GoRoute(
+        path: AppPaths.qr_screen,
+        name: AppRoutes.qr_screen,
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: QrScanScreen()),
       ),
 
+      // ── Discovers ──────────────────────────────────────────────────────────
+      GoRoute(
+        path: AppPaths.all_stories,
+        name: AppRoutes.all_stories,
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const AllStoriesScreen()),
+      ),
       GoRoute(
         path: AppPaths.story_details,
         name: AppRoutes.story_details,
-        pageBuilder: (context, state) {
-          final index = state.extra as int? ?? 0;
-          return buildSlideTransitionPage(
-            key: state.pageKey,
-            child: StoryDetailsScreen(storyIndex: index),
-          );
-        },
+        pageBuilder: (c, s) => _slidePage(
+          key: s.pageKey,
+          child: StoryDetailsScreen(storyIndex: s.extra as int? ?? 0),
+        ),
       ),
+
+      // ── Other screens ──────────────────────────────────────────────────────
       GoRoute(
         path: AppPaths.event_screen,
         name: AppRoutes.event_screen,
-        pageBuilder: (context, state) {
-          return buildSlideTransitionPage(
-            key: state.pageKey,
-            child: const EventScreen(),
-          );
-        },
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const EventScreen()),
       ),
       GoRoute(
         path: AppPaths.market_screen,
         name: AppRoutes.market_screen,
-        pageBuilder: (context, state) {
-          return buildSlideTransitionPage(
-            key: state.pageKey,
-            child: const MarketScreen(),
-          );
-        },
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const MarketScreen()),
       ),
       GoRoute(
         path: AppPaths.news_screen,
         name: AppRoutes.news_screen,
-        pageBuilder: (context, state) {
-          return buildSlideTransitionPage(
-            key: state.pageKey,
-            child: const NewsScreen(),
-          );
-        },
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const NewsScreen()),
       ),
       GoRoute(
         path: AppPaths.donate_screen,
         name: AppRoutes.donate_screen,
-        pageBuilder: (context, state) {
-          return buildSlideTransitionPage(
-            key: state.pageKey,
-            child: const DonateScreen(),
-          );
-        },
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const DonateScreen()),
       ),
-
-      // GoRoute(
-      //   path: '/communities',
-      //   builder: (context, state) => const CommunityListScreen(),
-      // ),
-      // GoRoute(
-      //   path: '/chat/:chatId',
-      //   builder: (context, state) {
-      //     final chatId = state.pathParameters['chatId']!;
-      //     return ChatRoomScreen(chatId: chatId);
-      //   },
-      // ),
-      // GoRoute(
-      //   path: '/profile',
-      //   builder: (context, state) => const ProfileScreen(),
-      // ),
     ],
   );
 });

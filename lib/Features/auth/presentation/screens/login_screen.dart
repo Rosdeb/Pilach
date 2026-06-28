@@ -35,12 +35,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _handleLogin() async {
+    FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
     final result = await ref.read(authProvider.notifier).login(
           _emailController.text,
           _passwordController.text,
         );
+
 
     if (mounted) {
       if (result == null) {
