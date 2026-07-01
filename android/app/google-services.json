@@ -12,7 +12,12 @@
           "package_name": "com.pilach.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "877037378701-6s81l0858ss4etf94sg05dloba6i4rr1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDQnmyXPw8yR2nV45mEDAPogZeftJAyYRQ"
@@ -20,7 +25,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "877037378701-6s81l0858ss4etf94sg05dloba6i4rr1.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "877037378701-mh94qd8hqhdi72sl3eot9n881blqjcja.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.pilach.app"
+              }
+            }
+          ]
         }
       }
     }

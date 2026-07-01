@@ -241,7 +241,6 @@ class _ChatTileContent extends ConsumerWidget {
             RepaintBoundary(
               child: ChatAvatar(
                 imageUrl: chat.image,
-                cacheKey: chat.id, // stable ID, not name+url concatenation
                 isOnline: chat.isOnline,
                 onlineColor: _kWaGreen,
                 borderColor: bgColor,

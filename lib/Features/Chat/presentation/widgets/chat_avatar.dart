@@ -10,14 +10,12 @@ class ChatAvatar extends StatelessWidget {
   const ChatAvatar({
     super.key,
     required this.imageUrl,
-    required this.cacheKey,
     required this.isOnline,
     required this.onlineColor,
     required this.borderColor,
   });
 
   final String imageUrl;
-  final String cacheKey;
   final bool isOnline;
   final Color onlineColor;
   final Color borderColor;
@@ -34,7 +32,6 @@ class ChatAvatar extends StatelessWidget {
             child: ClipOval(
               child: CachedNetworkImage(
                 imageUrl: imageUrl,
-                cacheKey: cacheKey, // stable — never changes per chat
                 fit: BoxFit.cover,
                 width: 48,
                 height: 48,

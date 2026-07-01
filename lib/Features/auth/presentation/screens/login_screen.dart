@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,7 @@ import '../widgets/auth_text_field.dart';
 import 'package:app/Features/auth/data/repositories/auth_repository.dart';
 import 'package:app/Features/auth/presentation/screens/two_factor_email_verify_screen.dart';
 import 'package:app/Features/auth/presentation/screens/two_factor_sms_verify_screen.dart';
+import 'package:app/core/services/GoogleAuth/googleAuth.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -26,6 +28,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isGoogleLogin = false;
 
   @override
   void dispose() {
@@ -36,7 +39,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _handleLogin() async {
     FocusScope.of(context).unfocus();
-    if (!_formKey.currentState!.validate()) return;
+    
+    if (_emailController.text.trim().isEmpty) {
+      FloatingErrorBar.show(context, message: "Email is required");
+      return;
+    }
+    if (!_emailController.text.contains('@')) {
+      FloatingErrorBar.show(context, message: "Please enter a valid email");
+      return;
+    }
+    if (_passwordController.text.isEmpty) {
+      FloatingErrorBar.show(context, message: "Password is required");
+      return;
+    }
 
     final result = await ref.read(authProvider.notifier).login(
           _emailController.text,
@@ -91,6 +106,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       } else {
         //FloatingSuccessBar.show(context, message: "Logged in successfully!");
         print("Logged in successfully!");
+      }
+    }
+  }
+
+  void _handleGoogleLogin() async {
+    setState(() {
+      _isGoogleLogin = true;
+    });
+    try {
+      final result = await GoogleSignInService.signInWithGoogle();
+      if (result != null && mounted) {
+        FloatingSuccessBar.show(context, message: "Google Login Successful!");
+        // TODO: Send token to your backend if needed, or update authProvider state
+        // yes obiously need for later but still now not needed.
+      }
+    } catch (e) {
+      if (mounted) {
+        FloatingErrorBar.show(context, message: e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleLogin = false;
+        });
       }
     }
   }
@@ -154,15 +193,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     hintText: "Email address",
                     prefixIcon: Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
-                    validator: (val) {
-                      if (val == null || val.trim().isEmpty) {
-                        return "Email is required";
-                      }
-                      if (!val.contains('@')) {
-                        return "Please enter a valid email";
-                      }
-                      return null;
-                    },
                   ),
                   const SizedBox(height: 16),
 
@@ -172,12 +202,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     hintText: "Password",
                     prefixIcon: Icons.lock_outline_rounded,
                     isPassword: true,
-                    validator: (val) {
-                      if (val == null || val.isEmpty) {
-                        return "Password is required";
-                      }
-                      return null;
-                    },
                   ),
 
                   // Forgot password link
@@ -272,7 +296,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     children: [
                       // Google
                        ZoomTapAnimation(
-                          onTap: () {},
+                          onTap: _isGoogleLogin ? null : _handleGoogleLogin,
                           child: Container(
                             height: 52,
                             width: 52,
@@ -281,13 +305,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               borderRadius: BorderRadius.circular(50),
                               border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.08)),
                             ),
-                            child: Icon(Icons.g_mobiledata_rounded, color: theme.colorScheme.onSurface, size: 28),
+                            child: _isGoogleLogin
+                                ? CupertinoActivityIndicator(color: theme.colorScheme.onSurface)
+                                : Icon(Icons.g_mobiledata_rounded, color: theme.colorScheme.onSurface, size: 28),
                           ),
                         ),
                       const SizedBox(width: 16),
                       // Apple
                       ZoomTapAnimation(
-                          onTap: () {},
+                          onTap: () {
+                            if (Platform.isAndroid) {
+                              FloatingErrorBar.show(context, message: "Apple login is not enabled on Android phones.");
+                            } else if (Platform.isIOS) {
+                              // TODO: Add Apple login logic here
+                            }
+                          },
                           child: Container(
                             height: 52,
                             width: 52,

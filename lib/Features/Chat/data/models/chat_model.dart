@@ -1,5 +1,6 @@
 class ChatModel {
   final String id;
+  final String? userId; // For private chats
   final String name;
   final String message;
   final String image;
@@ -13,6 +14,7 @@ class ChatModel {
 
   ChatModel({
     required this.id,
+    this.userId,
     required this.name,
     required this.message,
     required this.image,
@@ -27,6 +29,7 @@ class ChatModel {
 
   ChatModel copyWith({
     String? id,
+    String? userId,
     String? name,
     String? message,
     String? image,
@@ -40,6 +43,7 @@ class ChatModel {
   }) {
     return ChatModel(
       id: id ?? this.id,
+      userId: userId ?? this.userId,
       name: name ?? this.name,
       message: message ?? this.message,
       image: image ?? this.image,

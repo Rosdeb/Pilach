@@ -20,8 +20,13 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('ALTER TABLE chats ADD COLUMN other_user_id TEXT');
+        }
+      },
     );
   }
 
@@ -33,6 +38,7 @@ class AppDatabase {
         title TEXT,
         avatar_url TEXT,
         avatar_local_path TEXT,
+        other_user_id TEXT,
         unread_count INTEGER DEFAULT 0,
         last_message_seq INTEGER DEFAULT 0,
         last_message_preview TEXT,

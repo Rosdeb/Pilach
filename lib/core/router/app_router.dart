@@ -28,6 +28,7 @@ import 'package:app/Features/auth/presentation/screens/two_factor_email_verify_s
 import 'package:app/Features/auth/presentation/screens/two_factor_sms_verify_screen.dart';
 import 'package:app/Features/Me/presentation/screens/security_privacy/two_factor_settings_screen.dart';
 import 'package:app/Features/auth/presentation/providers/auth_provider.dart';
+import '../../Features/Chat/data/models/chat_model.dart';
 import '../../Features/bottom_nav_bar/presentation/screens/bottom_manu_wrappers.dart';
 import '../constants/app_constants.dart' hide AppPaths;
 import '../constants/app_paths.dart';
@@ -251,7 +252,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppPaths.chat_profile,
         name: AppRoutes.chat_profile,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const ChatProfileScreen()),
+        pageBuilder: (c, s) {
+          final chat = s.extra as ChatModel;
+          return _slidePage(key: s.pageKey, child: ChatProfileScreen(chat: chat));
+        },
       ),
       GoRoute(
         // Search feels more like an overlay → fade, not slide

@@ -65,6 +65,13 @@ class ChatScreen extends ConsumerWidget {
               // when the chat list changes.
               const _ChatSliverAppBar(),
 
+              // ── Pull to Refresh ───────────────────────────────────────────
+              CupertinoSliverRefreshControl(
+                onRefresh: () async {
+                  await ref.read(chatProvider.notifier).fetchFromServer(isManualRefresh: true);
+                },
+              ),
+
               // ── Search bar ────────────────────────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(

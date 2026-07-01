@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:app/core/utils/app_logger.dart';
 import 'package:flutter/widgets.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
@@ -13,15 +14,16 @@ class SocketService extends WidgetsBindingObserver {
   final _messageEditedController = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get onMessageEdited => _messageEditedController.stream;
 
+  final _userActionController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get onUserAction => _userActionController.stream;
+
   Timer? _statusTimer;
 
   SocketService({required this.baseUrl});
 
   void connect(String token) {
     if (_socket?.connected == true) return;
-
-    print('🌐 SOCKET: Attempting to connect to $baseUrl...');
-
+    Logger.log('🌐 SOCKET: Attempting to connect to $baseUrl...');
     _socket = IO.io(baseUrl, IO.OptionBuilder()
         .setTransports(['websocket'])
         .setAuth({'token': token})
@@ -30,48 +32,54 @@ class SocketService extends WidgetsBindingObserver {
           'Cookie': 'access_token=$token',
         })
         .enableReconnection()
-        .setReconnectionAttempts(999999) // Practically infinite
+        .setReconnectionAttempts(999999)
         .setReconnectionDelay(1000)
         .setReconnectionDelayMax(10000)
         .build());
 
     _socket!.onConnect((_) {
-      print('🟢 SOCKET: Connected successfully!');
+      Logger.log('Connected');
       _onReconnected();
     });
 
     _socket!.onDisconnect((_) {
-      print('🔴 SOCKET: Disconnected from server.');
+      Logger.log('🔴 SOCKET: Disconnected from server.');
     });
 
     _socket!.onConnectError((err) {
-      print('⚠️ SOCKET ERROR: $err');
+      Logger.log('⚠️ SOCKET ERROR: $err');
     });
 
     _socket!.onAny((event, data) {
-      print('🔍 SOCKET RAW EVENT [$event]: $data');
+      Logger.log('🔍 SOCKET RAW EVENT [$event]: $data');
     });
 
     _statusTimer?.cancel();
     _statusTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
-      print('💓 SOCKET ALIVE CHECK: connected=${_socket?.connected}, id=${_socket?.id}');
+      Logger.log('💓 SOCKET ALIVE CHECK: connected=${_socket?.connected}, id=${_socket?.id}');
     });
 
-    _socket!.on('new', (data) {
+    _socket!.on('message:new', (data) {
+      Logger.log('SOCKET NEW MESSAGE:  [message:new]: $data');
       if (data != null) {
-        print('📨 SOCKET INCOMING [message:new]: $data');
+        Logger.log('SOCKET INCOMING [message:new]: $data');
         _newMessageController.add(Map<String, dynamic>.from(data));
       }
     });
 
-    _socket!.on('edited', (data) {
+    _socket!.on('message:edited', (data) {
       if (data != null) {
-        print('✏️ SOCKET INCOMING [message:edited]: $data');
+        Logger.log(' SOCKET INCOMING [message:edited]: $data');
         _messageEditedController.add(Map<String, dynamic>.from(data));
       }
     });
 
-    // Handle other events: message:read_receipt, etc.
+    _socket!.on('user:action', (data) {
+      if (data != null) {
+        Logger.log('👤 SOCKET INCOMING [user:action]: $data');
+        _userActionController.add(Map<String, dynamic>.from(data));
+      }
+    });
   }
 
   void _onReconnected() {
@@ -80,12 +88,12 @@ class SocketService extends WidgetsBindingObserver {
   }
 
   void emit(String event, dynamic data) {
-    print('📤 SOCKET EMIT [$event]: $data');
+    Logger.log('📤 SOCKET EMIT [$event]: $data');
     _socket?.emit(event, data);
   }
 
   void disconnect() {
-    print('🔌 SOCKET: Manual disconnect called.');
+    Logger.log('🔌 SOCKET: Manual disconnect called.');
     _statusTimer?.cancel();
     _socket?.disconnect();
   }

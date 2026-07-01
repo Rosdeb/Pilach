@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../../data/models/chat_model.dart';
 import '../../../../core/database/daos/chat_dao.dart';
 import '../../../../core/models/chat_dto.dart';
@@ -36,8 +37,13 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     state = [...pinned, ...unpinned];
   }
 
-  Future<void> fetchFromServer() async {
+  Future<void> fetchFromServer({bool isManualRefresh = false}) async {
     try {
+      if (isManualRefresh) {
+        // Force flush all cached images so new profile pictures show up
+        await DefaultCacheManager().emptyCache();
+      }
+
       // Call the real API: GET /api/v1/conversations without limit/page
       final responseData = await _chatRepository.getConversations();
       

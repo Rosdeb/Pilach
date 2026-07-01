@@ -5,9 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:app/core/utils/app_colour.dart';
 import 'package:app/components/AppText/appText.dart';
 import 'package:app/core/constants/app_constants.dart';
+import '../../../data/models/chat_model.dart';
 
 class ChatProfileScreen extends StatelessWidget {
-  const ChatProfileScreen({Key? key}) : super(key: key);
+  final ChatModel chat;
+
+  const ChatProfileScreen({Key? key, required this.chat}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -36,15 +39,17 @@ class ChatProfileScreen extends StatelessWidget {
                   child: Stack(
                     alignment: Alignment.bottomRight,
                     children: [
-                      const CircleAvatar(
+                      CircleAvatar(
                         radius: 50,
-                        backgroundImage: CachedNetworkImageProvider('https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp'),
+                        backgroundImage: chat.image.startsWith('http')
+                            ? CachedNetworkImageProvider(chat.image)
+                            : AssetImage(chat.image) as ImageProvider,
                       ),
                       Container(
                         width: 18,
                         height: 18,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF34C759),
+                          color: chat.isOnline ? const Color(0xFF34C759) : Colors.grey,
                           shape: BoxShape.circle,
                           border: Border.all(color: theme.scaffoldBackgroundColor, width: 3),
                         ),
@@ -54,7 +59,7 @@ class ChatProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 AppText(
-                  'Alexandra Sterling',
+                  chat.name,
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,

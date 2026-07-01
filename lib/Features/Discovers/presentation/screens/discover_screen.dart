@@ -127,18 +127,6 @@ class DiscoverScreen extends ConsumerWidget {
 
                     // --- NEARBY SCAN SECTION ---
                     _buildSectionHeader(context, 'Nearby People', state.isScanning ? 'Scanning...' : 'Paused'),
-                    //const SizedBox(height: 20),
-                    // Container(
-                    //   margin: const EdgeInsets.symmetric(horizontal: 16),
-                    //   padding: const EdgeInsets.all(14),
-                    //   decoration: BoxDecoration(
-                    //     color: theme.colorScheme.surfaceContainerHighest.withOpacity(.35),
-                    //     borderRadius: BorderRadius.circular(18),
-                    //   ),
-                    //   child: const Text(
-                    //     "Share your daily moments with the community.",
-                    //   ),
-                    // ),
 
                     const SizedBox(height: 20),
                     RadarScanner(
@@ -150,41 +138,40 @@ class DiscoverScreen extends ConsumerWidget {
 
                     const SizedBox(height: 40),
 
-                    // _buildSectionHeader(
-                    //   context,
-                    //   "Quick Actions",
-                    //   "",
-                    // ),
-                    //
-                    // const SizedBox(height:16),
-                    //
-                    // Padding(
-                    //   padding: const EdgeInsets.symmetric(horizontal:16),
-                    //   child: GridView.builder(
-                    //     shrinkWrap: true,
-                    //     physics: const NeverScrollableScrollPhysics(),
-                    //     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    //       crossAxisCount: 4,
-                    //       crossAxisSpacing: 8,
-                    //       mainAxisSpacing: 10,
-                    //       childAspectRatio: 0.95,
-                    //     ),
-                    //     itemCount: actions.length,
-                    //     itemBuilder: (context, index) {
-                    //       return QuickActionCard(
-                    //         icon: actions[index].icon,
-                    //         title: actions[index].title,
-                    //         onTap: () {
-                    //           context.push(actions[index].route);
-                    //         },
-                    //
-                    //       );
-                    //
-                    //     },
-                    //
-                    //   )
-                    // ),
-                    // const SizedBox(height:50),
+                    _buildSectionHeader(
+                      context,
+                      "Quick Actions",
+                      "",
+                    ),
+
+                    const SizedBox(height:16),
+
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal:16),
+                      child: GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 4,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 10,
+                          childAspectRatio: 0.95,
+                        ),
+                        itemCount: actions.length,
+                        itemBuilder: (context, index) {
+                          return QuickActionCard(
+                            icon: actions[index].icon,
+                            title: actions[index].title,
+                            onTap: () {
+                              context.push(actions[index].route);
+                            },
+                          );
+
+                        },
+
+                      )
+                    ),
+                    const SizedBox(height:50),
                   ],
                 ),
               ),

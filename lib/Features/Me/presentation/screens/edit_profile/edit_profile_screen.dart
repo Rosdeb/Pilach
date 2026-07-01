@@ -62,9 +62,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           _avatarUrl = uploadedUrl;
         });
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Avatar uploaded successfully')),
-          );
+          // Success message removed per request
         }
       } else {
         if (mounted) {
@@ -108,9 +106,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated successfully')),
-        );
         Navigator.pop(context);
       }
     } catch (e) {

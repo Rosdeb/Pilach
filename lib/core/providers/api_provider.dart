@@ -35,8 +35,32 @@ final dioProvider = Provider<Dio>((ref) {
     ref.read(unauthenticatedTriggerProvider.notifier).state++;
   }));
 
-  // 2. Attach Logger Interceptor (Only in debug mode to keep production fast!)
+  // 2. Attach Timer Interceptor to log API response times
   if (kDebugMode) {
+    dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        options.extra['start_time'] = DateTime.now().millisecondsSinceEpoch;
+        return handler.next(options);
+      },
+      onResponse: (response, handler) {
+        final startTime = response.requestOptions.extra['start_time'];
+        if (startTime != null) {
+          final duration = DateTime.now().millisecondsSinceEpoch - startTime;
+          print('✅ [API SUCCESS] ${response.requestOptions.path} - Time: ${duration}ms');
+        }
+        return handler.next(response);
+      },
+      onError: (DioException e, handler) {
+        final startTime = e.requestOptions.extra['start_time'];
+        if (startTime != null) {
+          final duration = DateTime.now().millisecondsSinceEpoch - startTime;
+          print('❌ [API ERROR] ${e.requestOptions.path} - Time: ${duration}ms');
+        }
+        return handler.next(e);
+      },
+    ));
+
+    // Attach Logger Interceptor
     dio.interceptors.add(LogInterceptor(
       request: true,
       requestHeader: false,

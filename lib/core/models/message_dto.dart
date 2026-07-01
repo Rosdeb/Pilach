@@ -34,15 +34,15 @@ class MessageDto {
     return MessageDto(
       id: json['id'] as String,
       clientMsgId: json['clientMsgId'] as String?,
-      conversationId: json['conversationId'] as String,
+      conversationId: (json['chatId'] ?? json['conversationId']) as String,
       seq: json['seq'] as int?,
       senderId: json['senderId'] as String,
-      type: json['type'] as String? ?? 'text',
+      type: json['type'] as String? ?? 'TEXT',
       text: json['text'] as String?,
       status: json['status'] as String? ?? 'sent',
       createdAt: json['createdAt'] as String,
       editedAt: json['editedAt'] as String?,
-      deleted: json['deleted'] as bool? ?? false,
+      deleted: (json['isDeleted'] ?? json['deleted']) as bool? ?? false,
       replyToId: json['replyToId'] as String?,
     );
   }

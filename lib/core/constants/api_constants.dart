@@ -3,7 +3,7 @@ class ApiConstants {
   // 🌐 Base URLs
   // ================================
   static const String baseUrl = "https://messenger.xdtunnel.icu";
-  static const String socketUrl = "https://socket.yourapp.com";
+  static const String socketUrl = "https://messenger.xdtunnel.icu";
 
   // ================================
   // 🔐 Auth Endpoints

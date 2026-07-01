@@ -69,29 +69,14 @@ class _AuthTextFieldState extends State<AuthTextField> {
         fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9), // slate-800 or slate-100
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: theme.colorScheme.onSurface.withOpacity(0.08)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: theme.colorScheme.onSurface.withOpacity(0.08)),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: theme.colorScheme.error, width: 1),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: theme.colorScheme.error, width: 1.5),
-        ),
-        errorStyle: TextStyle(
-          color: theme.colorScheme.error,
-          fontSize: 12,
-        ),
+
       ),
     );
   }

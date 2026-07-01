@@ -132,11 +132,16 @@ class MessageModel {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is MessageModel && other.id == id;
+    return other is MessageModel && 
+           other.id == id && 
+           other.status == status && 
+           other.text == text && 
+           other.isDeleted == isDeleted && 
+           other.isEdited == isEdited;
   }
 
   @override
-  int get hashCode => id.hashCode;
+  int get hashCode => Object.hash(id, status, text, isDeleted, isEdited);
 }
 
 // Message types for future features

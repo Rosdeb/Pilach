@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/theme/chat_theme_model.dart';
 import '../../data/models/message_model.dart';
 
 class ChatBubble extends StatefulWidget {
   final MessageModel message;
   final ChatTheme activeTheme;
+  final String? otherUserAvatar;
 
   const ChatBubble({
     super.key,
     required this.message,
     required this.activeTheme,
+    this.otherUserAvatar,
   });
 
   @override
@@ -44,6 +47,12 @@ class _ChatBubbleState extends State<ChatBubble>
   }
 
   @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return FadeTransition(
@@ -54,15 +63,28 @@ class _ChatBubbleState extends State<ChatBubble>
           alignment: widget.message.isMe
               ? Alignment.centerRight
               : Alignment.centerLeft,
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 6.0),
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.75,
-            ),
-            child: Column(
-              crossAxisAlignment: widget.message.isMe
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (!widget.message.isMe && widget.otherUserAvatar != null) ...[
+                CircleAvatar(
+                  radius: 12,
+                  backgroundImage: widget.otherUserAvatar!.startsWith('http')
+                      ? CachedNetworkImageProvider(widget.otherUserAvatar!)
+                      : AssetImage(widget.otherUserAvatar!) as ImageProvider,
+                ),
+                const SizedBox(width: 8),
+              ],
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 6.0),
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.70,
+                ),
+                child: Column(
+                  crossAxisAlignment: widget.message.isMe
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
               children: [
                 // Bubble Layer Canvas Block Box
                 Container(
@@ -95,13 +117,11 @@ class _ChatBubbleState extends State<ChatBubble>
                     style: TextStyle(
                       color: widget.message.isMe
                           ? (widget.activeTheme.sentMessageColor
-                                        .computeLuminance() >
-                                    0.5
+                                        .computeLuminance() > 0.5
                                 ? Colors.black87
                                 : Colors.white)
                           : (widget.activeTheme.receivedMessageColor
-                                        .computeLuminance() >
-                                    0.5
+                                        .computeLuminance() > 0.5
                                 ? Colors.black87
                                 : Colors.white),
                       fontSize: 15,
@@ -140,8 +160,10 @@ class _ChatBubbleState extends State<ChatBubble>
               ],
             ),
           ),
-        ),
+        ],
       ),
-    );
+    ),
+  ),
+  );
   }
 }

@@ -27,7 +27,14 @@ class ApiException implements Exception {
     if (response != null && response.data != null) {
       final data = response.data;
       if (data is Map<String, dynamic> && data.containsKey('message')) {
-        return ApiException(data['message'], statusCode: response.statusCode);
+        String message = data['message'].toString();
+        
+        // Hide raw database/Prisma errors
+        if (message.toLowerCase().contains('prisma') || response.statusCode == 500) {
+          return ApiException("Server error occurred", statusCode: response.statusCode);
+        }
+        
+        return ApiException(message, statusCode: response.statusCode);
       }
     }
     return ApiException(

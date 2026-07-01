@@ -100,19 +100,19 @@ class _FloatingErrorBarState extends State<FloatingErrorBar>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: const Color(0xFFEAE9E9),
+                color: const Color(0xFFFFFFFF),
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.18),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 3,
+                    offset: const Offset(2, 3),
                   ),
                 ],
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline_rounded,
+                  const Icon(Icons.nearby_error_sharp,
                       color: Colors.red, size: 22),
                   const SizedBox(width: 10),
                   Expanded(

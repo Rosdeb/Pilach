@@ -12,9 +12,10 @@ class CustomBottomNav extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentIndex = ref.watch(bottomNavProvider);
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return SizedBox(
-      height: 70,
+      height: 56 + bottomPadding,
       child: Stack(
         children: [
           AnimatedContainer(
@@ -36,9 +37,11 @@ class CustomBottomNav extends ConsumerWidget {
             ),
           ),
 
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
+          Padding(
+            padding: EdgeInsets.only(bottom: bottomPadding),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
               NavItem(
                 icon: currentIndex == 0
                     ? CupertinoIcons.chat_bubble_2_fill
@@ -73,8 +76,11 @@ class CustomBottomNav extends ConsumerWidget {
               ),
             ],
           )
+         ),
         ],
+
       ),
+
     );
   }
 }

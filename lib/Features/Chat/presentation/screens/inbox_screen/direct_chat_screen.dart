@@ -9,7 +9,9 @@ import 'package:app/core/constants/app_constants.dart';
 import 'package:app/Features/Me/presentation/providers/chat_theme_provider.dart';
 import 'package:app/Features/Me/presentation/providers/setting_providers.dart';
 import '../../../data/models/message_model.dart';
+import '../../../data/models/chat_model.dart';
 import '../../providers/direct_chat_provider.dart';
+import '../../providers/chat_provider.dart';
 import '../../widgets/chat_bundle.dart';
 
 // ── Compile-time constants — zero allocation per build ────────────────────────
@@ -21,21 +23,10 @@ const String _kAvatarUrl =
 // autoDispose: cleaned up when screen is popped, so re-entering resets it.
 final _chatReadyProvider = StateProvider.autoDispose<bool>((_) => false);
 
-// ── Granular selectors — each widget watches only what it needs ───────────────
-
-/// Only the message count — ListView itemCount source of truth.
-final _messageCountProvider = Provider.autoDispose<int>(
-  (ref) => ref.watch(directChatProvider).length,
-);
-
-/// Single message by index — only that bubble rebuilds when its data changes.
-final _messageAtProvider = Provider.autoDispose.family<MessageModel, String>(
-  (ref, id) => ref.watch(directChatProvider).firstWhere((m) => m.id == id),
-);
-
-final _messageIdsProvider = Provider.autoDispose<List<String>>(
-  (ref) => ref.watch(directChatProvider).map((m) => m.id!).toList(),
-);
+final _headerTextColorProvider = Provider.autoDispose<Color>((ref) {
+  final bg = ref.watch(chatThemeProvider).backgroundColor;
+  return bg.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -75,23 +66,19 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     _focusNode.requestFocus();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_scrollController.hasClients) return;
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        );
-      });
+      if (!_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final activeTheme = ref.watch(chatThemeProvider);
-    final headerTextColor = activeTheme.backgroundColor.computeLuminance() > 0.5
-        ? Colors.black87
-        : Colors.white;
+    final headerTextColor = ref.watch(_headerTextColorProvider);
 
     return Scaffold(
       backgroundColor: activeTheme.backgroundColor,
@@ -152,6 +139,23 @@ class _ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final chatId = ref.watch(currentChatIdProvider);
+    final isTyping = chatId != null ? ref.watch(typingStatusProvider(chatId)) : false;
+
+    final chats = ref.watch(chatProvider);
+    final currentChat = chats.firstWhere(
+      (c) => c.id == chatId,
+      orElse: () => ChatModel(
+        id: '',
+        name: 'Unknown User',
+        message: '',
+        image: _kAvatarUrl,
+        time: '',
+        unreadCount: 0,
+        isOnline: false,
+      ),
+    );
+
     return AppBar(
       backgroundColor: activeTheme.backgroundColor,
       elevation: 0,
@@ -165,16 +169,18 @@ class _ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
       ),
       titleSpacing: 0,
       title: GestureDetector(
-        onTap: () => context.push(AppPaths.chat_profile),
+        onTap: () => context.push(AppPaths.chat_profile, extra: currentChat),
         child: Row(
           children: [
             // RepaintBoundary: avatar image never repaints on message updates
             RepaintBoundary(
               child: Stack(
                 children: [
-                  const CircleAvatar(
+                  CircleAvatar(
                     radius: 20,
-                    backgroundImage: CachedNetworkImageProvider(_kAvatarUrl),
+                    backgroundImage: currentChat.image.startsWith('http')
+                        ? CachedNetworkImageProvider(currentChat.image)
+                        : AssetImage(currentChat.image) as ImageProvider,
                   ),
                   Positioned(
                     right: 0,
@@ -201,7 +207,7 @@ class _ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Alexandra Sterling',
+                    currentChat.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -210,10 +216,10 @@ class _ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  // const: 'Online' text never changes
-                  const Text(
-                    'Online',
-                    style: TextStyle(
+                  // Status text
+                  Text(
+                    isTyping ? 'Typing...' : 'Online',
+                    style: const TextStyle(
                       color: _kGreen,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -294,7 +300,7 @@ class _MessageListView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     debugPrint('🟡 MessageListView build');
-    final count = ref.watch(directChatProvider.select((msgs) => msgs.length));
+    final count = ref.watch(directChatProvider.select((state) => state.messageIds.length));
 
     return ListView.builder(
       reverse: false,
@@ -327,7 +333,7 @@ class _BubbleRowByIndex extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // প্রথমে শুধু id নাও — id same থাকলে rebuild নেই
-    final id = ref.watch(directChatProvider.select((msgs) => msgs[index].id));
+    final id = ref.watch(directChatProvider.select((state) => state.messageIds[index]));
 
     return _BubbleById(id: id, activeTheme: activeTheme);
   }
@@ -341,16 +347,32 @@ class _BubbleById extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    debugPrint('🔴 BubbleRow build: $id');
+    final msg = ref.watch(directChatProvider.select((state) => state.messagesById[id]));
 
-    final msg = ref.watch(
-      directChatProvider.select((msgs) => msgs.firstWhere((m) => m.id == id)),
+    if (msg == null) {
+      return const SizedBox.shrink();
+    }
+
+    final chatId = ref.read(currentChatIdProvider);
+    final chats = ref.read(chatProvider);
+    final currentChat = chats.firstWhere(
+      (c) => c.id == chatId,
+      orElse: () => ChatModel(
+        id: '',
+        name: '',
+        message: '',
+        image: _kAvatarUrl,
+        time: '',
+        unreadCount: 0,
+        isOnline: false,
+      ),
     );
 
     return ChatBubble(
       key: ValueKey(id),
       message: msg,
       activeTheme: activeTheme,
+      otherUserAvatar: currentChat.image,
     );
   }
 }
@@ -399,142 +421,148 @@ class _ComposerBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final isEnterSend = ref.watch(enterIsSendProvider);
+    final isNotEmpty = ref.watch(Provider((ref) => messageController.text.trim().isNotEmpty),);
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: activeTheme.backgroundColor,
-        border: Border(
-          top: BorderSide(
-            color: theme.dividerColor.withOpacity(0.12),
-            width: 1,
-          ),
+    return RepaintBoundary(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        decoration: BoxDecoration(
+          color: activeTheme.backgroundColor ?? Colors.transparent,
         ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          children: [
-            IconButton(
-              icon: const Icon(CupertinoIcons.add, color: _kGreen, size: 24),
-              onPressed: () {},
-            ),
-            Expanded(
-              child: _InputBox(
-                controller: messageController,
-                focusNode: focusNode,
-                isEnterSend: isEnterSend,
-                onSend: onSend,
+        child: SafeArea(
+          child: Row(
+
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: _WhatsAppInputBox(
+                  controller: messageController,
+                  focusNode: focusNode,
+                  isEnterSend: isEnterSend,
+                  onSend: onSend,
+                  onTyping: () => ref.read(directChatProvider.notifier).emitTyping(),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            _SendButton(accentColor: activeTheme.accentColor, onTap: onSend),
-          ],
+              const SizedBox(width: 6),
+
+              _SendButton(
+                accentColor: activeTheme.accentColor ?? const Color(0xFF00A884),
+                onTap: onSend,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _InputBox extends StatelessWidget {
-  const _InputBox({
-    super.key,
+class _WhatsAppInputBox extends StatelessWidget {
+  const _WhatsAppInputBox({
     required this.controller,
     required this.focusNode,
     required this.isEnterSend,
     required this.onSend,
+    required this.onTyping,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final bool isEnterSend;
   final VoidCallback onSend;
+  final VoidCallback onTyping;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
-      child: Container(
-        constraints: const BoxConstraints(
-          minHeight: 45,
-          maxHeight: 120,
-        ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: 10,
-        ),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: theme.dividerColor.withValues(alpha: 0.5),
-            width: 1.2,
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            spreadRadius: 1,
+            blurRadius: 1,
+            offset: const Offset(1, 1),
           ),
-        ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+
+            IconButton(
+              onPressed: () {},
+              icon: Icon(
+                CupertinoIcons.smiley,
+                color: theme.hintColor.withValues(alpha: 0.6),
+                size: 24,
+              ),
+              splashRadius: 20,
+            ),
+
+
             Expanded(
-              child: TextField(
+              child: TextFormField(
                 controller: controller,
                 focusNode: focusNode,
                 keyboardType: TextInputType.multiline,
-                textCapitalization: TextCapitalization.sentences,
                 minLines: 1,
-                maxLines: 4,
+                maxLines: 6,
+                textCapitalization: TextCapitalization.sentences,
+                onChanged: (_) => onTyping(),
                 textInputAction: isEnterSend
                     ? TextInputAction.send
                     : TextInputAction.newline,
-                onSubmitted: isEnterSend ? (_) => onSend() : null,
-                cursorColor: theme.colorScheme.primary,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: theme.colorScheme.onSurface,
-                ),
+                onFieldSubmitted: isEnterSend ? (_) => onSend() : null,
+                style: const TextStyle(fontSize: 16, height: 1.3),
                 decoration: InputDecoration(
-                  hintText: "Type a message",
+                  hintText: "Message",
+                  hintStyle: TextStyle(color: theme.hintColor.withOpacity(0.6)),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   fillColor: theme.colorScheme.surface,
                   focusedBorder: InputBorder.none,
-                  disabledBorder: InputBorder.none,
-                  errorBorder: InputBorder.none,
-                  focusedErrorBorder: InputBorder.none,
-                  isCollapsed: true,
-                  contentPadding: EdgeInsets.only(
-                    top: 8,
-                    bottom: 12,
-                    left: 2,
-                    right: 2,
-                  ),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
             ),
 
 
             IconButton(
-              splashRadius: 20,
-              constraints: const BoxConstraints(
-                minWidth: 36,
-                minHeight: 36,
-              ),
-              padding: EdgeInsets.zero,
-              icon: Icon(
-                CupertinoIcons.smiley,
-                size: 22,
-                color: theme.colorScheme.onSurface.withOpacity(.6),
-              ),
               onPressed: () {},
+              icon: Icon(
+                CupertinoIcons.paperclip,
+                color: theme.hintColor.withValues(alpha: 0.6),
+                size: 22,
+              ),
+              splashRadius: 20,
             ),
+
+
+            IconButton(
+              onPressed: () {},
+              icon: Icon(
+                CupertinoIcons.camera_fill,
+                color: theme.hintColor.withValues(alpha: 0.6),
+                size: 22,
+              ),
+              splashRadius: 20,
+            ),
+            const SizedBox(width: 4),
           ],
         ),
       ),
     );
   }
 }
+
 
 class _SendButton extends StatelessWidget {
   const _SendButton({required this.accentColor, required this.onTap});
