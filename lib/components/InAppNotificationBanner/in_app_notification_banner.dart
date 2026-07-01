@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:app/services/native_notifier.dart';
+import 'package:app/core/services/native_notifier.dart';
 
 class InAppNotificationBanner extends StatefulWidget {
   final String title;

@@ -1,5 +1,6 @@
 
 import 'package:dio/dio.dart';
+import '../services/socket_service.dart';
 import '../theme/theme_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,4 +54,8 @@ final dioProvider = Provider<Dio>((ref) {
 final apiServiceProvider = Provider<ApiService>((ref) {
   final dio = ref.watch(dioProvider);
   return ApiService(dio);
+});
+
+final socketServiceProvider = Provider<SocketService>((ref) {
+  return SocketService(baseUrl: ApiConstants.baseUrl);
 });

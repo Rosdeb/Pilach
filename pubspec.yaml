@@ -70,6 +70,14 @@ dependencies:
   mobile_scanner: ^7.2.0
   pinput: ^6.0.2
 
+  # Offline-first and Sync
+  sqflite: ^2.4.2+1
+  path: ^1.9.0
+  path_provider: ^2.1.2
+  connectivity_plus: ^6.0.3
+  uuid: ^4.3.3
+  socket_io_client: ^2.0.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -6,6 +6,7 @@ import 'package:app/core/constants/app_constants.dart';
 
 import '../../data/models/chat_model.dart';
 import '../providers/chat_provider.dart';
+import '../providers/direct_chat_provider.dart';
 import 'chat_actions.dart';
 import 'chat_avatar.dart';
 import 'chat_badge.dart';
@@ -185,6 +186,7 @@ class _ChatTileState extends ConsumerState<ChatTile>
                   if (_slide.direction.value != SlideDirection.none) {
                     _slide.close();
                   } else {
+                    ref.read(currentChatIdProvider.notifier).state = chat.id;
                     context.push(AppPaths.chat);
                   }
                 },

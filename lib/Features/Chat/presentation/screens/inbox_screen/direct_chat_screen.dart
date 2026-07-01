@@ -439,6 +439,7 @@ class _ComposerBar extends ConsumerWidget {
 
 class _InputBox extends StatelessWidget {
   const _InputBox({
+    super.key,
     required this.controller,
     required this.focusNode,
     required this.isEnterSend,
@@ -450,67 +451,85 @@ class _InputBox extends StatelessWidget {
   final bool isEnterSend;
   final VoidCallback onSend;
 
-  // Static borders — defined once, reused across builds (no allocation).
-  static const _transparentBorder = OutlineInputBorder(
-    borderSide: BorderSide(color: Colors.transparent),
-  );
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: theme.dividerColor.withValues(alpha: 0.80),
-          width: 1.5,
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      child: Container(
+        constraints: const BoxConstraints(
+          minHeight: 45,
+          maxHeight: 120,
         ),
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 40, maxHeight: 120),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 5),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  minLines: 1,
-                  maxLines: 5,
-                  textInputAction: isEnterSend
-                      ? TextInputAction.send
-                      : TextInputAction.newline,
-                  onSubmitted: isEnterSend ? (_) => onSend() : null,
-                  textCapitalization: TextCapitalization.sentences,
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface,
-                    fontSize: 15,
-                  ),
-                  decoration: InputDecoration(
-                    contentPadding: EdgeInsets.zero,
-                    hintText: 'Type a message',
-                    border: InputBorder.none,
-                    enabledBorder: _transparentBorder,
-                    focusedBorder: _transparentBorder,
-                    fillColor: theme.colorScheme.surface,
-                    isDense: true,
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: Icon(
-                  CupertinoIcons.smiley,
-                  size: 20,
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
-                ),
-                onPressed: () {},
-                padding: const EdgeInsets.all(5),
-              ),
-            ],
+        padding: const EdgeInsets.symmetric(
+          horizontal: 10,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: theme.dividerColor.withValues(alpha: 0.5),
+            width: 1.2,
           ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                keyboardType: TextInputType.multiline,
+                textCapitalization: TextCapitalization.sentences,
+                minLines: 1,
+                maxLines: 4,
+                textInputAction: isEnterSend
+                    ? TextInputAction.send
+                    : TextInputAction.newline,
+                onSubmitted: isEnterSend ? (_) => onSend() : null,
+                cursorColor: theme.colorScheme.primary,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: theme.colorScheme.onSurface,
+                ),
+                decoration: InputDecoration(
+                  hintText: "Type a message",
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  fillColor: theme.colorScheme.surface,
+                  focusedBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  isCollapsed: true,
+                  contentPadding: EdgeInsets.only(
+                    top: 8,
+                    bottom: 12,
+                    left: 2,
+                    right: 2,
+                  ),
+                ),
+              ),
+            ),
+
+
+            IconButton(
+              splashRadius: 20,
+              constraints: const BoxConstraints(
+                minWidth: 36,
+                minHeight: 36,
+              ),
+              padding: EdgeInsets.zero,
+              icon: Icon(
+                CupertinoIcons.smiley,
+                size: 22,
+                color: theme.colorScheme.onSurface.withOpacity(.6),
+              ),
+              onPressed: () {},
+            ),
+          ],
         ),
       ),
     );

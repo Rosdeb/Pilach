@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/core/network/api_exceptions.dart';
 import '../../../../core/providers/api_provider.dart';
 import '../../../../core/services/notification_service.dart';
+import '../../../../core/services/socket_service.dart';
 import '../../data/repositories/auth_repository.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
@@ -55,6 +56,7 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   final notifier = AuthNotifier(
     ref.watch(authRepositoryProvider),
     ref.watch(notificationServiceProvider),
+    ref.watch(socketServiceProvider),
   );
   
   ref.listen<int>(unauthenticatedTriggerProvider, (previous, next) {
@@ -69,8 +71,9 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthRepository _authRepository;
   final NotificationService _notificationService;
+  final SocketService _socketService;
   
-  AuthNotifier(this._authRepository, this._notificationService) : super(AuthState.initial()) {
+  AuthNotifier(this._authRepository, this._notificationService, this._socketService) : super(AuthState.initial()) {
     checkAuth();
   }
 
@@ -86,6 +89,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final profileImage = prefs.getString('auth_profile_image');
       state = AuthState.authenticated(email, id: id, name: name, profileImage: profileImage);
       _notificationService.registerFcmToken();
+      _socketService.connect(token);
     } else {
       state = AuthState.unauthenticated();
     }
@@ -112,8 +116,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (name != null) await prefs.setString('auth_name', name);
       if (profileImage != null) await prefs.setString('auth_profile_image', profileImage);
       
+      // We assume the token was saved by AuthRepository. Let's get it to connect socket.
+      final token = prefs.getString(_tokenKey) ?? result['token'] ?? '';
+      
       state = AuthState.authenticated(resolvedEmail, id: id, name: name, profileImage: profileImage);
       _notificationService.registerFcmToken();
+      if (token.isNotEmpty) _socketService.connect(token);
       return result;
     } on ApiException catch (e) {
       state = AuthState.error(e.message);
@@ -132,6 +140,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (profileImage != null) await prefs.setString('auth_profile_image', profileImage);
     state = AuthState.authenticated(email, id: id, name: name, profileImage: profileImage);
     _notificationService.registerFcmToken();
+    
+    final token = prefs.getString(_tokenKey);
+    if (token != null) _socketService.connect(token);
   }
 
   Future<bool> register(String name, String email, String password) async {
@@ -167,6 +178,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     state = AuthState.loading();
+    _socketService.disconnect();
     await _notificationService.deleteFcmToken();
     try {
       await _authRepository.logout();

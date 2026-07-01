@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -135,9 +136,6 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                         },
                       ),
                       const SizedBox(height: 32),
-                      if (isLoading)
-                        const CircularProgressIndicator()
-                      else
                         ElevatedButton(
                           onPressed: () {
                             if (_pinController.text.length == 6) {
@@ -154,7 +152,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text("Verify"),
+                          child: isLoading ? CupertinoActivityIndicator() :const Text("Verify"),
                         ),
                     ],
                   ),

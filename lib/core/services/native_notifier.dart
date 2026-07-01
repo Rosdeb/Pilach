@@ -4,7 +4,6 @@ class NativeNotifier {
   static const MethodChannel _channel = MethodChannel('com.rosde/pilach/notification');
 
   /// Shows a native notification.
-  ///
   /// [title] and [body] are required. [avatarUrl] can be a network image URL.
   /// [id] is optional – if omitted a unique timestamp‑based id is used.
   static Future<void> show({
