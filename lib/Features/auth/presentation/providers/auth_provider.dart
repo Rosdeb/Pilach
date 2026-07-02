@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/core/network/api_exceptions.dart';
@@ -83,7 +84,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);
     if (token != null) {
-      final id = prefs.getString('user_id');
+      String? id = prefs.getString('user_id');
+      
+      // Fallback: Extract ID from JWT if it was not saved correctly
+      if (id == null && token.split('.').length == 3) {
+        try {
+          final payloadStr = token.split('.')[1];
+          final normalized = base64Url.normalize(payloadStr);
+          final decodedBytes = base64Url.decode(normalized);
+          final payload = jsonDecode(utf8.decode(decodedBytes));
+          id = payload['id'] ?? payload['_id'] ?? payload['sub']?.toString();
+          if (id != null) {
+             await prefs.setString('user_id', id);
+          }
+        } catch (_) {}
+      }
+
       final email = prefs.getString('auth_email') ?? "user";
       final name = prefs.getString('auth_name');
       final profileImage = prefs.getString('auth_profile_image');
@@ -106,7 +122,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
       final userData = result['user'];
       final resolvedEmail = userData?['email'] ?? email;
-      final id = userData?['id'];
+      final id = userData?['id'] ?? userData?['_id'];
       final name = userData?['name'];
       final profileImage = userData?['profilePicture'] ?? userData?['avatar'];
       

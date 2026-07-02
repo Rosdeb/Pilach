@@ -125,8 +125,20 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     final msgRows = await _messageDao.getMessagesForChat(chatId!);
     final outboxRows = await _outboxDao.getPendingMessages(chatId!);
     
+    // Heuristic: If currentUserId is the fallback, infer it from the messages
+    String effectiveUserId = currentUserId;
+    if (effectiveUserId == '17e2377c-2221-4c39-b9b0-9ad4dc770f48') {
+      for (var row in msgRows) {
+        final senderId = row['sender_id'] as String;
+        if (senderId != chatId) {
+          effectiveUserId = senderId;
+          break;
+        }
+      }
+    }
+    
     // Convert DB rows to MessageModels
-    final List<MessageModel> models = msgRows.map((row) => row.toMessageModel(currentUserId)).toList();
+    final List<MessageModel> models = msgRows.map((row) => row.toMessageModel(effectiveUserId)).toList();
     
     // Also include pending outbox messages optimistically
     for (var outboxMsg in outboxRows) {
@@ -166,8 +178,19 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         
         final outboxItems = await _outboxDao.getPendingMessages(chatId!);
 
+        // Heuristic: Infer user ID from incoming messages if fallback is used
+        String effectiveUserId = currentUserId;
+        if (effectiveUserId == '17e2377c-2221-4c39-b9b0-9ad4dc770f48') {
+          for (var item in data) {
+            if (item['senderId'] != chatId) {
+              effectiveUserId = item['senderId'];
+              break;
+            }
+          }
+        }
+
         final List<Map<String, dynamic>> sqliteRows = data.map((item) {
-          if (item['senderId'] == currentUserId) {
+          if (item['senderId'] == effectiveUserId) {
             for (var outboxItem in outboxItems) {
                final payload = jsonDecode(outboxItem['payload_json']);
                if (payload['text'] == item['text']) {

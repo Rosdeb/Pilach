@@ -137,11 +137,15 @@ class MessageModel {
            other.status == status && 
            other.text == text && 
            other.isDeleted == isDeleted && 
-           other.isEdited == isEdited;
+           other.isEdited == isEdited &&
+           other.isMe == isMe &&
+           other.time == time &&
+           other.timestamp == timestamp &&
+           other.senderId == senderId;
   }
 
   @override
-  int get hashCode => Object.hash(id, status, text, isDeleted, isEdited);
+  int get hashCode => Object.hash(id, status, text, isDeleted, isEdited, isMe, time, timestamp, senderId);
 }
 
 // Message types for future features

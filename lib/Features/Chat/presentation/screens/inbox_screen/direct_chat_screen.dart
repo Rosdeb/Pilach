@@ -91,7 +91,6 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
           children: [
             Expanded(
               child: _ReadyGate(
-                activeTheme: activeTheme,
                 scrollController: _scrollController,
               ),
             ),
@@ -111,10 +110,8 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
 
 class _ReadyGate extends ConsumerWidget {
   const _ReadyGate({
-    required this.activeTheme,
     required ScrollController scrollController,
   }) : _scrollController = scrollController;
-  final dynamic activeTheme;
   final ScrollController _scrollController;
 
   @override
@@ -122,7 +119,6 @@ class _ReadyGate extends ConsumerWidget {
     final isReady = ref.watch(_chatReadyProvider);
     if (!isReady) return const SizedBox.expand();
     return _MessageList(
-      activeTheme: activeTheme,
       scrollController: _scrollController,
     );
   }
@@ -260,11 +256,9 @@ class _ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
 
 class _MessageList extends ConsumerWidget {
   const _MessageList({
-    required this.activeTheme,
     required this.scrollController,
   });
 
-  final dynamic activeTheme;
   final ScrollController scrollController;
 
   @override
@@ -282,7 +276,6 @@ class _MessageList extends ConsumerWidget {
       ),
       child: _MessageListView(
         scrollController: scrollController, // ✅ field থেকে pass করো
-        activeTheme: activeTheme,
       ),
     );
   }
@@ -291,11 +284,9 @@ class _MessageList extends ConsumerWidget {
 class _MessageListView extends ConsumerWidget {
   const _MessageListView({
     required this.scrollController,
-    required this.activeTheme,
   });
 
   final ScrollController scrollController;
-  final dynamic activeTheme;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -314,7 +305,7 @@ class _MessageListView extends ConsumerWidget {
       itemBuilder: (context, index) {
         if (index == 0)
           return const _DateChip(label: 'Today');
-        return _BubbleRowByIndex(index: index - 1, activeTheme: activeTheme);
+        return _BubbleRowByIndex(index: index - 1);
       },
     );
   }
@@ -324,29 +315,27 @@ class _BubbleRowByIndex extends ConsumerWidget {
   const _BubbleRowByIndex({
     super.key,
     required this.index,
-    required this.activeTheme,
   });
 
   final int index;
-  final dynamic activeTheme;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // প্রথমে শুধু id নাও — id same থাকলে rebuild নেই
     final id = ref.watch(directChatProvider.select((state) => state.messageIds[index]));
 
-    return _BubbleById(id: id, activeTheme: activeTheme);
+    return _BubbleById(id: id);
   }
 }
 
 class _BubbleById extends ConsumerWidget {
-  const _BubbleById({super.key, required this.id, required this.activeTheme});
+  const _BubbleById({super.key, required this.id});
 
   final String id;
-  final dynamic activeTheme;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final activeTheme = ref.watch(chatThemeProvider);
     final msg = ref.watch(directChatProvider.select((state) => state.messagesById[id]));
 
     if (msg == null) {
