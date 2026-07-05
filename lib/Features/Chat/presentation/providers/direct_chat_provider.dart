@@ -98,21 +98,50 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
   String get currentUserId => _currentUserId;
 
-  Future<void> _init() async {
-    // 1. Always ensure we have the correct user ID from shared preferences
+  Future<String> _ensureCurrentUserId() async {
+    if (_currentUserId.isNotEmpty) return _currentUserId;
+
+    final authId = _ref.read(authProvider).id;
+    if (authId != null && authId.isNotEmpty) {
+      _currentUserId = authId;
+      return _currentUserId;
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final savedUserId = prefs.getString('user_id');
     if (savedUserId != null && savedUserId.isNotEmpty) {
       _currentUserId = savedUserId;
-    } else if (_currentUserId.isEmpty) {
-      // Emergency fallback just in case
-      _currentUserId = '0278db93-86ba-467b-932f-60968ea4cae6'; 
+      return _currentUserId;
     }
+
+    final token = prefs.getString('auth_token');
+    if (token != null && token.split('.').length == 3) {
+      try {
+        final payloadStr = token.split('.')[1];
+        final normalized = base64Url.normalize(payloadStr);
+        final decodedBytes = base64Url.decode(normalized);
+        final payload = jsonDecode(utf8.decode(decodedBytes));
+        final rawId = payload['id'] ?? payload['_id'] ?? payload['userId'] ?? payload['sub'];
+        if (rawId != null) {
+          _currentUserId = rawId.toString();
+          await prefs.setString('user_id', _currentUserId);
+          return _currentUserId;
+        }
+      } catch (_) {}
+    }
+
+    return _currentUserId;
+  }
+
+  Future<void> _init() async {
+    await _ensureCurrentUserId();
 
     _messageSubscription = _socketService.onNewMessage.listen((data) async {
       try {
+        await _ensureCurrentUserId();
         Logger.log('📨 NEW MESSAGE EVENT received — data: $data');
-        if (data['conversationId'] == chatId || data['chatId'] == chatId) {
+        final eventChatId = (data['conversationId'] ?? data['chatId'] ?? (data['message'] is Map ? (data['message']['conversationId'] ?? data['message']['chatId']) : null))?.toString();
+        if (eventChatId != null && chatId != null && eventChatId.toLowerCase() == chatId!.toLowerCase()) {
           Logger.log('✅ NEW MESSAGE matched our chat — processing...');
           final messageData = data['message'] ?? data;
           
@@ -166,7 +195,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
           state = state.copyWith(messageIds: newIds, messagesById: newById);
           Logger.log('Message added directly to state.');
           
-          if (!newMsg.isMe && newMsg.seq != null) {
+          if (!newMsg.isMe && newMsg.seq != null && _ref.read(currentChatIdProvider) == chatId) {
             markAsRead(newMsg.seq);
           }
         }
@@ -253,11 +282,14 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       }
     });
 
-    _messageReadReceiptSubscription = _socketService.onMessageReadReceipt.listen((data) {
+    _messageReadReceiptSubscription = _socketService.onMessageReadReceipt.listen((data) async {
       Logger.log('👁️ READ RECEIPT received — data: $data');
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
         final int? readSeq = (data['seq'] ?? data['lastReadSeq']) as int?;
         if (readSeq != null && mounted) {
+          if (chatId != null) {
+            await _messageDao.updateMessageStatusUpToSeq(chatId!, 'seen', readSeq);
+          }
           final newById = Map<String, MessageModel>.from(state.messagesById);
           bool hasChanges = false;
           newById.forEach((id, msg) {
@@ -273,11 +305,14 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       }
     });
 
-    _messageDeliveredSubscription = _socketService.onMessageDelivered.listen((data) {
+    _messageDeliveredSubscription = _socketService.onMessageDelivered.listen((data) async {
       Logger.log('🚚 DELIVERED RECEIPT received — data: $data');
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
         final int? deliveredSeq = (data['seq'] ?? data['lastDeliveredSeq']) as int?;
         if (deliveredSeq != null && mounted) {
+          if (chatId != null) {
+            await _messageDao.updateMessageStatusUpToSeq(chatId!, 'delivered', deliveredSeq);
+          }
           final newById = Map<String, MessageModel>.from(state.messagesById);
           bool hasChanges = false;
           newById.forEach((id, msg) {
@@ -379,7 +414,9 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     
     // 2. Fetch latest from server
     await fetchMessagesFromServer();
-    markAsRead();
+    if (mounted && _ref.read(currentChatIdProvider) == chatId) {
+      markAsRead();
+    }
   }
 
   @override
@@ -401,6 +438,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
   void markAsRead([int? seq]) {
     if (chatId == null) return;
+    if (_ref.read(currentChatIdProvider) != chatId) return;
 
     int targetSeq = seq ?? 0;
     if (seq == null) {
@@ -428,8 +466,10 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   Future<void> loadFromDb() async {
     if (chatId == null) return;
     
-    // Load local messages up to current page limit
-    final limit = state.page * 30;
+    // Load local messages up to current loaded count (at least page * 30)
+    final limit = (state.messageIds.length > state.page * 30)
+        ? state.messageIds.length
+        : state.page * 30;
     final msgRows = await _messageDao.getMessagesForChat(chatId!, limit: limit);
     final outboxRows = await _outboxDao.getPendingMessages(chatId!);
     final userId = currentUserId;
@@ -560,19 +600,16 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   Future<void> sendMessage(String text, {String? replyToId}) async {
     if (chatId == null || text.trim().isEmpty) return;
 
+    await _ensureCurrentUserId();
     print('🚀 [SEND MESSAGE] text: "$text"');
     final clientMsgId = const Uuid().v4();
     final now = DateTime.now();
     
-    // Server 'replyToId' field accept করে না (VALIDATION_ERROR).
-    // Reply শুধু local DB-তে save হবে এবং UI-তে দেখাবে।
-    // Socket payload-এ replyToId পাঠানো হবে না।
     final payloadJson = {
       'conversationId': chatId,
       'text': text,
       'type': 'TEXT',
       'attachments': [],
-      // replyToId intentionally removed — server does not support it yet
     };
     
     // 1. Optimistic Update (UI)
@@ -582,8 +619,9 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       time: 'Sending...',
       timestamp: now,
       isMe: true,
+      senderId: currentUserId,
       status: MessageStatus.sending,
-      replyToMessageId: replyToId, // শুধু locally রাখা হচ্ছে UI-এর জন্য
+      replyToMessageId: replyToId,
     );
     
     final newIds = [tempMsg.id!, ...state.messageIds];

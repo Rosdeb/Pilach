@@ -45,7 +45,13 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     super.initState();
     _focusNode.addListener(_onFocusChange);
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ref.read(_chatReadyProvider.notifier).state = true;
+      if (mounted) {
+        ref.read(_chatReadyProvider.notifier).state = true;
+        final chatId = ref.read(currentChatIdProvider);
+        if (chatId != null) {
+          ref.read(chatProvider.notifier).clearUnreadCount(chatId);
+        }
+      }
     });
   }
 
@@ -90,7 +96,13 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     final activeTheme = ref.watch(chatThemeProvider);
     final headerTextColor = ref.watch(_headerTextColorProvider);
 
-    return Scaffold(
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          ref.read(currentChatIdProvider.notifier).state = null;
+        }
+      },
+      child: Scaffold(
       resizeToAvoidBottomInset: false,
       backgroundColor: activeTheme.backgroundColor,
       appBar: ChatAppBar(
@@ -139,6 +151,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 

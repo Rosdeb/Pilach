@@ -95,11 +95,12 @@ extension MessageSqliteMapper on Map<String, dynamic> {
     final dt = DateTime.parse(timeStr).toLocal();
     final formattedTime = DateFormat('hh:mm a').format(dt);
     
-    final senderId = this['sender_id'] as String;
-    final isMe = senderId == currentUserId;
+    final senderId = (this['sender_id'] as String?) ?? '';
+    final isMe = currentUserId.isNotEmpty && senderId == currentUserId;
 
     MessageStatus msgStatus;
-    switch (this['status']) {
+    final statusStr = (this['status'] as String?)?.toLowerCase() ?? 'sent';
+    switch (statusStr) {
       case 'sending':
         msgStatus = MessageStatus.sending;
         break;
@@ -110,6 +111,7 @@ extension MessageSqliteMapper on Map<String, dynamic> {
         msgStatus = MessageStatus.delivered;
         break;
       case 'seen':
+      case 'read':
         msgStatus = MessageStatus.seen;
         break;
       default:

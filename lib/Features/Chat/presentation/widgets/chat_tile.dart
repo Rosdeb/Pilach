@@ -183,6 +183,7 @@ class _ChatTileState extends ConsumerState<ChatTile> with SingleTickerProviderSt
                   if (_slide.direction.value != SlideDirection.none) {
                     _slide.close();
                   } else {
+                    ref.read(chatProvider.notifier).clearUnreadCount(chat.id);
                     ref.read(currentChatIdProvider.notifier).state = chat.id;
                     context.push(AppPaths.chat);
                   }

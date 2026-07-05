@@ -17,13 +17,58 @@ class MessageDao {
     final database = await db;
     final batch = database.batch();
     for (var msg in messages) {
-      batch.insert(
-        'messages',
-        msg,
-        conflictAlgorithm: ConflictAlgorithm.replace,
+      batch.rawInsert(
+        '''
+        INSERT INTO messages (id, client_msg_id, conversation_id, seq, sender_id, type, text, status, created_at, edited_at, deleted, reply_to_id, reactions_json, attachments_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          client_msg_id = COALESCE(excluded.client_msg_id, messages.client_msg_id),
+          conversation_id = excluded.conversation_id,
+          seq = COALESCE(excluded.seq, messages.seq),
+          sender_id = excluded.sender_id,
+          type = excluded.type,
+          text = excluded.text,
+          status = CASE 
+            WHEN LOWER(messages.status) IN ('seen', 'read') THEN messages.status
+            WHEN LOWER(messages.status) = 'delivered' AND LOWER(excluded.status) NOT IN ('seen', 'read') THEN messages.status
+            ELSE excluded.status
+          END,
+          created_at = excluded.created_at,
+          edited_at = excluded.edited_at,
+          deleted = excluded.deleted,
+          reply_to_id = excluded.reply_to_id,
+          reactions_json = COALESCE(excluded.reactions_json, messages.reactions_json),
+          attachments_json = COALESCE(excluded.attachments_json, messages.attachments_json)
+        ''',
+        [
+          msg['id'],
+          msg['client_msg_id'],
+          msg['conversation_id'],
+          msg['seq'],
+          msg['sender_id'],
+          msg['type'],
+          msg['text'],
+          msg['status'],
+          msg['created_at'],
+          msg['edited_at'],
+          msg['deleted'],
+          msg['reply_to_id'],
+          msg['reactions_json'],
+          msg['attachments_json'],
+        ],
       );
     }
     await batch.commit(noResult: true);
+  }
+
+  Future<void> updateMessageStatusUpToSeq(String conversationId, String status, int seq) async {
+    final database = await db;
+    await database.update(
+      'messages',
+      {'status': status},
+      where: 'conversation_id = ? AND (seq IS NULL OR seq <= ?)',
+      whereArgs: [conversationId, seq],
+    );
   }
 
   Future<List<Map<String, dynamic>>> getMessagesForChat(String conversationId, {int limit = 30, int offset = 0, int? beforeSeq}) async {
@@ -40,7 +85,7 @@ class MessageDao {
       'messages',
       where: whereClause,
       whereArgs: whereArgs,
-      orderBy: 'seq DESC, created_at DESC',
+      orderBy: 'created_at DESC, seq DESC',
       limit: limit,
       offset: offset,
     );
