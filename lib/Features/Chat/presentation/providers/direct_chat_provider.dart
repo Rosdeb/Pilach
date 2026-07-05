@@ -50,6 +50,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   StreamSubscription? _messageSubscription;
   StreamSubscription? _messageEditedSubscription;
   StreamSubscription? _userActionSubscription;
+  StreamSubscription? _reconnectSubscription;
   Timer? _typingResetTimer;
   DateTime? _lastTypingEmit;
 
@@ -62,21 +63,23 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   Future<void> _init() async {
     _messageSubscription = _socketService.onNewMessage.listen((data) async {
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
-        if (data['clientMsgId'] != null) {
-           await _outboxDao.deleteOutboxItem(data['clientMsgId']);
-        } else if (data['senderId'] == currentUserId) {
+        final messageData = data['message'] ?? data;
+        
+        if (messageData['clientMsgId'] != null) {
+           await _outboxDao.deleteOutboxItem(messageData['clientMsgId']);
+        } else if (messageData['senderId'] == currentUserId) {
            // Fallback: match by text if backend strips clientMsgId
            final outboxItems = await _outboxDao.getPendingMessages(chatId!);
            for (var item in outboxItems) {
               final payload = jsonDecode(item['payload_json']);
-              if (payload['text'] == data['text']) {
+              if (payload['text'] == messageData['text']) {
                   await _outboxDao.deleteOutboxItem(item['client_msg_id']);
                   break;
               }
            }
         }
         // Save incoming/confirmed message to DB
-        final dto = MessageDto.fromJson(data);
+        final dto = MessageDto.fromJson(messageData);
         await _messageDao.insertOrUpdateMessages([dto.toSqliteMap()]);
         
         // Reload UI
@@ -84,16 +87,17 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       }
     });
 
-    _messageEditedSubscription = _socketService.onMessageEdited.listen((data) async {
-      if (data['conversationId'] == chatId) {
-        final dto = MessageDto.fromJson(data);
+    _messageEditedSubscription = _socketService.onMessageUpdated.listen((data) async {
+      if (data['conversationId'] == chatId || data['chatId'] == chatId) {
+        final messageData = data['message'] ?? data;
+        final dto = MessageDto.fromJson(messageData);
         await _messageDao.insertOrUpdateMessages([dto.toSqliteMap()]);
         await loadFromDb();
       }
     });
 
-    _userActionSubscription = _socketService.onUserAction.listen((data) {
-      if (data['action'] == 'typing') {
+    _userActionSubscription = _socketService.onUserTyping.listen((data) {
+      if (data['chatId'] == chatId || data['conversationId'] == chatId) {
         _ref.read(typingStatusProvider(chatId!).notifier).state = true;
         
         _typingResetTimer?.cancel();
@@ -101,6 +105,27 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
            if (mounted) _ref.read(typingStatusProvider(chatId!).notifier).state = false;
         });
       }
+    });
+
+    _reconnectSubscription = _socketService.onReconnected.listen((_) async {
+       if (chatId == null) return;
+       final pending = await _outboxDao.getPendingMessages(chatId!);
+       if (pending.isNotEmpty) {
+         Logger.log('🚀 SOCKET: Reconnected! Flushing ${pending.length} outbox messages for chat $chatId');
+         for (final item in pending) {
+            try {
+              final payload = jsonDecode(item['payload_json']);
+              final response = await _socketService.emitWithAck('message:send', payload);
+              // Outbox deletion will happen when message:new echoes back.
+              // Just attempting to send is enough to flush.
+              if (response['ok'] != true) {
+                 Logger.log('Server rejected queued message: ${response['error']}');
+              }
+            } catch (e) {
+              print('Failed to flush outbox item: $e');
+            }
+         }
+       }
     });
 
     // 1. Load instantly from local SQLite (Offline-first)
@@ -115,6 +140,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     _messageSubscription?.cancel();
     _messageEditedSubscription?.cancel();
     _userActionSubscription?.cancel();
+    _reconnectSubscription?.cancel();
     _typingResetTimer?.cancel();
     super.dispose();
   }
@@ -125,20 +151,9 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     final msgRows = await _messageDao.getMessagesForChat(chatId!);
     final outboxRows = await _outboxDao.getPendingMessages(chatId!);
     
-    // Heuristic: If currentUserId is the fallback, infer it from the messages
-    String effectiveUserId = currentUserId;
-    if (effectiveUserId == '17e2377c-2221-4c39-b9b0-9ad4dc770f48') {
-      for (var row in msgRows) {
-        final senderId = row['sender_id'] as String;
-        if (senderId != chatId) {
-          effectiveUserId = senderId;
-          break;
-        }
-      }
-    }
     
     // Convert DB rows to MessageModels
-    final List<MessageModel> models = msgRows.map((row) => row.toMessageModel(effectiveUserId)).toList();
+    final List<MessageModel> models = msgRows.map((row) => row.toMessageModel(currentUserId)).toList();
     
     // Also include pending outbox messages optimistically
     for (var outboxMsg in outboxRows) {
@@ -178,19 +193,8 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         
         final outboxItems = await _outboxDao.getPendingMessages(chatId!);
 
-        // Heuristic: Infer user ID from incoming messages if fallback is used
-        String effectiveUserId = currentUserId;
-        if (effectiveUserId == '17e2377c-2221-4c39-b9b0-9ad4dc770f48') {
-          for (var item in data) {
-            if (item['senderId'] != chatId) {
-              effectiveUserId = item['senderId'];
-              break;
-            }
-          }
-        }
-
         final List<Map<String, dynamic>> sqliteRows = data.map((item) {
-          if (item['senderId'] == effectiveUserId) {
+          if (item['senderId'] == currentUserId) {
             for (var outboxItem in outboxItems) {
                final payload = jsonDecode(outboxItem['payload_json']);
                if (payload['text'] == item['text']) {
@@ -269,10 +273,14 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
     // 3. Try to emit via socket
     try {
-      _socketService.emit('message:send', payloadJson);
-      // Because socket.io `emit` is fire-and-forget, the real status update
-      // happens when we receive `message:new` back from the socket.
-      // SocketService should listen for `message:new`, save to DB, and remove from outbox.
+      final response = await _socketService.emitWithAck('message:send', payloadJson);
+      
+      if (response['ok'] == true) {
+         // Message was sent successfully, we can remove it from outbox
+         await _outboxDao.deleteOutboxItem(clientMsgId);
+      } else {
+         Logger.log('Server rejected message: ${response['error']}');
+      }
     } catch (e) {
       print('Failed to emit message: $e');
     }

@@ -30,10 +30,12 @@ final dioProvider = Provider<Dio>((ref) {
   );
 
   // 1. Attach Auth Interceptor
-  dio.interceptors.add(AuthInterceptor(prefs, dio, onUnauthenticated: () {
+  final authInterceptor = AuthInterceptor(prefs, dio, onUnauthenticated: () {
     // Push the state to unauthenticated explicitly if tokens are invalid
     ref.read(unauthenticatedTriggerProvider.notifier).state++;
-  }));
+  });
+  TokenRefresher.refresh = authInterceptor.refreshToken;
+  dio.interceptors.add(authInterceptor);
 
   // 2. Attach Timer Interceptor to log API response times
   if (kDebugMode) {
@@ -81,5 +83,12 @@ final apiServiceProvider = Provider<ApiService>((ref) {
 });
 
 final socketServiceProvider = Provider<SocketService>((ref) {
-  return SocketService(baseUrl: ApiConstants.baseUrl);
+  final service = SocketService(baseUrl: ApiConstants.baseUrl);
+  service.onTokenRefreshRequested = () async {
+    if (TokenRefresher.refresh != null) {
+      return await TokenRefresher.refresh!();
+    }
+    return null;
+  };
+  return service;
 });

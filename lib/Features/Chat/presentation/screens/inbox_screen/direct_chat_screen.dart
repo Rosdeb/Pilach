@@ -322,7 +322,12 @@ class _BubbleRowByIndex extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // প্রথমে শুধু id নাও — id same থাকলে rebuild নেই
-    final id = ref.watch(directChatProvider.select((state) => state.messageIds[index]));
+    final id = ref.watch(directChatProvider.select((state) {
+      if (index >= state.messageIds.length || index < 0) return null;
+      return state.messageIds[index];
+    }));
+
+    if (id == null) return const SizedBox.shrink();
 
     return _BubbleById(id: id);
   }
@@ -358,7 +363,6 @@ class _BubbleById extends ConsumerWidget {
     );
 
     return ChatBubble(
-      key: ValueKey(id),
       message: msg,
       activeTheme: activeTheme,
       otherUserAvatar: currentChat.image,

@@ -93,7 +93,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
           final normalized = base64Url.normalize(payloadStr);
           final decodedBytes = base64Url.decode(normalized);
           final payload = jsonDecode(utf8.decode(decodedBytes));
-          id = payload['id'] ?? payload['_id'] ?? payload['sub']?.toString();
+          final rawId = payload['id'] ?? payload['_id'] ?? payload['sub'];
+          id = rawId?.toString();
           if (id != null) {
              await prefs.setString('user_id', id);
           }
@@ -122,7 +123,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
       final userData = result['user'];
       final resolvedEmail = userData?['email'] ?? email;
-      final id = userData?['id'] ?? userData?['_id'];
+      final rawId = userData?['id'] ?? userData?['_id'];
+      final id = rawId?.toString();
       final name = userData?['name'];
       final profileImage = userData?['profilePicture'] ?? userData?['avatar'];
       

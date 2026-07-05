@@ -2,6 +2,10 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_constants.dart';
 
+class TokenRefresher {
+  static Future<String?> Function()? refresh;
+}
+
 class AuthInterceptor extends Interceptor {
   final SharedPreferences prefs;
   final Dio dio;
@@ -24,7 +28,7 @@ class AuthInterceptor extends Interceptor {
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) async {
     if (_isUnauthorized(response)) {
-      final newAccessToken = await _refreshToken();
+      final newAccessToken = await refreshToken();
       if (newAccessToken != null) {
         try {
           final requestOptions = response.requestOptions;
@@ -43,7 +47,7 @@ class AuthInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     if (_isUnauthorized(err.response)) {
-      final newAccessToken = await _refreshToken();
+      final newAccessToken = await refreshToken();
       if (newAccessToken != null) {
         try {
           err.requestOptions.headers['Authorization'] = 'Bearer $newAccessToken';
@@ -92,20 +96,20 @@ class AuthInterceptor extends Interceptor {
     return false;
   }
 
-  Future<String?> _refreshToken() async {
+  Future<String?> refreshToken() async {
     if (_refreshFuture != null) {
       return _refreshFuture;
     }
 
-    final refreshToken = prefs.getString('refresh_token');
-    if (refreshToken == null || refreshToken.isEmpty) {
+    final currentRefreshToken = prefs.getString('refresh_token');
+    if (currentRefreshToken == null || currentRefreshToken.isEmpty) {
       await prefs.remove('auth_token');
       await prefs.remove('refresh_token');
       onUnauthenticated();
       return null;
     }
 
-    _refreshFuture = _performRefresh(refreshToken);
+    _refreshFuture = _performRefresh(currentRefreshToken);
     try {
       final newToken = await _refreshFuture;
       return newToken;
@@ -114,15 +118,15 @@ class AuthInterceptor extends Interceptor {
     }
   }
 
-  Future<String?> _performRefresh(String refreshToken) async {
+  Future<String?> _performRefresh(String currentRefreshToken) async {
     try {
       final refreshDio = Dio(BaseOptions(baseUrl: ApiConstants.baseUrl));
       final response = await refreshDio.post(
         ApiConstants.refreshToken,
-        data: {"refreshToken": refreshToken},
+        data: {"refreshToken": currentRefreshToken},
         options: Options(
           headers: {
-            'Cookie': 'refresh_token=$refreshToken',
+            'Cookie': 'refresh_token=$currentRefreshToken',
           },
         ),
       );
