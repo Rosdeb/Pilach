@@ -48,4 +48,13 @@ class ChatDao {
     }
     return null;
   }
+
+  Future<void> deleteChat(String id) async {
+    final database = await db;
+    await database.delete(
+      'chats',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 }

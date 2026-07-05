@@ -1,3 +1,4 @@
+import 'package:app/core/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -31,13 +32,13 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
   void _listenToPresence() {
     _onlineSub = _socketService.onPresenceOnline.listen((data) {
       final userId = data['userId'] as String?;
-      print('🟢 PRESENCE ONLINE received: userId=$userId');
+      Logger.log('PRESENCE ONLINE received: userId=$userId');
       if (userId != null) _updatePresence(userId, true);
     });
     
     _offlineSub = _socketService.onPresenceOffline.listen((data) {
       final userId = data['userId'] as String?;
-      print('🔴 PRESENCE OFFLINE received: userId=$userId');
+      Logger.log('PRESENCE OFFLINE received: userId=$userId');
       if (userId != null) _updatePresence(userId, false);
     });
   }
@@ -52,7 +53,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       }
       return chat;
     }).toList();
-    print('🟡 PRESENCE UPDATE: userId=$userId, isOnline=$isOnline, matched=$matched');
+    Logger.log(' PRESENCE UPDATE: userId=$userId, isOnline=$isOnline, matched=$matched');
   }
 
   @override
@@ -89,11 +90,11 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       }
 
       final responseData = await _chatRepository.getConversations();
-      print('🚀 API RESPONSE (/api/v1/conversations): $responseData');
+      Logger.log('API RESPONSE (/api/v1/conversations): $responseData');
 
       if (responseData['success'] == true && responseData['data'] != null) {
         final List<dynamic> data = responseData['data'];
-        print('📋 Total conversations from API: ${data.length}');
+        Logger.log('Total conversations from API: ${data.length}');
 
         final List<Map<String, dynamic>> sqliteRows = await Isolate.run(() {
           final rows = <Map<String, dynamic>>[];
@@ -109,21 +110,42 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         });
 
         await _chatDao.insertOrUpdateChats(sqliteRows);
-        print('✅ Saved ${sqliteRows.length} chats to SQLite');
+        Logger.log('Saved ${sqliteRows.length} chats to SQLite');
 
         await loadFromDb();
-        print('✅ Loaded ${state.length} chats from DB → UI');
+        Logger.log('Loaded ${state.length} chats from DB → UI');
       } else {
-        print('⚠️ API response not success or data is null');
+        Logger.log('API response not success or data is null');
       }
     } catch (e, st) {
-      print('❌ Failed to fetch chats from server: $e\n$st');
+      Logger.log('Failed to fetch chats from server: $e\n$st');
     }
   }
 
-  void deleteChat(String id) {
+  Future<void> deleteChat(String id) async {
+    ChatModel? targetChat;
+    for (final c in state) {
+      if (c.id == id) {
+        targetChat = c;
+        break;
+      }
+    }
+
+    // Optimistically update UI state
     state = state.where((chat) => chat.id != id).toList();
-    // In full implementation: queue a DELETE request in OutboxDao
+
+    // Delete locally from SQLite
+    await _chatDao.deleteChat(id);
+
+    // Call server endpoint if target chat member/userId is available
+    if (targetChat?.userId != null) {
+      try {
+        await _chatRepository.removeMember(id, targetChat!.userId!);
+        Logger.log('Successfully removed member ${targetChat.userId} from chat $id on server');
+      } catch (e) {
+        Logger.log('Failed to remove member on server: $e');
+      }
+    }
   }
 
   void toggleUnreadChat(String id) {

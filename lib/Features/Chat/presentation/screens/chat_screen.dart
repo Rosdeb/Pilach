@@ -13,36 +13,17 @@ import '../widgets/chat_tile.dart';
 import '../widgets/custom_fad.dart';
 import '../widgets/search_bar_widget.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Providers
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Exposes only the chat count — so the SliverList itemCount doesn't force
-/// a full list rebuild when only one item's fields change.
 final _chatCountProvider = Provider<int>((ref) => ref.watch(chatProvider).length);
 
-/// Exposes a single chat by index — ChatTile watches this instead of the
-/// full list, so only the tile whose data changed gets rebuilt.
 final _chatAtIndexProvider = Provider.family<ChatModel, int>((ref, index) => ref.watch(chatProvider)[index],);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Screen
-// ─────────────────────────────────────────────────────────────────────────────
 
 class ChatScreen extends ConsumerWidget {
   ChatScreen({super.key});
 
-  // TextEditingController is fine as a field on ConsumerWidget —
-  // ConsumerWidget rebuilds don't recreate fields; only StatefulWidget.state does.
-  // But to be safe and avoid potential leaks, keep it here since this widget
-  // lives as long as the bottom nav tab is alive.
   final TextEditingController _searchController = TextEditingController();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch only the count — not the full list.
-    // Pin/mute/delete changes will update individual tiles via _chatAtIndexProvider,
-    // not this widget.
     final count = ref.watch(_chatCountProvider);
     final theme = Theme.of(context);
     final isEmpty = count == 0;
@@ -53,16 +34,10 @@ class ChatScreen extends ConsumerWidget {
       body: Stack(
         children: [
           CustomScrollView(
-            // ClampingScrollPhysics on Android avoids the overscroll glow
-            // repaint that BouncingScrollPhysics triggers. Use a platform check
-            // so iOS keeps its native bounce feel.
             physics: const BouncingScrollPhysics(
               parent: AlwaysScrollableScrollPhysics(),
             ),
             slivers: [
-              // ── Glass app bar ─────────────────────────────────────────────
-              // Extracted to a const-constructable widget so it never rebuilds
-              // when the chat list changes.
               const _ChatSliverAppBar(),
 
               // ── Pull to Refresh ───────────────────────────────────────────
@@ -104,32 +79,22 @@ class ChatScreen extends ConsumerWidget {
                     vertical: 8,
                   ),
                   sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                          (context, index) => _ChatTileRow(
-                        // Stable key on chat ID so Flutter reuses element
-                        // when list reorders (pin moves item to top).
-                        // Without this, Flutter recreates the tile on every
-                        // pin/unpin, throwing away animation state.
+                    delegate: SliverChildBuilderDelegate((context, index) => _ChatTileRow(
                         key: ValueKey(ref.read(chatProvider)[index].id),
                         index: index,
                         isLast: index == count - 1,
                       ),
                       childCount: count,
-                      // addAutomaticKeepAlives: false means Flutter can
-                      // discard off-screen tiles from memory freely.
                       addAutomaticKeepAlives: false,
-                      // addRepaintBoundaries: true is the default — each
-                      // SliverList item gets its own layer automatically.
+
                     ),
                   ),
                 ),
 
-              // Bottom padding so last tile clears the FAB.
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           ),
 
-          // ── FAB ───────────────────────────────────────────────────────────
           Positioned(
             bottom: 130,
             right: 16,
@@ -212,12 +177,6 @@ class _ChatSliverAppBar extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Per-row widget — watches only its own chat via family provider
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Wraps [ChatTile] + divider. Watches a single chat by index via
-/// [_chatAtIndexProvider] so only this row rebuilds when its data changes.
 class _ChatTileRow extends ConsumerWidget {
   const _ChatTileRow({
     super.key,

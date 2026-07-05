@@ -31,4 +31,9 @@ class ChatRepository {
     });
     return response.data as Map<String, dynamic>;
   }
+
+  Future<Map<String, dynamic>> removeMember(String conversationId, String userId) async {
+    final response = await _apiService.delete('/api/v1/conversations/$conversationId/members/$userId');
+    return response.data as Map<String, dynamic>;
+  }
 }

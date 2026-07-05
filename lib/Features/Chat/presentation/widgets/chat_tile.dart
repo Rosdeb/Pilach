@@ -41,12 +41,9 @@ class ChatTile extends ConsumerStatefulWidget {
   ConsumerState<ChatTile> createState() => _ChatTileState();
 }
 
-class _ChatTileState extends ConsumerState<ChatTile>
-    with SingleTickerProviderStateMixin {
+class _ChatTileState extends ConsumerState<ChatTile> with SingleTickerProviderStateMixin {
   late final ChatSlideController _slide;
 
-  // Pre-built Tween animations. Only the sign of the offset flips based on
-  // direction — we never re-create animations mid-swipe.
   late final Animation<Offset> _leftOffset;  // tile moves right (reveals left panel)
   late final Animation<Offset> _rightOffset; // tile moves left  (reveals right panel)
 
