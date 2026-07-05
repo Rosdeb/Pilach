@@ -27,37 +27,24 @@ class ChatSlideController {
       curve: Curves.easeOutCubic,
       reverseCurve: Curves.easeInCubic,
     );
-
-    // Single tween, animated value maps [-1 … +1] range via transform below.
-    // We keep one animation and flip the sign in the SlideTransition offset.
     animation = _curved;
   }
 
-  // ── Internals ──────────────────────────────────────────────────────────────
 
   final AnimationController _controller;
   late final CurvedAnimation _curved;
 
-  /// Raw [0..1] curved animation — widgets read this.
   late final Animation<double> animation;
-
-  /// Which direction the tile is (or is sliding toward).
-  /// [ValueListenable] so widgets can use [ValueListenableBuilder] — no
-  /// setState required.
   final ValueNotifier<SlideDirection> direction =
   ValueNotifier(SlideDirection.none);
 
   double _dragExtent = 0.0;
 
-  // ── Public constants ───────────────────────────────────────────────────────
-
   static const double actionWidth = 82.0;
   static const double maxDrag = actionWidth * 2;
 
-  // ── Gesture handlers ───────────────────────────────────────────────────────
-
   void onDragUpdate(DragUpdateDetails details) {
-    final delta = details.primaryDelta! * 0.82; // rubber-band resistance
+    final delta = details.primaryDelta! * 0.82;
     final next = (_dragExtent + delta).clamp(-maxDrag, maxDrag);
     if (next == _dragExtent) return;
 

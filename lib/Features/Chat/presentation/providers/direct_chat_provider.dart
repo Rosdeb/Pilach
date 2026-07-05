@@ -13,17 +13,40 @@ import '../../../../core/services/socket_service.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ChatState {
   final List<String> messageIds;
   final Map<String, MessageModel> messagesById;
+  final bool isLoadingMore;
+  final bool hasMore;
+  final int page;
 
   ChatState({
     required this.messageIds,
     required this.messagesById,
+    this.isLoadingMore = false,
+    this.hasMore = true,
+    this.page = 1,
   });
 
   factory ChatState.initial() => ChatState(messageIds: [], messagesById: {});
+
+  ChatState copyWith({
+    List<String>? messageIds,
+    Map<String, MessageModel>? messagesById,
+    bool? isLoadingMore,
+    bool? hasMore,
+    int? page,
+  }) {
+    return ChatState(
+      messageIds: messageIds ?? this.messageIds,
+      messagesById: messagesById ?? this.messagesById,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      hasMore: hasMore ?? this.hasMore,
+      page: page ?? this.page,
+    );
+  }
 }
 
 final currentChatIdProvider = StateProvider<String?>((ref) => null);
@@ -35,8 +58,8 @@ final directChatProvider = StateNotifierProvider<DirectChatNotifier, ChatState>(
   final chatRepo = ref.watch(chatRepositoryProvider);
   final socketService = ref.watch(socketServiceProvider);
   final authState = ref.watch(authProvider);
-  final currentUserId = authState.id ?? '17e2377c-2221-4c39-b9b0-9ad4dc770f48'; // fallback
-  return DirectChatNotifier(chatId, ref, chatRepo, socketService, currentUserId);
+  // We pass authState.id as a fallback, but we will strictly fetch from SharedPreferences in init
+  return DirectChatNotifier(chatId, ref, chatRepo, socketService, authState.id);
 });
 
 class DirectChatNotifier extends StateNotifier<ChatState> {
@@ -46,7 +69,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   final SocketService _socketService;
   final MessageDao _messageDao = MessageDao();
   final OutboxDao _outboxDao = OutboxDao();
-  final String currentUserId;
+  String _currentUserId; // Made mutable
 
   StreamSubscription? _messageSubscription;
   StreamSubscription? _messageEditedSubscription;
@@ -56,45 +79,90 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   StreamSubscription? _messageReactionSubscription;
   StreamSubscription? _userActionSubscription;
   StreamSubscription? _reconnectSubscription;
-  Timer? _typingResetTimer;   // receiver side: typing indicator hide timer
-  Timer? _typingDebounce;     // sender side: debounce emit — max 1 emit per 3s
+  Timer? _typingResetTimer;   
+  Timer? _typingDebounce;     
   bool _isTypingEmitted = false;
 
-  DirectChatNotifier(this.chatId, this._ref, this._chatRepository, this._socketService, this.currentUserId) : super(ChatState.initial()) {
+  DirectChatNotifier(this.chatId, this._ref, this._chatRepository, this._socketService, String? initialUserId) 
+    : _currentUserId = initialUserId ?? '', 
+      super(ChatState.initial()) {
     if (chatId != null) {
       _init();
     }
   }
 
+  String get currentUserId => _currentUserId;
+
   Future<void> _init() async {
+    // 1. Always ensure we have the correct user ID from shared preferences
+    final prefs = await SharedPreferences.getInstance();
+    final savedUserId = prefs.getString('user_id');
+    if (savedUserId != null && savedUserId.isNotEmpty) {
+      _currentUserId = savedUserId;
+    } else if (_currentUserId.isEmpty) {
+      // Emergency fallback just in case
+      _currentUserId = '0278db93-86ba-467b-932f-60968ea4cae6'; 
+    }
+
     _messageSubscription = _socketService.onNewMessage.listen((data) async {
-      Logger.log('📨 NEW MESSAGE EVENT received — data: $data');
-      Logger.log('📨 Checking chatId match: data.conversationId=${data['conversationId']}, data.chatId=${data['chatId']}, our chatId=$chatId');
-      if (data['conversationId'] == chatId || data['chatId'] == chatId) {
-        Logger.log('✅ NEW MESSAGE matched our chat — processing...');
-        final messageData = data['message'] ?? data;
-        
-        if (messageData['clientMsgId'] != null) {
-           await _outboxDao.deleteOutboxItem(messageData['clientMsgId']);
-        } else if (messageData['senderId'] == currentUserId) {
-           // Fallback: match by text if backend strips clientMsgId
-           final outboxItems = await _outboxDao.getPendingMessages(chatId!);
-           for (var item in outboxItems) {
-              final payload = jsonDecode(item['payload_json']);
-              if (payload['text'] == messageData['text']) {
-                  await _outboxDao.deleteOutboxItem(item['client_msg_id']);
-                  break;
-              }
-           }
+      try {
+        Logger.log('📨 NEW MESSAGE EVENT received — data: $data');
+        if (data['conversationId'] == chatId || data['chatId'] == chatId) {
+          Logger.log('✅ NEW MESSAGE matched our chat — processing...');
+          final messageData = data['message'] ?? data;
+          
+          String? matchedTempId;
+          final clientMsgId = messageData['clientMsgId'] as String?;
+          if (clientMsgId != null) {
+             await _outboxDao.deleteOutboxItem(clientMsgId);
+             final tId = 'temp_$clientMsgId';
+             if (state.messagesById.containsKey(tId)) {
+               matchedTempId = tId;
+             }
+          } else if (messageData['senderId'] == currentUserId) {
+             final outboxItems = await _outboxDao.getPendingMessages(chatId!);
+             for (var item in outboxItems) {
+                final payload = jsonDecode(item['payload_json']);
+                if (payload['text'] == messageData['text']) {
+                    await _outboxDao.deleteOutboxItem(item['client_msg_id']);
+                    final tId = 'temp_${item['client_msg_id']}';
+                    if (state.messagesById.containsKey(tId)) {
+                      matchedTempId = tId;
+                    }
+                    break;
+                }
+             }
+          }
+          
+          Logger.log('Parsing message data...');
+          final dto = MessageDto.fromJson(messageData);
+          final sqliteMap = dto.toSqliteMap();
+          Logger.log('Saving message to DB: id=${sqliteMap['id']}');
+          
+          await _messageDao.insertOrUpdateMessages([sqliteMap]);
+          
+          // ✅ Directly insert/update in state without rebuilding all message objects from DB
+          final newMsg = sqliteMap.toMessageModel(currentUserId);
+          final newById = Map<String, MessageModel>.from(state.messagesById);
+          List<String> newIds;
+          
+          if (matchedTempId != null) {
+            newById.remove(matchedTempId);
+            newById[newMsg.id!] = newMsg;
+            newIds = state.messageIds.map((id) => id == matchedTempId ? newMsg.id! : id).toList();
+          } else if (!state.messagesById.containsKey(newMsg.id)) {
+            newById[newMsg.id!] = newMsg;
+            newIds = [newMsg.id!, ...state.messageIds];
+          } else {
+            newById[newMsg.id!] = newMsg;
+            newIds = state.messageIds;
+          }
+          
+          state = state.copyWith(messageIds: newIds, messagesById: newById);
+          Logger.log('✅ Message added directly to state.');
         }
-        // Save incoming/confirmed message to DB
-        final dto = MessageDto.fromJson(messageData);
-        await _messageDao.insertOrUpdateMessages([dto.toSqliteMap()]);
-        
-        // Reload UI
-        await loadFromDb();
-      } else {
-        Logger.log('❌ NEW MESSAGE chatId mismatch — ignored');
+      } catch (e, st) {
+        Logger.log('❌ Error processing new message: $e\n$st', type: "error");
       }
     });
 
@@ -102,17 +170,27 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
         final messageData = data['message'] ?? data;
         final dto = MessageDto.fromJson(messageData);
-        await _messageDao.insertOrUpdateMessages([dto.toSqliteMap()]);
-        await loadFromDb();
+        final sqliteMap = dto.toSqliteMap();
+        await _messageDao.insertOrUpdateMessages([sqliteMap]);
+        final updatedMsg = sqliteMap.toMessageModel(currentUserId);
+        if (state.messagesById.containsKey(updatedMsg.id)) {
+          final newById = Map<String, MessageModel>.from(state.messagesById);
+          newById[updatedMsg.id!] = updatedMsg;
+          state = state.copyWith(messagesById: newById);
+        }
       }
     });
 
     _messageDeletedSubscription = _socketService.onMessageDeleted.listen((data) async {
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
-        final msgId = data['messageId'];
+        final msgId = data['messageId'] as String?;
         if (msgId != null) {
           await _messageDao.deleteMessage(msgId);
-          await loadFromDb();
+          if (state.messagesById.containsKey(msgId)) {
+            final newIds = state.messageIds.where((id) => id != msgId).toList();
+            final newById = Map<String, MessageModel>.from(state.messagesById)..remove(msgId);
+            state = state.copyWith(messageIds: newIds, messagesById: newById);
+          }
         }
       }
     });
@@ -121,8 +199,14 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
         final messageData = data['message'] ?? data;
         final dto = MessageDto.fromJson(messageData);
-        await _messageDao.insertOrUpdateMessages([dto.toSqliteMap()]);
-        await loadFromDb();
+        final sqliteMap = dto.toSqliteMap();
+        await _messageDao.insertOrUpdateMessages([sqliteMap]);
+        final updatedMsg = sqliteMap.toMessageModel(currentUserId);
+        if (state.messagesById.containsKey(updatedMsg.id)) {
+          final newById = Map<String, MessageModel>.from(state.messagesById);
+          newById[updatedMsg.id!] = updatedMsg;
+          state = state.copyWith(messagesById: newById);
+        }
       }
     });
 
@@ -130,18 +214,31 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
         final messageData = data['message'] ?? data;
         final dto = MessageDto.fromJson(messageData);
-        await _messageDao.insertOrUpdateMessages([dto.toSqliteMap()]);
-        await loadFromDb();
+        final sqliteMap = dto.toSqliteMap();
+        await _messageDao.insertOrUpdateMessages([sqliteMap]);
+        final updatedMsg = sqliteMap.toMessageModel(currentUserId);
+        if (state.messagesById.containsKey(updatedMsg.id)) {
+          final newById = Map<String, MessageModel>.from(state.messagesById);
+          newById[updatedMsg.id!] = updatedMsg;
+          state = state.copyWith(messagesById: newById);
+        }
       }
     });
 
     _messageReactionSubscription = _socketService.onMessageReactionUpdated.listen((data) async {
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
-        final msgId = data['messageId'];
+        final msgId = data['messageId'] as String?;
         final reactions = data['reactions'];
         if (msgId != null && reactions != null) {
           await _messageDao.updateMessageReactions(msgId, jsonEncode(reactions));
-          await loadFromDb();
+          final existing = state.messagesById[msgId];
+          if (existing != null) {
+            final List<Map<String, dynamic>> parsed = List<Map<String, dynamic>>.from(reactions);
+            final updatedMsg = existing.copyWith(reactions: parsed);
+            final newById = Map<String, MessageModel>.from(state.messagesById);
+            newById[msgId] = updatedMsg;
+            state = state.copyWith(messagesById: newById);
+          }
         }
       }
     });
@@ -243,14 +340,13 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   Future<void> loadFromDb() async {
     if (chatId == null) return;
     
-    final msgRows = await _messageDao.getMessagesForChat(chatId!);
+    // Load local messages up to current page limit
+    final limit = state.page * 30;
+    final msgRows = await _messageDao.getMessagesForChat(chatId!, limit: limit);
     final outboxRows = await _outboxDao.getPendingMessages(chatId!);
     
-    
-    // Convert DB rows to MessageModels
     final List<MessageModel> models = msgRows.map((row) => row.toMessageModel(currentUserId)).toList();
     
-    // Also include pending outbox messages optimistically
     for (var outboxMsg in outboxRows) {
        final payload = jsonDecode(outboxMsg['payload_json']);
        models.add(MessageModel(
@@ -263,7 +359,6 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
        ));
     }
     
-    // Sort by timestamp descending (newest first)
     models.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     
     final List<String> ids = [];
@@ -275,16 +370,18 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       }
     }
     
-    state = ChatState(messageIds: ids, messagesById: byId);
+    state = state.copyWith(messageIds: ids, messagesById: byId);
   }
 
-  Future<void> fetchMessagesFromServer() async {
+  Future<void> fetchMessagesFromServer({int page = 1}) async {
     if (chatId == null) return;
     
     try {
-      final response = await _chatRepository.getMessages(chatId!);
+      final response = await _chatRepository.getMessages(chatId!, page: page, limit: 30);
       if (response['success'] == true && response['data'] != null) {
         final List<dynamic> data = response['data'];
+        final pagination = response['pagination'] as Map<String, dynamic>?;
+        final bool hasNext = pagination?['hasNext'] ?? false;
         
         final outboxItems = await _outboxDao.getPendingMessages(chatId!);
 
@@ -303,11 +400,24 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         }).toList();
 
         await _messageDao.insertOrUpdateMessages(sqliteRows);
+        
+        state = state.copyWith(page: page, hasMore: hasNext);
         await loadFromDb();
       }
     } catch (e) {
       print('Failed to fetch messages: $e');
     }
+  }
+
+  Future<void> loadMore() async {
+    if (state.isLoadingMore || !state.hasMore) return;
+    
+    state = state.copyWith(isLoadingMore: true);
+    
+    final nextPage = state.page + 1;
+    await fetchMessagesFromServer(page: nextPage);
+    
+    state = state.copyWith(isLoadingMore: false);
   }
 
   void emitTyping() {
@@ -342,6 +452,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   Future<void> sendMessage(String text, {String? replyToId}) async {
     if (chatId == null || text.trim().isEmpty) return;
 
+    print('🚀 [SEND MESSAGE] text: "$text"');
     final clientMsgId = const Uuid().v4();
     final now = DateTime.now();
     
@@ -417,7 +528,11 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       });
       // Optimistic delete
       await _messageDao.deleteMessage(messageId);
-      await loadFromDb();
+      if (state.messagesById.containsKey(messageId)) {
+        final newIds = state.messageIds.where((id) => id != messageId).toList();
+        final newById = Map<String, MessageModel>.from(state.messagesById)..remove(messageId);
+        state = state.copyWith(messageIds: newIds, messagesById: newById);
+      }
     } catch (e) {
       Logger.log('Failed to delete message: $e');
     }

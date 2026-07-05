@@ -13,6 +13,8 @@ class ChatDto {
   final String? updatedAt;
   final Map<String, dynamic>? lastMessage;
   final List<dynamic>? members;
+  final String? dmKey;       // "userId1:userId2" format
+  final String? creatorId;   // conversation creator
 
   ChatDto({
     required this.id,
@@ -26,6 +28,8 @@ class ChatDto {
     this.updatedAt,
     this.lastMessage,
     this.members,
+    this.dmKey,
+    this.creatorId,
   });
 
   factory ChatDto.fromJson(Map<String, dynamic> json) {
@@ -41,6 +45,8 @@ class ChatDto {
       updatedAt: json['updatedAt'] as String?,
       lastMessage: json['lastMessage'] as Map<String, dynamic>?,
       members: json['members'] as List<dynamic>?,
+      dmKey: json['dmKey'] as String?,
+      creatorId: json['creatorId'] as String?,
     );
   }
 
@@ -50,17 +56,33 @@ class ChatDto {
     String? displayAvatar = avatarUrl;
     String? otherUserId;
     
-    // Fallback for PRIVATE chats
+    // PRIVATE chat: other member-এর info নাও
     if (type == 'PRIVATE' && members != null && members!.isNotEmpty) {
       final firstMember = members!.first;
       if (firstMember is Map) {
-        otherUserId = firstMember['userId'] as String?;
+        // API তে member-এ 'userId' নেই — 'user.id' বা অন্য field চেক করো
+        otherUserId = firstMember['userId'] as String?         // ভবিষ্যতে যদি আসে
+                   ?? (firstMember['user'] as Map?)?['id'] as String?; // user.id
+
         final profile = (firstMember['user'] as Map?)?['profile'] as Map?;
         if (profile != null) {
-          // Force override title and avatar from the member's profile for private chats
+          // Other member-এর name ও avatar দিয়ে override করো
           displayTitle = profile['name']?.toString() ?? displayTitle;
           displayAvatar = profile['avatarUrl']?.toString() ?? displayAvatar;
         }
+      }
+    }
+
+    // otherUserId এখনো null? dmKey থেকে বের করার চেষ্টা করো
+    // dmKey format: "userId1:userId2" — creatorId বাদ দিলে other user পাওয়া যাবে
+    if (otherUserId == null && dmKey != null && creatorId != null) {
+      final parts = dmKey!.split(':');
+      if (parts.length == 2) {
+        // যেটা creatorId না সেটাই other user
+        otherUserId = parts.firstWhere(
+          (p) => p != creatorId,
+          orElse: () => parts.first,
+        );
       }
     }
 

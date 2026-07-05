@@ -14,13 +14,9 @@ import '../../providers/direct_chat_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../widgets/chat_bundle.dart';
 
-// ── Compile-time constants — zero allocation per build ────────────────────────
 const Color _kGreen = Color(0xFF34C759);
-const String _kAvatarUrl =
-    'https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp';
+const String _kAvatarUrl = 'https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp';
 
-// ── Deferred-load flag — flips true after first post-frame ───────────────────
-// autoDispose: cleaned up when screen is popped, so re-entering resets it.
 final _chatReadyProvider = StateProvider.autoDispose<bool>((_) => false);
 
 final _headerTextColorProvider = Provider.autoDispose<Color>((ref) {
@@ -30,7 +26,6 @@ final _headerTextColorProvider = Provider.autoDispose<Color>((ref) {
 
 final replyingToProvider = StateProvider.autoDispose<MessageModel?>((ref) => null);
 
-// ─────────────────────────────────────────────────────────────────────────────
 
 class DirectChatScreen extends ConsumerStatefulWidget {
   const DirectChatScreen({super.key});
@@ -367,6 +362,7 @@ class _MessageList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    print('📜 [BUILD] _MessageList');
     final wallpaper = ref.watch(chatWallpaperProvider);
 
     return DecoratedBox(
@@ -394,29 +390,53 @@ class _MessageListView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ✅ messageIds list-ই watch করছি — শুধু নতুন ID যোগ হলেই rebuild
-    // isTyping এখানে নেই — typing bubble আলাদা widget-এ আছে
-    final messageIds = ref.watch(
-      directChatProvider.select((state) => state.messageIds),
-    );
-
-    return ListView.builder(
+    final messageIds = ref.watch(directChatProvider.select((state) => state.messageIds),);
+    final isLoadingMore = ref.watch(directChatProvider.select((state) => state.isLoadingMore),);
+    final hasMore = ref.watch(directChatProvider.select((state) => state.hasMore),);
+    return ListView.custom(
       reverse: true,
       controller: scrollController,
       physics: const BouncingScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      addAutomaticKeepAlives: false,
-      addRepaintBoundaries: false, // প্রতিটা bubble নিজেই RepaintBoundary
-      itemCount: messageIds.length + 1, // +1 for date chip
-      itemBuilder: (context, index) {
-        // Last item = Date chip
-        if (index == messageIds.length) return const _DateChip(label: 'Today');
-        final id = messageIds[index];
-        // ✅ ValueKey(id): Flutter same ID-এর widget reuse করে, rebuild করে না
-        return _BubbleById(key: ValueKey(id), id: id);
-      },
+      childrenDelegate: SliverChildBuilderDelegate(
+            (context, index) {
+          if (index == messageIds.length) {
+            if (hasMore) {
+              Future.microtask(() {
+                ref.read(directChatProvider.notifier).loadMore();
+              });
+            }
+            return const _DateChip(label: 'Today');
+          }
+          if (index == messageIds.length + 1) {
+            if (isLoadingMore) {
+              return const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          }
+          final id = messageIds[index];
+          return _BubbleById(key: ValueKey(id), id: id);
+        },
+        childCount: messageIds.length + (hasMore ? 2 : 1),
+        addAutomaticKeepAlives: true,
+        addRepaintBoundaries: true,
+        findChildIndexCallback: (Key key) {
+          final valueKey = key as ValueKey<String>;
+          final index = messageIds.indexOf(valueKey.value);
+          return index == -1 ? null : index;
+        },
+      ),
     );
   }
 }
@@ -451,7 +471,6 @@ class _TypingBubble extends ConsumerWidget {
   }
 }
 
-// _BubbleRowByIndex সরিয়ে দেওয়া হয়েছে — এখন messageIds থেকে সরাসরি ID pass হচ্ছে
 
 class _BubbleById extends ConsumerWidget {
   const _BubbleById({super.key, required this.id});
@@ -460,7 +479,6 @@ class _BubbleById extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Theme আলাদাভাবে পড়া হচ্ছে — message rebuild এর সাথে mix করা হচ্ছে না
     final activeTheme = ref.watch(chatThemeProvider);
     final msg = ref.watch(directChatProvider.select((state) => state.messagesById[id]));
 
@@ -487,16 +505,15 @@ class _BubbleById extends ConsumerWidget {
         ? ref.watch(directChatProvider.select((state) => state.messagesById[msg.replyToMessageId]))
         : null;
 
-    // ValueKey দিলে Flutter state সঠিকভাবে reuse করে, theme change এ isMe ঠিক থাকে
     return ChatBubble(
       key: ValueKey(id),
       message: msg,
       activeTheme: activeTheme,
       otherUserAvatar: currentChat.image,
       repliedMessage: repliedMsg,
-      onDelete: () => ref.read(directChatProvider.notifier).deleteMessage(msg.id!),
-      onPin: () => ref.read(directChatProvider.notifier).pinMessage(msg.id!, !(msg.isPinned ?? false)),
-      onReact: (emoji) => ref.read(directChatProvider.notifier).reactToMessage(msg.id!, emoji),
+      onDelete: () => ref.read(directChatProvider.notifier).deleteMessage(msg.id),
+      onPin: () => ref.read(directChatProvider.notifier).pinMessage(msg.id, !(msg.isPinned ?? false)),
+      onReact: (emoji) => ref.read(directChatProvider.notifier).reactToMessage(msg.id, emoji),
       onReply: () => ref.read(replyingToProvider.notifier).state = msg,
     );
   }

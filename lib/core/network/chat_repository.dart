@@ -18,8 +18,8 @@ class ChatRepository {
     return response.data as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> getMessages(String chatId) async {
-    final response = await _apiService.get('/api/v1/chats/$chatId/messages');
+  Future<Map<String, dynamic>> getMessages(String chatId, {int page = 1, int limit = 30}) async {
+    final response = await _apiService.get('/api/v1/chats/$chatId/messages?page=$page&limit=$limit');
     return response.data as Map<String, dynamic>;
   }
 

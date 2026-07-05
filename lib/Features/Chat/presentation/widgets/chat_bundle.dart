@@ -43,6 +43,7 @@ class _ChatBubbleState extends State<ChatBubble>
   @override
   void initState() {
     super.initState();
+    print('✨ [INIT STATE] ChatBubble (id: ${widget.message.id}, text: "${widget.message.text}", status: ${widget.message.status})');
 
     controller = AnimationController(
       vsync: this,
@@ -56,14 +57,20 @@ class _ChatBubbleState extends State<ChatBubble>
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: controller, curve: Curves.easeOutCubic));
 
-    controller.forward();
+    // ✅ Prevents list blinking when temp message is replaced by real message:
+    // Only animate when initially sending or when receiving a brand-new incoming message.
+    if (widget.message.status == MessageStatus.sending || 
+        (!widget.message.isMe && DateTime.now().difference(widget.message.timestamp).inSeconds < 3)) {
+      controller.forward();
+    } else {
+      controller.value = 1.0;
+    }
   }
 
   @override
   void didUpdateWidget(ChatBubble oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Theme বা অন্য কিছু change হলে animation restart করা যাবে না
-    // controller.forward() ডাকা হবে না
+    print('🔄 [DID UPDATE WIDGET] ChatBubble (id: ${widget.message.id}, oldText: "${oldWidget.message.text}" -> newText: "${widget.message.text}")');
   }
 
   @override
@@ -74,6 +81,7 @@ class _ChatBubbleState extends State<ChatBubble>
 
   @override
   Widget build(BuildContext context) {
+    print('🏗️ [BUILD] ChatBubble (id: ${widget.message.id}, text: "${widget.message.text}")');
     final theme = Theme.of(context);
     return FadeTransition(
       opacity: fade,

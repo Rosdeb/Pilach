@@ -84,34 +84,38 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
   Future<void> fetchFromServer({bool isManualRefresh = false}) async {
     try {
       if (isManualRefresh) {
-        // Force flush all cached images so new profile pictures show up
         await DefaultCacheManager().emptyCache();
       }
 
-      // Call the real API: GET /api/v1/conversations without limit/page
       final responseData = await _chatRepository.getConversations();
-      
-      // Print the raw API response to the console for debugging
       print('🚀 API RESPONSE (/api/v1/conversations): $responseData');
-      
+
       if (responseData['success'] == true && responseData['data'] != null) {
         final List<dynamic> data = responseData['data'];
-        
-        // Convert JSON to DTO, then to SQLite Map
-        final List<Map<String, dynamic>> sqliteRows = data.map((item) {
-          final dto = ChatDto.fromJson(item as Map<String, dynamic>);
-          return dto.toSqliteMap();
-        }).toList();
+        print('📋 Total conversations from API: ${data.length}');
 
-        // Save to SQLite
+        final List<Map<String, dynamic>> sqliteRows = [];
+        for (final item in data) {
+          try {
+            final dto = ChatDto.fromJson(item as Map<String, dynamic>);
+            final sqliteMap = dto.toSqliteMap();
+            print('💾 Saving chat: id=${sqliteMap['id']}, title=${sqliteMap['title']}, avatar=${sqliteMap['avatar_url']}, otherUserId=${sqliteMap['other_user_id']}');
+            sqliteRows.add(sqliteMap);
+          } catch (e, st) {
+            print('❌ Failed to parse chat item: $e\n$st\nItem: $item');
+          }
+        }
+
         await _chatDao.insertOrUpdateChats(sqliteRows);
-        
-        // Reload UI from DB
+        print('✅ Saved ${sqliteRows.length} chats to SQLite');
+
         await loadFromDb();
+        print('✅ Loaded ${state.length} chats from DB → UI');
+      } else {
+        print('⚠️ API response not success or data is null: success=${responseData['success']}, data=${responseData['data']}');
       }
-    } catch (e) {
-      print('Failed to fetch chats from server: $e');
-      // On failure, UI naturally stays populated from the SQLite DB (offline-first)!
+    } catch (e, st) {
+      print('❌ Failed to fetch chats from server: $e\n$st');
     }
   }
 

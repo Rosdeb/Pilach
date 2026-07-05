@@ -26,7 +26,7 @@ class MessageDao {
     await batch.commit(noResult: true);
   }
 
-  Future<List<Map<String, dynamic>>> getMessagesForChat(String conversationId, {int limit = 30, int? beforeSeq}) async {
+  Future<List<Map<String, dynamic>>> getMessagesForChat(String conversationId, {int limit = 30, int offset = 0, int? beforeSeq}) async {
     final database = await db;
     String whereClause = 'conversation_id = ?';
     List<dynamic> whereArgs = [conversationId];
@@ -42,6 +42,7 @@ class MessageDao {
       whereArgs: whereArgs,
       orderBy: 'seq DESC, created_at DESC',
       limit: limit,
+      offset: offset,
     );
   }
 

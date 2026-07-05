@@ -93,7 +93,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           final normalized = base64Url.normalize(payloadStr);
           final decodedBytes = base64Url.decode(normalized);
           final payload = jsonDecode(utf8.decode(decodedBytes));
-          final rawId = payload['id'] ?? payload['_id'] ?? payload['sub'];
+          final rawId = payload['id'] ?? payload['_id'] ?? payload['userId'] ?? payload['sub'];
           id = rawId?.toString();
           if (id != null) {
              await prefs.setString('user_id', id);
