@@ -79,6 +79,7 @@ class UploadService {
 
     final String? uploadUrl = (dataMap['url'] ?? dataMap['uploadUrl'] ?? dataMap['presignedUrl'] ?? dataMap['signedUrl'] ?? (resData is Map ? resData['url'] : null))?.toString();
     final String? objectKey = (dataMap['key'] ?? dataMap['objectKey'] ?? dataMap['fileKey'] ?? dataMap['path'] ?? (resData is Map ? resData['key'] : null))?.toString();
+    final String? publicUrl = (dataMap['publicUrl'] ?? (resData is Map ? resData['publicUrl'] : null))?.toString();
 
     if (uploadUrl == null || objectKey == null) {
       throw Exception('Presign response missing URL or Key. Raw response: $resData');
@@ -107,6 +108,7 @@ class UploadService {
       'contentType': contentType,
       'fileName': fileName,
       'url': uploadUrl,
+      'publicUrl': publicUrl ?? objectKey,
     };
   }
 

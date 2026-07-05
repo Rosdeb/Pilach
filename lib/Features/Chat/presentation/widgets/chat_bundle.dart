@@ -1,12 +1,12 @@
 import 'dart:io';
 import 'package:app/core/constants/app_constants.dart';
 import 'package:app/core/constants/asset_constants.dart';
-import '../../../../core/constants/api_constants.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/theme/chat_theme_model.dart';
 import '../../data/models/message_model.dart';
+import 'image_preview_viewer.dart';
 
 class ChatBubble extends StatefulWidget {
   final MessageModel message;
@@ -211,28 +211,40 @@ class _ChatBubbleState extends State<ChatBubble>
                                       final bool isLocalFile = File(rawUrl).existsSync();
                                       final String networkUrl = (rawUrl.startsWith('http://') || rawUrl.startsWith('https://'))
                                           ? rawUrl
-                                          : '${ApiConstants.baseUrl}/$rawUrl';
+                                          : 'https://xdtunnel.icu/$rawUrl';
+                                      final String heroTag = 'hero_img_${widget.message.id}';
 
-                                      return Container(
-                                        constraints: const BoxConstraints(maxHeight: 250, maxWidth: 260),
-                                        margin: const EdgeInsets.only(bottom: 6.0),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(12),
-                                          child: isLocalFile
-                                              ? Image.file(
-                                                  File(rawUrl),
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 40),
-                                                )
-                                              : CachedNetworkImage(
-                                                  imageUrl: networkUrl,
-                                                  fit: BoxFit.cover,
-                                                  placeholder: (context, url) => const SizedBox(
-                                                    height: 120,
-                                                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                                                  ),
-                                                  errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 40),
-                                                ),
+                                      return GestureDetector(
+                                        onTap: () => FullScreenImageViewer.open(
+                                          context,
+                                          imagePathOrUrl: isLocalFile ? rawUrl : networkUrl,
+                                          heroTag: heroTag,
+                                          title: widget.message.time,
+                                        ),
+                                        child: Hero(
+                                          tag: heroTag,
+                                          child: Container(
+                                            constraints: const BoxConstraints(maxHeight: 250, maxWidth: 260),
+                                            margin: const EdgeInsets.only(bottom: 6.0),
+                                            child: ClipRRect(
+                                              borderRadius: BorderRadius.circular(12),
+                                              child: isLocalFile
+                                                  ? Image.file(
+                                                      File(rawUrl),
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 40),
+                                                    )
+                                                  : CachedNetworkImage(
+                                                      imageUrl: networkUrl,
+                                                      fit: BoxFit.cover,
+                                                      placeholder: (context, url) => const SizedBox(
+                                                        height: 120,
+                                                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                                      ),
+                                                      errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 40),
+                                                    ),
+                                            ),
+                                          ),
                                         ),
                                       );
                                     },

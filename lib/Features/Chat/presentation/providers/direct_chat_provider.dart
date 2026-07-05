@@ -678,13 +678,20 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       );
 
       final String objectKey = uploadResult['key'] ?? '';
+      final String publicUrl = uploadResult['publicUrl'] ?? objectKey;
       final String contentType = uploadResult['contentType'] ?? 'image/jpeg';
       final String fileName = uploadResult['fileName'] ?? 'image.jpg';
+
+      final String attachmentUrl = objectKey.isNotEmpty ? objectKey : publicUrl;
+      if (attachmentUrl.isEmpty) {
+        Logger.log('Attachment URL missing from upload result, aborting send', type: "error");
+        return;
+      }
 
       // 3. Construct attachment payload (without clientMsgId to pass server validation)
       final Map<String, dynamic> attachmentObj = {
         'type': 'IMAGE',
-        'url': objectKey,
+        'url': attachmentUrl,
         'mimeType': contentType,
         'fileName': fileName,
       };
@@ -715,9 +722,9 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
           await _outboxDao.deleteOutboxItem(clientMsgId);
         }
       }
-      Logger.log('🚀 Image attachment message sent successfully with key $objectKey');
+      Logger.log('Image attachment message sent successfully with key $publicUrl');
     } catch (e) {
-      Logger.log('❌ Failed to upload and send image attachment: $e');
+      Logger.log('Failed to upload and send image attachment: $e');
     }
   }
 
