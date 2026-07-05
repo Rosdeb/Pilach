@@ -12,10 +12,9 @@ import '../../../data/models/message_model.dart';
 import '../../../data/models/chat_model.dart';
 import '../../providers/direct_chat_provider.dart';
 import '../../providers/chat_provider.dart';
+import '../../widgets/chatAppbar.dart';
 import '../../widgets/chat_bundle.dart';
 
-const Color _kGreen = Color(0xFF34C759);
-const String _kAvatarUrl = 'https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp';
 
 final _chatReadyProvider = StateProvider.autoDispose<bool>((_) => false);
 
@@ -25,6 +24,7 @@ final _headerTextColorProvider = Provider.autoDispose<Color>((ref) {
 });
 
 final replyingToProvider = StateProvider.autoDispose<MessageModel?>((ref) => null);
+final showAttachmentMenuProvider = StateProvider.autoDispose<bool>((_) => false);
 
 
 class DirectChatScreen extends ConsumerStatefulWidget {
@@ -38,27 +38,28 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
-  bool _showAttachmentMenu = false;
 
   @override
   void initState() {
     super.initState();
-    _focusNode.addListener(() {
-      if (_focusNode.hasFocus && _showAttachmentMenu) {
-        setState(() {
-          _showAttachmentMenu = false;
-        });
-      }
-    });
+    _focusNode.addListener(_onFocusChange);
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (mounted) ref.read(_chatReadyProvider.notifier).state = true;
     });
   }
 
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) {
+      ref.read(showAttachmentMenuProvider.notifier).state = false;
+    }
+  }
+
   @override
   void dispose() {
+    _focusNode.removeListener(_onFocusChange);
     _messageController.dispose();
     _focusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -68,8 +69,8 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
 
     final replyTo = ref.read(replyingToProvider);
     ref.read(directChatProvider.notifier).sendMessage(text, replyToId: replyTo?.id);
-    
-    ref.read(replyingToProvider.notifier).state = null; // Clear reply state
+
+    ref.read(replyingToProvider.notifier).state = null;
     _messageController.clear();
     _focusNode.requestFocus();
 
@@ -89,8 +90,9 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     final headerTextColor = ref.watch(_headerTextColorProvider);
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: activeTheme.backgroundColor,
-      appBar: _ChatAppBar(
+      appBar: ChatAppBar(
         activeTheme: activeTheme,
         headerTextColor: headerTextColor,
       ),
@@ -102,58 +104,30 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                 scrollController: _scrollController,
               ),
             ),
-            
-            Consumer(
-              builder: (context, ref, _) {
-                final replyTo = ref.watch(replyingToProvider);
-                if (replyTo == null) return const SizedBox.shrink();
-                final theme = Theme.of(context);
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: theme.scaffoldBackgroundColor,
-                    border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.2))),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.reply, color: activeTheme.accentColor ?? Colors.green, size: 20),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(replyTo.isMe ? 'Replying to yourself' : 'Replying to message', style: TextStyle(color: activeTheme.accentColor ?? Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 2),
-                            Text(replyTo.text, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.8), fontSize: 13)),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 20),
-                        onPressed: () => ref.read(replyingToProvider.notifier).state = null,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-
+            const _ReplyPreviewBar(),
             _ComposerBar(
               messageController: _messageController,
               focusNode: _focusNode,
               activeTheme: activeTheme,
               onSend: _sendMessage,
               onAttach: () {
-                if (_showAttachmentMenu) {
-                  setState(() { _showAttachmentMenu = false; });
+                final current = ref.read(showAttachmentMenuProvider);
+                if (current) {
+                  ref.read(showAttachmentMenuProvider.notifier).state = false;
                   _focusNode.requestFocus();
                 } else {
-                  _focusNode.unfocus();
-                  setState(() { _showAttachmentMenu = true; });
+                  FocusScope.of(context).unfocus();   // ← এখানে change
+                  ref.read(showAttachmentMenuProvider.notifier).state = true;
                 }
               },
             ),
-            if (_showAttachmentMenu) const _AttachmentDrawer(),
+            const _AttachmentDrawerSection(),
+
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 100),
+              height: MediaQuery.of(context).viewInsets.bottom,
+            ),
+
           ],
         ),
       ),
@@ -161,10 +135,13 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   }
 }
 
+
+
 class _ReadyGate extends ConsumerWidget {
   const _ReadyGate({
     required ScrollController scrollController,
   }) : _scrollController = scrollController;
+
   final ScrollController _scrollController;
 
   @override
@@ -176,193 +153,19 @@ class _ReadyGate extends ConsumerWidget {
         Expanded(
           child: _MessageList(scrollController: _scrollController),
         ),
-        // ⬇️ Typing bubble — ISOLATED: শুধু এই widget rebuild হবে typing change এ
-        // Message list কে touch করবে না
         const _TypingIndicatorWidget(),
       ],
     );
   }
 }
 
-// ⬇️ Typing indicator — সম্পূর্ণ আলাদা widget
-// isTyping change হলে শুধু এটাই rebuild হয়, ListView rebuild হয় না
-class _TypingIndicatorWidget extends ConsumerWidget {
-  const _TypingIndicatorWidget();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final chatId = ref.watch(currentChatIdProvider);
-    final isTyping = chatId != null ? ref.watch(typingStatusProvider(chatId)) : false;
-    if (!isTyping) return const SizedBox.shrink();
-    return const _TypingBubble();
-  }
-}
-
-class _ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
-  const _ChatAppBar({required this.activeTheme, required this.headerTextColor});
-
-  final dynamic activeTheme;
-  final Color headerTextColor;
-
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final chatId = ref.watch(currentChatIdProvider);
-
-    // শুধু stable data (name, image) watch করো — typing/online আলাদা widget-এ
-    final currentChat = ref.watch(chatProvider.select((chats) => chats.firstWhere(
-      (c) => c.id == chatId,
-      orElse: () => ChatModel(
-        id: '',
-        name: 'Unknown User',
-        message: '',
-        image: _kAvatarUrl,
-        time: '',
-        unreadCount: 0,
-        isOnline: false,
-      ),
-    )));
-
-    return AppBar(
-      backgroundColor: activeTheme.backgroundColor,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      leading: IconButton(
-        icon: Icon(CupertinoIcons.back, color: headerTextColor),
-        onPressed: () {
-          FocusScope.of(context).unfocus();
-          Navigator.of(context).pop();
-        },
-      ),
-      titleSpacing: 0,
-      title: GestureDetector(
-        onTap: () => context.push(AppPaths.chat_profile, extra: currentChat),
-        child: Row(
-          children: [
-            // ✅ RepaintBoundary — avatar কখনো repaint হবে না typing/message-এ
-            RepaintBoundary(
-              child: Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundImage: currentChat.image.startsWith('http')
-                        ? CachedNetworkImageProvider(currentChat.image)
-                        : AssetImage(currentChat.image) as ImageProvider,
-                  ),
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: _kGreen,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Theme.of(context).scaffoldBackgroundColor,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: const SizedBox(width: 10, height: 10),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    currentChat.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: headerTextColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  // ✅ Status text আলাদা Consumer — শুধু এটাই rebuild হবে
-                  // typing বা isOnline পরিবর্তে name/avatar rebuild হবে না
-                  if (chatId != null)
-                    _AppBarStatusText(
-                      chatId: chatId,
-                      chatIsOnline: currentChat.isOnline,
-                      headerTextColor: headerTextColor,
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        IconButton(
-          icon: const Icon(CupertinoIcons.phone, color: _kGreen, size: 22),
-          onPressed: () {},
-        ),
-        IconButton(
-          icon: const Icon(
-            CupertinoIcons.video_camera,
-            color: _kGreen,
-            size: 26,
-          ),
-          onPressed: () {},
-        ),
-        IconButton(
-          icon: Icon(
-            CupertinoIcons.ellipsis_vertical,
-            color: headerTextColor,
-            size: 20,
-          ),
-          onPressed: () {},
-        ),
-        const SizedBox(width: 8),
-      ],
-    );
-  }
-}
-
-// ✅ Isolated status text — শুধু typing/online change এ rebuild হয়
-// Avatar বা name-এ কোনো প্রভাব নেই
-class _AppBarStatusText extends ConsumerWidget {
-  const _AppBarStatusText({
-    required this.chatId,
-    required this.chatIsOnline,
-    required this.headerTextColor,
-  });
-
-  final String chatId;
-  final bool chatIsOnline;
-  final Color headerTextColor;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isTyping = ref.watch(typingStatusProvider(chatId));
-    return Text(
-      isTyping ? 'Typing...' : (chatIsOnline ? 'Online' : 'Offline'),
-      style: TextStyle(
-        color: isTyping || chatIsOnline ? _kGreen : Colors.grey.shade400,
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-      ),
-    );
-  }
-}
-
 class _MessageList extends ConsumerWidget {
-  const _MessageList({
-    required this.scrollController,
-  });
+  const _MessageList({required this.scrollController});
 
   final ScrollController scrollController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    print('📜 [BUILD] _MessageList');
     final wallpaper = ref.watch(chatWallpaperProvider);
 
     return DecoratedBox(
@@ -375,24 +178,23 @@ class _MessageList extends ConsumerWidget {
             : null,
       ),
       child: _MessageListView(
-        scrollController: scrollController, // ✅ field থেকে pass করো
+        scrollController: scrollController,
       ),
     );
   }
 }
 
 class _MessageListView extends ConsumerWidget {
-  const _MessageListView({
-    required this.scrollController,
-  });
+  const _MessageListView({required this.scrollController});
 
   final ScrollController scrollController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final messageIds = ref.watch(directChatProvider.select((state) => state.messageIds),);
-    final isLoadingMore = ref.watch(directChatProvider.select((state) => state.isLoadingMore),);
-    final hasMore = ref.watch(directChatProvider.select((state) => state.hasMore),);
+    final messageIds = ref.watch(directChatProvider.select((state) => state.messageIds));
+    final isLoadingMore = ref.watch(directChatProvider.select((state) => state.isLoadingMore));
+    final hasMore = ref.watch(directChatProvider.select((state) => state.hasMore));
+
     return ListView.custom(
       reverse: true,
       controller: scrollController,
@@ -401,7 +203,7 @@ class _MessageListView extends ConsumerWidget {
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       childrenDelegate: SliverChildBuilderDelegate(
-            (context, index) {
+        (context, index) {
           if (index == messageIds.length) {
             if (hasMore) {
               Future.microtask(() {
@@ -441,37 +243,6 @@ class _MessageListView extends ConsumerWidget {
   }
 }
 
-class _TypingBubble extends ConsumerWidget {
-  const _TypingBubble();
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final activeTheme = ref.watch(chatThemeProvider);
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4.0),
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        decoration: BoxDecoration(
-          color: activeTheme.receivedMessageColor,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(16),
-            topRight: Radius.circular(16),
-            bottomRight: Radius.circular(16),
-            bottomLeft: Radius.circular(4),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Typing...', style: TextStyle(color: (activeTheme.receivedMessageColor.computeLuminance() > 0.5 ? Colors.black54 : Colors.white70), fontSize: 13, fontStyle: FontStyle.italic)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-
 class _BubbleById extends ConsumerWidget {
   const _BubbleById({super.key, required this.id});
 
@@ -494,7 +265,7 @@ class _BubbleById extends ConsumerWidget {
         id: '',
         name: '',
         message: '',
-        image: _kAvatarUrl,
+        image: kAvatarUrl,
         time: '',
         unreadCount: 0,
         isOnline: false,
@@ -519,6 +290,52 @@ class _BubbleById extends ConsumerWidget {
   }
 }
 
+class _TypingIndicatorWidget extends ConsumerWidget {
+  const _TypingIndicatorWidget();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final chatId = ref.watch(currentChatIdProvider);
+    final isTyping = chatId != null ? ref.watch(typingStatusProvider(chatId)) : false;
+    if (!isTyping) return const SizedBox.shrink();
+    return const _TypingBubble();
+  }
+}
+
+class _TypingBubble extends ConsumerWidget {
+  const _TypingBubble();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeTheme = ref.watch(chatThemeProvider);
+    final isDarkBg = activeTheme.receivedMessageColor.computeLuminance() <= 0.5;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        decoration: BoxDecoration(
+          color: activeTheme.receivedMessageColor,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+            bottomRight: Radius.circular(16),
+            bottomLeft: Radius.circular(4),
+          ),
+        ),
+        child: Text(
+          'Typing...',
+          style: TextStyle(
+            color: isDarkBg ? Colors.white70 : Colors.black54,
+            fontSize: 13,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _DateChip extends StatelessWidget {
   const _DateChip({required this.label});
 
@@ -532,17 +349,71 @@ class _DateChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         margin: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: theme.dividerColor.withOpacity(0.15),
+          color: theme.dividerColor.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
             fontSize: 12,
             fontWeight: FontWeight.w500,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ReplyPreviewBar extends ConsumerWidget {
+  const _ReplyPreviewBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final replyTo = ref.watch(replyingToProvider);
+    if (replyTo == null) return const SizedBox.shrink();
+    final activeTheme = ref.watch(chatThemeProvider);
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        border: Border(top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.2))),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.reply, color: activeTheme.accentColor ?? Colors.green, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  replyTo.isMe ? 'Replying to yourself' : 'Replying to message',
+                  style: TextStyle(
+                    color: activeTheme.accentColor ?? Colors.green,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  replyTo.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 20),
+            onPressed: () => ref.read(replyingToProvider.notifier).state = null,
+          ),
+        ],
       ),
     );
   }
@@ -566,7 +437,6 @@ class _ComposerBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isEnterSend = ref.watch(enterIsSendProvider);
-    final isNotEmpty = ref.watch(Provider((ref) => messageController.text.trim().isNotEmpty),);
 
     return RepaintBoundary(
       child: Container(
@@ -576,7 +446,6 @@ class _ComposerBar extends ConsumerWidget {
         ),
         child: SafeArea(
           child: Row(
-
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
@@ -590,7 +459,6 @@ class _ComposerBar extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 6),
-
               _SendButton(
                 accentColor: activeTheme.accentColor ?? const Color(0xFF00A884),
                 onTap: onSend,
@@ -642,7 +510,6 @@ class _WhatsAppInputBox extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-
             IconButton(
               onPressed: () {},
               icon: Icon(
@@ -652,8 +519,6 @@ class _WhatsAppInputBox extends StatelessWidget {
               ),
               splashRadius: 20,
             ),
-
-
             Expanded(
               child: TextFormField(
                 controller: controller,
@@ -670,7 +535,7 @@ class _WhatsAppInputBox extends StatelessWidget {
                 style: const TextStyle(fontSize: 16, height: 1.3),
                 decoration: InputDecoration(
                   hintText: "Message",
-                  hintStyle: TextStyle(color: theme.hintColor.withOpacity(0.6)),
+                  hintStyle: TextStyle(color: theme.hintColor.withValues(alpha: 0.6)),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   fillColor: theme.colorScheme.surface,
@@ -680,8 +545,6 @@ class _WhatsAppInputBox extends StatelessWidget {
                 ),
               ),
             ),
-
-
             IconButton(
               onPressed: onAttach,
               icon: Icon(
@@ -691,8 +554,6 @@ class _WhatsAppInputBox extends StatelessWidget {
               ),
               splashRadius: 20,
             ),
-
-
             IconButton(
               onPressed: () {},
               icon: Icon(
@@ -709,7 +570,6 @@ class _WhatsAppInputBox extends StatelessWidget {
     );
   }
 }
-
 
 class _SendButton extends StatelessWidget {
   const _SendButton({required this.accentColor, required this.onTap});
@@ -733,6 +593,17 @@ class _SendButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _AttachmentDrawerSection extends ConsumerWidget {
+  const _AttachmentDrawerSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final show = ref.watch(showAttachmentMenuProvider);
+    if (!show) return const SizedBox.shrink();
+    return const _AttachmentDrawer();
   }
 }
 
@@ -763,6 +634,7 @@ class _AttachmentDrawer extends StatelessWidget {
 
 class _AttachmentIcon extends StatelessWidget {
   const _AttachmentIcon({required this.icon, required this.color, required this.label});
+
   final IconData icon;
   final Color color;
   final String label;

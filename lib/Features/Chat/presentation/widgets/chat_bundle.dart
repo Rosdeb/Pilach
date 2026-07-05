@@ -43,7 +43,6 @@ class _ChatBubbleState extends State<ChatBubble>
   @override
   void initState() {
     super.initState();
-    print('✨ [INIT STATE] ChatBubble (id: ${widget.message.id}, text: "${widget.message.text}", status: ${widget.message.status})');
 
     controller = AnimationController(
       vsync: this,
@@ -70,7 +69,6 @@ class _ChatBubbleState extends State<ChatBubble>
   @override
   void didUpdateWidget(ChatBubble oldWidget) {
     super.didUpdateWidget(oldWidget);
-    print('🔄 [DID UPDATE WIDGET] ChatBubble (id: ${widget.message.id}, oldText: "${oldWidget.message.text}" -> newText: "${widget.message.text}")');
   }
 
   @override
@@ -81,7 +79,6 @@ class _ChatBubbleState extends State<ChatBubble>
 
   @override
   Widget build(BuildContext context) {
-    print('🏗️ [BUILD] ChatBubble (id: ${widget.message.id}, text: "${widget.message.text}")');
     final theme = Theme.of(context);
     return FadeTransition(
       opacity: fade,
