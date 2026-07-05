@@ -25,12 +25,12 @@ class Assets {
   static const String chatIcon = '$_iconPath/chat.svg';
   static const String sendIcon = '$_iconPath/send.svg';
   static const String profileIcon = '$_iconPath/profile.svg';
-  static const String notificationIcon =
-      '$_iconPath/notification.svg';
+  static const String notificationIcon = '$_iconPath/notification.svg';
 
   // ================================
   // 🎬 Lottie (optional)
   // ================================
   static const String loading = '$_lottiePath/loading.json';
   static const String success = '$_lottiePath/success.json';
+  static const String trash = '$_iconPath/trash.png';
 }

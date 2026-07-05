@@ -49,6 +49,10 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
   StreamSubscription? _messageSubscription;
   StreamSubscription? _messageEditedSubscription;
+  StreamSubscription? _messageDeletedSubscription;
+  StreamSubscription? _messagePinnedSubscription;
+  StreamSubscription? _messageUnpinnedSubscription;
+  StreamSubscription? _messageReactionSubscription;
   StreamSubscription? _userActionSubscription;
   StreamSubscription? _reconnectSubscription;
   Timer? _typingResetTimer;
@@ -62,7 +66,10 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
   Future<void> _init() async {
     _messageSubscription = _socketService.onNewMessage.listen((data) async {
+      Logger.log('📨 NEW MESSAGE EVENT received — data: $data');
+      Logger.log('📨 Checking chatId match: data.conversationId=${data['conversationId']}, data.chatId=${data['chatId']}, our chatId=$chatId');
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
+        Logger.log('✅ NEW MESSAGE matched our chat — processing...');
         final messageData = data['message'] ?? data;
         
         if (messageData['clientMsgId'] != null) {
@@ -84,6 +91,8 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         
         // Reload UI
         await loadFromDb();
+      } else {
+        Logger.log('❌ NEW MESSAGE chatId mismatch — ignored');
       }
     });
 
@@ -96,14 +105,57 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       }
     });
 
+    _messageDeletedSubscription = _socketService.onMessageDeleted.listen((data) async {
+      if (data['conversationId'] == chatId || data['chatId'] == chatId) {
+        final msgId = data['messageId'];
+        if (msgId != null) {
+          await _messageDao.deleteMessage(msgId);
+          await loadFromDb();
+        }
+      }
+    });
+
+    _messagePinnedSubscription = _socketService.onMessagePinned.listen((data) async {
+      if (data['conversationId'] == chatId || data['chatId'] == chatId) {
+        final messageData = data['message'] ?? data;
+        final dto = MessageDto.fromJson(messageData);
+        await _messageDao.insertOrUpdateMessages([dto.toSqliteMap()]);
+        await loadFromDb();
+      }
+    });
+
+    _messageUnpinnedSubscription = _socketService.onMessageUnpinned.listen((data) async {
+      if (data['conversationId'] == chatId || data['chatId'] == chatId) {
+        final messageData = data['message'] ?? data;
+        final dto = MessageDto.fromJson(messageData);
+        await _messageDao.insertOrUpdateMessages([dto.toSqliteMap()]);
+        await loadFromDb();
+      }
+    });
+
+    _messageReactionSubscription = _socketService.onMessageReactionUpdated.listen((data) async {
+      if (data['conversationId'] == chatId || data['chatId'] == chatId) {
+        final msgId = data['messageId'];
+        final reactions = data['reactions'];
+        if (msgId != null && reactions != null) {
+          await _messageDao.updateMessageReactions(msgId, jsonEncode(reactions));
+          await loadFromDb();
+        }
+      }
+    });
+
     _userActionSubscription = _socketService.onUserTyping.listen((data) {
+      Logger.log('⌨️ TYPING EVENT received — data: $data, our chatId: $chatId');
       if (data['chatId'] == chatId || data['conversationId'] == chatId) {
+        Logger.log('✅ TYPING matched our chat — showing indicator');
         _ref.read(typingStatusProvider(chatId!).notifier).state = true;
         
         _typingResetTimer?.cancel();
         _typingResetTimer = Timer(const Duration(seconds: 3), () {
            if (mounted) _ref.read(typingStatusProvider(chatId!).notifier).state = false;
         });
+      } else {
+        Logger.log('❌ TYPING chatId mismatch — ignored');
       }
     });
 
@@ -115,11 +167,17 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
          for (final item in pending) {
             try {
               final payload = jsonDecode(item['payload_json']);
-              final response = await _socketService.emitWithAck('message:send', payload);
-              // Outbox deletion will happen when message:new echoes back.
-              // Just attempting to send is enough to flush.
+              // replyToId server support করে না, তাই remove করে পাঠাই
+              final cleanPayload = Map<String, dynamic>.from(payload)
+                ..remove('replyToId');
+              final response = await _socketService.emitWithAck('message:send', cleanPayload);
               if (response['ok'] != true) {
+                 final errCode = (response['error'] as Map?)?['code'];
                  Logger.log('Server rejected queued message: ${response['error']}');
+                 // VALIDATION_ERROR হলে আর retry করব না — outbox থেকে delete করো
+                 if (errCode == 'VALIDATION_ERROR') {
+                   await _outboxDao.deleteOutboxItem(item['client_msg_id']);
+                 }
               }
             } catch (e) {
               print('Failed to flush outbox item: $e');
@@ -139,6 +197,10 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   void dispose() {
     _messageSubscription?.cancel();
     _messageEditedSubscription?.cancel();
+    _messageDeletedSubscription?.cancel();
+    _messagePinnedSubscription?.cancel();
+    _messageUnpinnedSubscription?.cancel();
+    _messageReactionSubscription?.cancel();
     _userActionSubscription?.cancel();
     _reconnectSubscription?.cancel();
     _typingResetTimer?.cancel();
@@ -168,8 +230,8 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
        ));
     }
     
-    // Sort by timestamp
-    models.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    // Sort by timestamp descending (newest first)
+    models.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     
     final List<String> ids = [];
     final Map<String, MessageModel> byId = {};
@@ -224,27 +286,37 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     }
     _lastTypingEmit = now;
 
+    // Server might use 'message:typing' or 'user:typing' — send both field names
+    // so the server can match regardless of which key it uses
+    final payload = {
+      'conversationId': chatId, // some servers use this
+      'chatId': chatId,         // some servers use this
+    };
+
     try {
-      _socketService.emit('message:typing', {
-        'conversationId': chatId,
-      });
+      // Try both common event names — only one will be handled by server
+      _socketService.emit('message:typing', payload);
+      Logger.log('⌨️ TYPING EMITTED with payload: $payload');
     } catch (e) {
-      Logger.log('Failed to emit typing: $e',type:"info");
+      Logger.log('Failed to emit typing: $e', type: "info");
     }
   }
 
-  Future<void> sendMessage(String text) async {
+  Future<void> sendMessage(String text, {String? replyToId}) async {
     if (chatId == null || text.trim().isEmpty) return;
 
     final clientMsgId = const Uuid().v4();
     final now = DateTime.now();
     
+    // Server 'replyToId' field accept করে না (VALIDATION_ERROR).
+    // Reply শুধু local DB-তে save হবে এবং UI-তে দেখাবে।
+    // Socket payload-এ replyToId পাঠানো হবে না।
     final payloadJson = {
       'conversationId': chatId,
       'text': text,
       'type': 'TEXT',
       'attachments': [],
-      // 'clientMsgId': clientMsgId, // Removed because backend API spec doesn't allow it, might cause Unauthorized/Validation errors
+      // replyToId intentionally removed — server does not support it yet
     };
     
     // 1. Optimistic Update (UI)
@@ -255,9 +327,10 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       timestamp: now,
       isMe: true,
       status: MessageStatus.sending,
+      replyToMessageId: replyToId, // শুধু locally রাখা হচ্ছে UI-এর জন্য
     );
     
-    final newIds = [...state.messageIds, tempMsg.id!];
+    final newIds = [tempMsg.id!, ...state.messageIds];
     final newById = Map<String, MessageModel>.from(state.messagesById);
     newById[tempMsg.id!] = tempMsg;
     state = ChatState(messageIds: newIds, messagesById: newById);
@@ -279,7 +352,12 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
          // Message was sent successfully, we can remove it from outbox
          await _outboxDao.deleteOutboxItem(clientMsgId);
       } else {
+         final errCode = (response['error'] as Map?)?['code'];
          Logger.log('Server rejected message: ${response['error']}');
+         // VALIDATION_ERROR হলে outbox থেকে delete করো — retry করলে same error আসবে
+         if (errCode == 'VALIDATION_ERROR') {
+           await _outboxDao.deleteOutboxItem(clientMsgId);
+         }
       }
     } catch (e) {
       print('Failed to emit message: $e');
@@ -287,5 +365,84 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     
     // Reload from DB to reflect UI
     await loadFromDb();
+  }
+
+  Future<void> deleteMessage(String messageId) async {
+    if (chatId == null) return;
+    try {
+      _socketService.emit('message:delete', {
+        'conversationId': chatId,
+        'messageId': messageId,
+      });
+      // Optimistic delete
+      await _messageDao.deleteMessage(messageId);
+      await loadFromDb();
+    } catch (e) {
+      Logger.log('Failed to delete message: $e');
+    }
+  }
+
+  Future<void> pinMessage(String messageId, bool isPinned) async {
+    if (chatId == null) return;
+    try {
+      _socketService.emit('message:pin', {
+        'conversationId': chatId,
+        'messageId': messageId,
+        'isPinned': isPinned,
+      });
+    } catch (e) {
+      Logger.log('Failed to pin message: $e');
+    }
+  }
+
+  Future<void> reactToMessage(String messageId, String emoji, [bool? isAddedParam]) async {
+    if (chatId == null) return;
+    
+    // 1. Optimistic Update in Memory
+    final msg = state.messagesById[messageId];
+    if (msg != null) {
+      final currentReactions = msg.reactions != null ? List<Map<String, dynamic>>.from(msg.reactions!) : <Map<String, dynamic>>[];
+      
+      // Determine if adding or removing (toggle logic)
+      final hasReacted = currentReactions.any((r) => r['emoji'] == emoji && r['userId'] == currentUserId);
+      final isAdded = isAddedParam ?? !hasReacted;
+
+      if (isAdded) {
+        // Add the reaction optimistically
+        if (!hasReacted) {
+          currentReactions.add({
+            'emoji': emoji,
+            'userId': currentUserId, 
+            'messageId': messageId,
+          });
+        }
+      } else {
+        // Remove the reaction optimistically
+        final index = currentReactions.indexWhere((r) => r['emoji'] == emoji && r['userId'] == currentUserId);
+        if (index != -1) {
+          currentReactions.removeAt(index);
+        }
+      }
+      
+      final updatedMsg = msg.copyWith(reactions: currentReactions);
+      final newById = Map<String, MessageModel>.from(state.messagesById);
+      newById[messageId] = updatedMsg;
+      state = ChatState(messageIds: state.messageIds, messagesById: newById);
+      
+      // Also optionally save optimistically to DB so it persists until server responds
+      _messageDao.updateMessageReactions(messageId, jsonEncode(currentReactions));
+
+      // 2. Emit to Socket
+      try {
+        _socketService.emit('message:react', {
+          'conversationId': chatId,
+          'messageId': messageId,
+          'emoji': emoji,
+          'isAdded': isAdded,
+        });
+      } catch (e) {
+        Logger.log('Failed to react to message: $e');
+      }
+    }
   }
 }

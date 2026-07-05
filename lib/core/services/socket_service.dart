@@ -124,9 +124,20 @@ class SocketService extends WidgetsBindingObserver {
   void _registerListeners() {
     _socket!.on('presence:online', (data) => _addEvent(_presenceOnlineController, data));
     _socket!.on('presence:offline', (data) => _addEvent(_presenceOfflineController, data));
-    _socket!.on('user:typing', (data) => _addEvent(_userTypingController, data));
+    _socket!.on('user:typing', (data) {
+      Logger.log('⌨️ SOCKET RAW [user:typing] RECEIVED: $data');
+      _addEvent(_userTypingController, data);
+    });
+    // Some servers use 'message:typing' instead of 'user:typing'
+    _socket!.on('message:typing', (data) {
+      Logger.log('⌨️ SOCKET RAW [message:typing] RECEIVED: $data');
+      _addEvent(_userTypingController, data);
+    });
     
-    _socket!.on('message:new', (data) => _addEvent(_newMessageController, data));
+    _socket!.on('message:new', (data) {
+      Logger.log('📨 SOCKET RAW [message:new] RECEIVED: $data');
+      _addEvent(_newMessageController, data);
+    });
     _socket!.on('message:updated', (data) => _addEvent(_messageUpdatedController, data));
     _socket!.on('message:deleted', (data) => _addEvent(_messageDeletedController, data));
     _socket!.on('message:pinned', (data) => _addEvent(_messagePinnedController, data));

@@ -20,11 +20,14 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await db.execute('ALTER TABLE chats ADD COLUMN other_user_id TEXT');
+        }
+        if (oldVersion < 3) {
+          await db.execute('ALTER TABLE messages ADD COLUMN reactions_json TEXT');
         }
       },
     );
@@ -60,6 +63,7 @@ class AppDatabase {
         type TEXT NOT NULL,
         text TEXT,
         attachments_json TEXT,
+        reactions_json TEXT,
         status TEXT NOT NULL,
         created_at TEXT NOT NULL,
         edited_at TEXT,

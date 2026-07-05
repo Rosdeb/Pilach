@@ -28,6 +28,8 @@ final _headerTextColorProvider = Provider.autoDispose<Color>((ref) {
   return bg.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
 });
 
+final replyingToProvider = StateProvider.autoDispose<MessageModel?>((ref) => null);
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 class DirectChatScreen extends ConsumerStatefulWidget {
@@ -41,10 +43,18 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
+  bool _showAttachmentMenu = false;
 
   @override
   void initState() {
     super.initState();
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus && _showAttachmentMenu) {
+        setState(() {
+          _showAttachmentMenu = false;
+        });
+      }
+    });
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (mounted) ref.read(_chatReadyProvider.notifier).state = true;
     });
@@ -61,14 +71,17 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
-    ref.read(directChatProvider.notifier).sendMessage(text);
+    final replyTo = ref.read(replyingToProvider);
+    ref.read(directChatProvider.notifier).sendMessage(text, replyToId: replyTo?.id);
+    
+    ref.read(replyingToProvider.notifier).state = null; // Clear reply state
     _messageController.clear();
     _focusNode.requestFocus();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
+        0.0,
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
       );
@@ -94,13 +107,58 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                 scrollController: _scrollController,
               ),
             ),
+            
+            Consumer(
+              builder: (context, ref, _) {
+                final replyTo = ref.watch(replyingToProvider);
+                if (replyTo == null) return const SizedBox.shrink();
+                final theme = Theme.of(context);
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: theme.scaffoldBackgroundColor,
+                    border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.2))),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.reply, color: activeTheme.accentColor ?? Colors.green, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(replyTo.isMe ? 'Replying to yourself' : 'Replying to message', style: TextStyle(color: activeTheme.accentColor ?? Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 2),
+                            Text(replyTo.text, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.8), fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        onPressed: () => ref.read(replyingToProvider.notifier).state = null,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
 
             _ComposerBar(
               messageController: _messageController,
               focusNode: _focusNode,
               activeTheme: activeTheme,
               onSend: _sendMessage,
+              onAttach: () {
+                if (_showAttachmentMenu) {
+                  setState(() { _showAttachmentMenu = false; });
+                  _focusNode.requestFocus();
+                } else {
+                  _focusNode.unfocus();
+                  setState(() { _showAttachmentMenu = true; });
+                }
+              },
             ),
+            if (_showAttachmentMenu) const _AttachmentDrawer(),
           ],
         ),
       ),
@@ -214,9 +272,9 @@ class _ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
                   ),
                   // Status text
                   Text(
-                    isTyping ? 'Typing...' : 'Online',
-                    style: const TextStyle(
-                      color: _kGreen,
+                    isTyping ? 'Typing...' : (currentChat.isOnline ? 'Online' : 'Offline'),
+                    style: TextStyle(
+                      color: isTyping || currentChat.isOnline ? _kGreen : Colors.grey.shade400,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -292,21 +350,62 @@ class _MessageListView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     debugPrint('🟡 MessageListView build');
     final count = ref.watch(directChatProvider.select((state) => state.messageIds.length));
+    
+    final chatId = ref.watch(currentChatIdProvider);
+    final isTyping = chatId != null ? ref.watch(typingStatusProvider(chatId)) : false;
+
+    final totalCount = count + 1 + (isTyping ? 1 : 0);
 
     return ListView.builder(
-      reverse: false,
+      reverse: true,
       controller: scrollController,
       physics: const BouncingScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       addAutomaticKeepAlives: false,
-      itemCount: count + 1,
+      itemCount: totalCount,
       itemBuilder: (context, index) {
-        if (index == 0)
-          return const _DateChip(label: 'Today');
-        return _BubbleRowByIndex(index: index - 1);
+        if (isTyping) {
+           if (index == 0) return const _TypingBubble();
+           final adjustedIndex = index - 1;
+           if (adjustedIndex == count) return const _DateChip(label: 'Today');
+           return _BubbleRowByIndex(index: adjustedIndex);
+        } else {
+           if (index == count) return const _DateChip(label: 'Today');
+           return _BubbleRowByIndex(index: index);
+        }
       },
+    );
+  }
+}
+
+class _TypingBubble extends ConsumerWidget {
+  const _TypingBubble();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeTheme = ref.watch(chatThemeProvider);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        decoration: BoxDecoration(
+          color: activeTheme.receivedMessageColor,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+            bottomRight: Radius.circular(16),
+            bottomLeft: Radius.circular(4),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Typing...', style: TextStyle(color: (activeTheme.receivedMessageColor.computeLuminance() > 0.5 ? Colors.black54 : Colors.white70), fontSize: 13, fontStyle: FontStyle.italic)),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -340,6 +439,7 @@ class _BubbleById extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Theme আলাদাভাবে পড়া হচ্ছে — message rebuild এর সাথে mix করা হচ্ছে না
     final activeTheme = ref.watch(chatThemeProvider);
     final msg = ref.watch(directChatProvider.select((state) => state.messagesById[id]));
 
@@ -362,10 +462,21 @@ class _BubbleById extends ConsumerWidget {
       ),
     );
 
+    final repliedMsg = msg.replyToMessageId != null
+        ? ref.watch(directChatProvider.select((state) => state.messagesById[msg.replyToMessageId]))
+        : null;
+
+    // ValueKey দিলে Flutter state সঠিকভাবে reuse করে, theme change এ isMe ঠিক থাকে
     return ChatBubble(
+      key: ValueKey(id),
       message: msg,
       activeTheme: activeTheme,
       otherUserAvatar: currentChat.image,
+      repliedMessage: repliedMsg,
+      onDelete: () => ref.read(directChatProvider.notifier).deleteMessage(msg.id!),
+      onPin: () => ref.read(directChatProvider.notifier).pinMessage(msg.id!, !(msg.isPinned ?? false)),
+      onReact: (emoji) => ref.read(directChatProvider.notifier).reactToMessage(msg.id!, emoji),
+      onReply: () => ref.read(replyingToProvider.notifier).state = msg,
     );
   }
 }
@@ -405,12 +516,14 @@ class _ComposerBar extends ConsumerWidget {
     required this.focusNode,
     required this.activeTheme,
     required this.onSend,
+    required this.onAttach,
   });
 
   final TextEditingController messageController;
   final FocusNode focusNode;
   final dynamic activeTheme;
   final VoidCallback onSend;
+  final VoidCallback onAttach;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -435,6 +548,7 @@ class _ComposerBar extends ConsumerWidget {
                   isEnterSend: isEnterSend,
                   onSend: onSend,
                   onTyping: () => ref.read(directChatProvider.notifier).emitTyping(),
+                  onAttach: onAttach,
                 ),
               ),
               const SizedBox(width: 6),
@@ -458,6 +572,7 @@ class _WhatsAppInputBox extends StatelessWidget {
     required this.isEnterSend,
     required this.onSend,
     required this.onTyping,
+    required this.onAttach,
   });
 
   final TextEditingController controller;
@@ -465,6 +580,7 @@ class _WhatsAppInputBox extends StatelessWidget {
   final bool isEnterSend;
   final VoidCallback onSend;
   final VoidCallback onTyping;
+  final VoidCallback onAttach;
 
   @override
   Widget build(BuildContext context) {
@@ -529,7 +645,7 @@ class _WhatsAppInputBox extends StatelessWidget {
 
 
             IconButton(
-              onPressed: () {},
+              onPressed: onAttach,
               icon: Icon(
                 CupertinoIcons.paperclip,
                 color: theme.hintColor.withValues(alpha: 0.6),
@@ -578,6 +694,55 @@ class _SendButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AttachmentDrawer extends StatelessWidget {
+  const _AttachmentDrawer();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 250,
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: GridView.count(
+        crossAxisCount: 3,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: const [
+          _AttachmentIcon(icon: Icons.insert_drive_file, color: Colors.indigo, label: 'Document'),
+          _AttachmentIcon(icon: Icons.camera_alt, color: Colors.pink, label: 'Camera'),
+          _AttachmentIcon(icon: Icons.image, color: Colors.purple, label: 'Gallery'),
+          _AttachmentIcon(icon: Icons.headset, color: Colors.orange, label: 'Audio'),
+          _AttachmentIcon(icon: Icons.location_on, color: Colors.green, label: 'Location'),
+          _AttachmentIcon(icon: Icons.person, color: Colors.blue, label: 'Contact'),
+        ],
+      ),
+    );
+  }
+}
+
+class _AttachmentIcon extends StatelessWidget {
+  const _AttachmentIcon({required this.icon, required this.color, required this.label});
+  final IconData icon;
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        CircleAvatar(
+          radius: 28,
+          backgroundColor: color,
+          child: Icon(icon, color: Colors.white, size: 28),
+        ),
+        const SizedBox(height: 8),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
     );
   }
 }

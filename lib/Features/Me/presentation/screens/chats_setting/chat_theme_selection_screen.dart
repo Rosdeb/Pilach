@@ -113,6 +113,7 @@ class ChatThemeSelectionScreen extends ConsumerWidget {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Container(
+                    constraints: const BoxConstraints(maxWidth: 240),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
                       color: chatTheme.receivedMessageColor,
@@ -134,6 +135,7 @@ class ChatThemeSelectionScreen extends ConsumerWidget {
                 Align(
                   alignment: Alignment.centerRight,
                   child: Container(
+                    constraints: const BoxConstraints(maxWidth: 240),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
                       color: chatTheme.sentMessageColor,

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:intl/intl.dart';
 import '../../Features/Chat/data/models/message_model.dart';
 
@@ -14,6 +15,7 @@ class MessageDto {
   final String? editedAt;
   final bool deleted;
   final String? replyToId;
+  final String? reactionsJson;
 
   MessageDto({
     required this.id,
@@ -28,6 +30,7 @@ class MessageDto {
     this.editedAt,
     this.deleted = false,
     this.replyToId,
+    this.reactionsJson,
   });
 
   factory MessageDto.fromJson(Map<String, dynamic> json) {
@@ -44,6 +47,7 @@ class MessageDto {
       editedAt: json['editedAt'] as String?,
       deleted: (json['isDeleted'] ?? json['deleted']) as bool? ?? false,
       replyToId: json['replyToId'] as String?,
+      reactionsJson: json['reactions'] != null ? jsonEncode(json['reactions']) : null,
     );
   }
 
@@ -61,6 +65,7 @@ class MessageDto {
       'edited_at': editedAt,
       'deleted': deleted ? 1 : 0,
       'reply_to_id': replyToId,
+      'reactions_json': reactionsJson,
     };
   }
 }
@@ -92,6 +97,18 @@ extension MessageSqliteMapper on Map<String, dynamic> {
         msgStatus = MessageStatus.sent;
     }
 
+    List<Map<String, dynamic>>? parsedReactions;
+    if (this['reactions_json'] != null) {
+      try {
+        final decoded = jsonDecode(this['reactions_json']);
+        if (decoded is List) {
+          parsedReactions = List<Map<String, dynamic>>.from(decoded);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
     return MessageModel(
       id: this['id'] as String,
       text: this['text'] ?? '',
@@ -100,6 +117,8 @@ extension MessageSqliteMapper on Map<String, dynamic> {
       isMe: isMe,
       status: msgStatus,
       senderId: senderId,
+      reactions: parsedReactions,
+      replyToMessageId: this['reply_to_id'] as String?,
     );
   }
 }

@@ -24,7 +24,10 @@ class MessageModel {
   final String? mediaUrl;
   final bool isEdited;
   final bool isDeleted;
+  final bool? isPinned;
+  final String? pinnedAt;
   final String? replyToMessageId;
+  final List<Map<String, dynamic>>? reactions;
 
   MessageModel({
     required this.id,
@@ -40,7 +43,10 @@ class MessageModel {
     this.mediaUrl,
     this.isEdited = false,
     this.isDeleted = false,
+    this.isPinned = false,
+    this.pinnedAt,
     this.replyToMessageId,
+    this.reactions,
   });
 
   // Copy with method for immutable updates
@@ -58,7 +64,10 @@ class MessageModel {
     String? mediaUrl,
     bool? isEdited,
     bool? isDeleted,
+    bool? isPinned,
+    String? pinnedAt,
     String? replyToMessageId,
+    List<Map<String, dynamic>>? reactions,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -74,7 +83,10 @@ class MessageModel {
       mediaUrl: mediaUrl ?? this.mediaUrl,
       isEdited: isEdited ?? this.isEdited,
       isDeleted: isDeleted ?? this.isDeleted,
+      isPinned: isPinned ?? this.isPinned,
+      pinnedAt: pinnedAt ?? this.pinnedAt,
       replyToMessageId: replyToMessageId ?? this.replyToMessageId,
+      reactions: reactions ?? this.reactions,
     );
   }
 
@@ -94,7 +106,10 @@ class MessageModel {
       'mediaUrl': mediaUrl,
       'isEdited': isEdited,
       'isDeleted': isDeleted,
+      'isPinned': isPinned,
+      'pinnedAt': pinnedAt,
       'replyToMessageId': replyToMessageId,
+      'reactions': reactions,
     };
   }
 
@@ -120,7 +135,12 @@ class MessageModel {
       mediaUrl: json['mediaUrl'] as String?,
       isEdited: json['isEdited'] as bool? ?? false,
       isDeleted: json['isDeleted'] as bool? ?? false,
+      isPinned: json['isPinned'] as bool? ?? false,
+      pinnedAt: json['pinnedAt'] as String?,
       replyToMessageId: json['replyToMessageId'] as String?,
+      reactions: json['reactions'] != null 
+          ? List<Map<String, dynamic>>.from(json['reactions']) 
+          : null,
     );
   }
 
@@ -141,11 +161,20 @@ class MessageModel {
            other.isMe == isMe &&
            other.time == time &&
            other.timestamp == timestamp &&
-           other.senderId == senderId;
+           other.senderId == senderId &&
+           _reactionsEqual(other.reactions, reactions);
+  }
+
+  bool _reactionsEqual(List<Map<String, dynamic>>? a, List<Map<String, dynamic>>? b) {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    if (a.length != b.length) return false;
+    // Simple deep compare for list of maps
+    return a.toString() == b.toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, status, text, isDeleted, isEdited, isMe, time, timestamp, senderId);
+  int get hashCode => Object.hash(id, status, text, isDeleted, isEdited, isMe, time, timestamp, senderId, reactions?.toString());
 }
 
 // Message types for future features

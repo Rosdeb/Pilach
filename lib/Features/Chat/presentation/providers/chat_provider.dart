@@ -1,22 +1,60 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import '../../../../core/network/chat_repository.dart';
+import '../../../../core/providers/api_provider.dart';
 import '../../data/models/chat_model.dart';
 import '../../../../core/database/daos/chat_dao.dart';
 import '../../../../core/models/chat_dto.dart';
-import '../../../../core/network/chat_repository.dart';
+import '../../../../core/services/socket_service.dart';
+import 'dart:async';
 
 final chatProvider = StateNotifierProvider<ChatNotifier, List<ChatModel>>((ref) {
   final chatRepo = ref.watch(chatRepositoryProvider);
-  return ChatNotifier(chatRepo);
+  final socketService = ref.watch(socketServiceProvider);
+  return ChatNotifier(chatRepo, socketService);
 });
 
 class ChatNotifier extends StateNotifier<List<ChatModel>> {
   final ChatDao _chatDao = ChatDao();
   final ChatRepository _chatRepository;
+  final SocketService _socketService;
+  StreamSubscription? _onlineSub;
+  StreamSubscription? _offlineSub;
 
-  ChatNotifier(this._chatRepository) : super([]) {
+  ChatNotifier(this._chatRepository, this._socketService) : super([]) {
     _init();
+    _listenToPresence();
+  }
+
+  void _listenToPresence() {
+    _onlineSub = _socketService.onPresenceOnline.listen((data) {
+      final userId = data['userId'];
+      if (userId != null) _updatePresence(userId, true);
+    });
+    
+    _offlineSub = _socketService.onPresenceOffline.listen((data) {
+      final userId = data['userId'];
+      if (userId != null) _updatePresence(userId, false);
+    });
+  }
+
+  void _updatePresence(String userId, bool isOnline) {
+    if (!mounted) return;
+    state = state.map((chat) {
+      // Sometimes chat.id is the other user's id in 1-on-1 chats, or chat.userId is explicitly set
+      if (chat.userId == userId || chat.id == userId) {
+        return chat.copyWith(isOnline: isOnline);
+      }
+      return chat;
+    }).toList();
+  }
+
+  @override
+  void dispose() {
+    _onlineSub?.cancel();
+    _offlineSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _init() async {

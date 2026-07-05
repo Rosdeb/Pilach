@@ -58,4 +58,23 @@ class MessageDao {
       whereArgs: [clientMsgId],
     );
   }
+
+  Future<void> deleteMessage(String id) async {
+    final database = await db;
+    await database.delete(
+      'messages',
+      where: 'id = ? OR client_msg_id = ?',
+      whereArgs: [id, id],
+    );
+  }
+
+  Future<void> updateMessageReactions(String id, String reactionsJson) async {
+    final database = await db;
+    await database.update(
+      'messages',
+      {'reactions_json': reactionsJson},
+      where: 'id = ? OR client_msg_id = ?',
+      whereArgs: [id, id],
+    );
+  }
 }
