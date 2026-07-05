@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:app/core/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:intl/intl.dart';
 import '../../data/models/message_model.dart';
 import '../../../../core/database/daos/message_dao.dart';
 import '../../../../core/database/daos/outbox_dao.dart';
@@ -55,8 +56,9 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   StreamSubscription? _messageReactionSubscription;
   StreamSubscription? _userActionSubscription;
   StreamSubscription? _reconnectSubscription;
-  Timer? _typingResetTimer;
-  DateTime? _lastTypingEmit;
+  Timer? _typingResetTimer;   // receiver side: typing indicator hide timer
+  Timer? _typingDebounce;     // sender side: debounce emit — max 1 emit per 3s
+  bool _isTypingEmitted = false;
 
   DirectChatNotifier(this.chatId, this._ref, this._chatRepository, this._socketService, this.currentUserId) : super(ChatState.initial()) {
     if (chatId != null) {
@@ -162,27 +164,57 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     _reconnectSubscription = _socketService.onReconnected.listen((_) async {
        if (chatId == null) return;
        final pending = await _outboxDao.getPendingMessages(chatId!);
-       if (pending.isNotEmpty) {
-         Logger.log('🚀 SOCKET: Reconnected! Flushing ${pending.length} outbox messages for chat $chatId');
-         for (final item in pending) {
-            try {
-              final payload = jsonDecode(item['payload_json']);
-              // replyToId server support করে না, তাই remove করে পাঠাই
-              final cleanPayload = Map<String, dynamic>.from(payload)
-                ..remove('replyToId');
-              final response = await _socketService.emitWithAck('message:send', cleanPayload);
-              if (response['ok'] != true) {
-                 final errCode = (response['error'] as Map?)?['code'];
-                 Logger.log('Server rejected queued message: ${response['error']}');
-                 // VALIDATION_ERROR হলে আর retry করব না — outbox থেকে delete করো
-                 if (errCode == 'VALIDATION_ERROR') {
-                   await _outboxDao.deleteOutboxItem(item['client_msg_id']);
-                 }
+       if (pending.isEmpty) return;
+
+       Logger.log('🚀 SOCKET: Reconnected! Flushing ${pending.length} outbox messages for chat $chatId');
+
+       for (final item in pending) {
+          try {
+            final payload = jsonDecode(item['payload_json']);
+            final cleanPayload = Map<String, dynamic>.from(payload)
+              ..remove('replyToId');
+
+            final response = await _socketService.emitWithAck('message:send', cleanPayload);
+
+            if (response['ok'] == true) {
+              // ✅ Outbox থেকে delete করো
+              await _outboxDao.deleteOutboxItem(item['client_msg_id']);
+              Logger.log('✅ Queued message sent: ${item['client_msg_id']}');
+
+              // ✅ loadFromDb() না — state-এ directly temp message update করো
+              // "Sending..." সরিয়ে actual time বসাও 
+              // message:new আসলে real message দিয়ে replace হবে
+              final tempId = 'temp_${item['client_msg_id']}';
+              final tempMsg = state.messagesById[tempId];
+              if (tempMsg != null && mounted) {
+                final formattedTime = DateFormat('hh:mm a').format(DateTime.now().toLocal());
+                final updatedMsg = tempMsg.copyWith(
+                  time: formattedTime,
+                  status: MessageStatus.sent,
+                );
+                final newById = Map<String, MessageModel>.from(state.messagesById);
+                newById[tempId] = updatedMsg;
+                state = ChatState(messageIds: state.messageIds, messagesById: newById);
               }
-            } catch (e) {
-              print('Failed to flush outbox item: $e');
+            } else {
+              final errCode = (response['error'] as Map?)?['code'];
+              Logger.log('❌ Server rejected queued message: ${response['error']}');
+              // VALIDATION_ERROR → retry করলে same error, তাই delete
+              if (errCode == 'VALIDATION_ERROR') {
+                await _outboxDao.deleteOutboxItem(item['client_msg_id']);
+                // সরাসরি state থেকেও বাদ দাও
+                final tempId = 'temp_${item['client_msg_id']}';
+                if (mounted && state.messagesById.containsKey(tempId)) {
+                  final newIds = state.messageIds.where((id) => id != tempId).toList();
+                  final newById = Map<String, MessageModel>.from(state.messagesById)
+                    ..remove(tempId);
+                  state = ChatState(messageIds: newIds, messagesById: newById);
+                }
+              }
             }
-         }
+          } catch (e) {
+            Logger.log('Failed to flush outbox item: $e');
+          }
        }
     });
 
@@ -204,6 +236,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     _userActionSubscription?.cancel();
     _reconnectSubscription?.cancel();
     _typingResetTimer?.cancel();
+    _typingDebounce?.cancel();
     super.dispose();
   }
 
@@ -279,27 +312,31 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
   void emitTyping() {
     if (chatId == null) return;
-    // Throttle emits to once every 2 seconds to save bandwidth and prevent jank
-    final now = DateTime.now();
-    if (_lastTypingEmit != null && now.difference(_lastTypingEmit!).inSeconds < 2) {
-      return;
-    }
-    _lastTypingEmit = now;
 
-    // Server might use 'message:typing' or 'user:typing' — send both field names
-    // so the server can match regardless of which key it uses
     final payload = {
-      'conversationId': chatId, // some servers use this
-      'chatId': chatId,         // some servers use this
+      'conversationId': chatId,
+      'chatId': chatId,
     };
 
-    try {
-      // Try both common event names — only one will be handled by server
-      _socketService.emit('message:typing', payload);
-      Logger.log('⌨️ TYPING EMITTED with payload: $payload');
-    } catch (e) {
-      Logger.log('Failed to emit typing: $e', type: "info");
+    // Leading-edge debounce:
+    // প্রথম keystroke-এ তাৎক্ষণিক emit, তারপর 3 সেকেন্ড block
+    // ফলে server-এ অতিরিক্ত hit হবে না
+    if (!_isTypingEmitted) {
+      _isTypingEmitted = true;
+      try {
+        _socketService.emit('message:typing', payload);
+        Logger.log('⌨️ TYPING EMITTED (leading debounce)');
+      } catch (e) {
+        Logger.log('Failed to emit typing: $e', type: "info");
+      }
     }
+
+    // 3 সেকেন্ড pause হলে ফ্লাগ reset হবে — পরেরবার type শুরু হলে আবার emit হবে
+    _typingDebounce?.cancel();
+    _typingDebounce = Timer(const Duration(seconds: 3), () {
+      _isTypingEmitted = false;
+      Logger.log('⌨️ TYPING debounce reset — next keystroke will emit again');
+    });
   }
 
   Future<void> sendMessage(String text, {String? replyToId}) async {
@@ -360,11 +397,15 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
          }
       }
     } catch (e) {
-      print('Failed to emit message: $e');
+      Logger.log('Failed to emit message: $e');
     }
-    
-    // Reload from DB to reflect UI
-    await loadFromDb();
+
+    // ✅ ok==true হলে loadFromDb() এখনই call করব না
+    // কারণ DB তে এখনো real message নেই — message:new event আসলে সেটা handle করবে
+    // temp message state-এ থাকবে যতক্ষণ না message:new আসে
+    //
+    // ❌ NOT_CONNECTED বা error হলে outbox-এ আছে — loadFromDb() call করো
+    // যাতে "Sending..." দেখায় (outbox থেকে temp message আসবে)
   }
 
   Future<void> deleteMessage(String messageId) async {

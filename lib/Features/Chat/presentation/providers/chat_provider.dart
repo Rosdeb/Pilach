@@ -29,25 +29,31 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
 
   void _listenToPresence() {
     _onlineSub = _socketService.onPresenceOnline.listen((data) {
-      final userId = data['userId'];
+      final userId = data['userId'] as String?;
+      print('🟢 PRESENCE ONLINE received: userId=$userId');
       if (userId != null) _updatePresence(userId, true);
     });
     
     _offlineSub = _socketService.onPresenceOffline.listen((data) {
-      final userId = data['userId'];
+      final userId = data['userId'] as String?;
+      print('🔴 PRESENCE OFFLINE received: userId=$userId');
       if (userId != null) _updatePresence(userId, false);
     });
   }
 
   void _updatePresence(String userId, bool isOnline) {
     if (!mounted) return;
+    bool matched = false;
     state = state.map((chat) {
-      // Sometimes chat.id is the other user's id in 1-on-1 chats, or chat.userId is explicitly set
-      if (chat.userId == userId || chat.id == userId) {
+      // chat.userId = other person's user ID (private chat)
+      // chat.id = conversation ID — never matches a userId!
+      if (chat.userId == userId) {
+        matched = true;
         return chat.copyWith(isOnline: isOnline);
       }
       return chat;
     }).toList();
+    print('🟡 PRESENCE UPDATE: userId=$userId, isOnline=$isOnline, matched=$matched');
   }
 
   @override

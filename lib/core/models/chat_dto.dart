@@ -138,17 +138,10 @@ extension ChatSqliteMapper on Map<String, dynamic> {
         ? 'https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp'
         : sqliteAvatar;
 
-    // Bust cache if updatedAt is available and image is a remote URL
-    final updatedAt = this['updated_at'] as String?;
-    if (updatedAt != null && resolvedAvatar.startsWith('http')) {
-      final uri = Uri.tryParse(resolvedAvatar);
-      if (uri != null) {
-        resolvedAvatar = uri.replace(queryParameters: {
-          ...uri.queryParameters,
-          'v': updatedAt,
-        }).toString();
-      }
-    }
+    // ✅ সরাসরি URL ব্যবহার করো — আলাদা cache-busting দরকার নেই
+    // যুক্তি: conversation.updated_at প্রতিটা message-এ পরিবর্তন হয়
+    //       তাই ?v=updated_at দিলে প্রতি মেসেজে avatar re-download হয়!
+    // Server নতুন avatar দিলে URL নিজেই পরিবর্তন হবে → CachedNetworkImage তন নতুন দিয়ে load করবে
 
     return ChatModel(
       id: this['id'] as String,

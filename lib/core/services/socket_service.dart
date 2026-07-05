@@ -6,14 +6,14 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 class SocketService extends WidgetsBindingObserver {
   IO.Socket? _socket;
   final String baseUrl;
-  
+
   // Callback for automatic token refresh
   Future<String?> Function()? onTokenRefreshRequested;
-  
+
   // Reconnection Stream
   final _reconnectedController = StreamController<void>.broadcast();
   Stream<void> get onReconnected => _reconnectedController.stream;
-  
+
   // Presence & Typing
   final _presenceOnlineController = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get onPresenceOnline => _presenceOnlineController.stream;
@@ -64,11 +64,37 @@ class SocketService extends WidgetsBindingObserver {
 
   Timer? _statusTimer;
 
+  // ─── Race condition guards ───────────────────────────────────────────────
+  // এই দুটো flag না থাকলে infinite loop হয়:
+  // alive check → reconnect → error → refresh → reconnect → alive check → ...
+  bool _isRefreshing = false;   // token refresh চলছে
+  bool _isConnecting = false;   // connect() call চলছে (not yet established)
+
   SocketService({required this.baseUrl});
 
+  bool get isConnected => _socket?.connected == true;
+
   void connect(String token) {
-    if (_socket?.connected == true) return;
+    // ── Guard: একসাথে দুটো connect attempt হবে না ───────────────────────
+    if (_socket?.connected == true) {
+      Logger.log('⚡ SOCKET: Already connected, skip.');
+      return;
+    }
+    if (_isConnecting) {
+      Logger.log('⚡ SOCKET: Connection already in progress, skip.');
+      return;
+    }
+    if (_isRefreshing) {
+      Logger.log('⚡ SOCKET: Token refresh in progress, skip connect.');
+      return;
+    }
+
+    _isConnecting = true;
     Logger.log('🌐 SOCKET: Attempting to connect to $baseUrl...');
+
+    // পুরনো socket থাকলে destroy করো
+    _socket?.destroy();
+
     _socket = IO.io(baseUrl, IO.OptionBuilder()
         .setTransports(['websocket'])
         .setAuth({'token': token})
@@ -76,66 +102,83 @@ class SocketService extends WidgetsBindingObserver {
           'Authorization': 'Bearer $token',
           'Cookie': 'access_token=$token',
         })
-        .enableReconnection()
-        .setReconnectionAttempts(999999)
-        .setReconnectionDelay(1000)
-        .setReconnectionDelayMax(10000)
+        .disableAutoConnect()          // manual connect করব
+        .disableReconnection()         // socket.io auto-reconnect বন্ধ — আমরা নিজে handle করব
         .build());
 
     _socket!.onConnect((_) {
-      Logger.log('Connected');
+      _isConnecting = false;
+      Logger.log('✅ SOCKET: Connected! id=${_socket?.id}');
+      _startAliveCheck();             // connect হলে alive check শুরু
       _onReconnected();
     });
 
     _socket!.onDisconnect((_) {
-      Logger.log('🔴 SOCKET: Disconnected from server.');
+      _isConnecting = false;
+      Logger.log('🔴 SOCKET: Disconnected.');
     });
 
     _socket!.onConnectError((err) {
-      Logger.log('⚠️ SOCKET ERROR: $err');
+      _isConnecting = false;
+      Logger.log('⚠️ SOCKET CONNECT ERROR: $err');
       _handlePotentialAuthError(err);
     });
 
+    // 'error' event — multiple times আসতে পারে, guard দিয়ে handle করো
     _socket!.on('error', (err) {
       Logger.log('⚠️ SOCKET SERVER ERROR: $err');
       _handlePotentialAuthError(err);
     });
 
     _socket!.onAny((event, data) {
-      Logger.log('🔍 SOCKET RAW EVENT [$event]: $data');
-    });
-
-    _statusTimer?.cancel();
-    _statusTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
-      final isConnected = _socket?.connected == true;
-      final hasId = _socket?.id != null;
-      Logger.log('💓 SOCKET ALIVE CHECK: connected=$isConnected, id=${_socket?.id}');
-      
-      if (!isConnected || !hasId) {
-        Logger.log('🔄 SOCKET: Connection dead. Attempting manual reconnect...');
-        _socket?.connect();
+      // error, connect, disconnect — এগুলো already handled
+      if (event != 'error' && event != 'connect' && event != 'disconnect') {
+        Logger.log('🔍 SOCKET RAW EVENT [$event]: $data');
       }
     });
 
-    // Register all specific event listeners
+    // Register event listeners before connect
     _registerListeners();
+
+    // Now connect
+    _socket!.connect();
+  }
+
+  void _startAliveCheck() {
+    _statusTimer?.cancel();
+    _statusTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      // ── যদি refresh বা connect চলছে, touch করো না ──────────────────────
+      if (_isRefreshing || _isConnecting) {
+        Logger.log('💓 SOCKET ALIVE CHECK: skipped (refresh/connect in progress)');
+        return;
+      }
+
+      final isConnected = _socket?.connected == true;
+      Logger.log('💓 SOCKET ALIVE CHECK: connected=$isConnected, id=${_socket?.id}');
+
+      if (!isConnected) {
+        Logger.log('🔄 SOCKET: Connection dead. Attempting reconnect...');
+        // Exponential backoff ছাড়া simple reconnect
+        _socket?.connect();
+      }
+    });
   }
 
   void _registerListeners() {
     _socket!.on('presence:online', (data) => _addEvent(_presenceOnlineController, data));
     _socket!.on('presence:offline', (data) => _addEvent(_presenceOfflineController, data));
+
     _socket!.on('user:typing', (data) {
-      Logger.log('⌨️ SOCKET RAW [user:typing] RECEIVED: $data');
+      Logger.log('⌨️ SOCKET [user:typing]: $data');
       _addEvent(_userTypingController, data);
     });
-    // Some servers use 'message:typing' instead of 'user:typing'
     _socket!.on('message:typing', (data) {
-      Logger.log('⌨️ SOCKET RAW [message:typing] RECEIVED: $data');
+      Logger.log('⌨️ SOCKET [message:typing]: $data');
       _addEvent(_userTypingController, data);
     });
-    
+
     _socket!.on('message:new', (data) {
-      Logger.log('📨 SOCKET RAW [message:new] RECEIVED: $data');
+      Logger.log('📨 SOCKET [message:new]: $data');
       _addEvent(_newMessageController, data);
     });
     _socket!.on('message:updated', (data) => _addEvent(_messageUpdatedController, data));
@@ -148,43 +191,60 @@ class SocketService extends WidgetsBindingObserver {
 
     _socket!.on('chat:updated', (data) => _addEvent(_chatUpdatedController, data));
     _socket!.on('chat:added', (data) => _addEvent(_chatAddedController, data));
-    
+
     _socket!.on('member:updated', (data) => _addEvent(_memberUpdatedController, data));
     _socket!.on('member:removed', (data) => _addEvent(_memberRemovedController, data));
   }
 
   void _addEvent(StreamController<Map<String, dynamic>> controller, dynamic data) {
-    if (data != null) {
+    if (data != null && !controller.isClosed) {
       controller.add(Map<String, dynamic>.from(data));
     }
   }
 
-  bool _isRefreshing = false;
-
   Future<void> _handlePotentialAuthError(dynamic err) async {
     if (err == null) return;
-    
+
+    // ── ইতিমধ্যে refresh চলছে → ignore করো ─────────────────────────────
+    if (_isRefreshing) {
+      Logger.log('⚡ Auth error received but refresh already in progress — ignored');
+      return;
+    }
+
     final errorStr = err.toString();
-    final isUnauthorized = errorStr.contains('Unauthorized') || 
+    final isUnauthorized = errorStr.contains('Unauthorized') ||
                            errorStr.contains('Invalid or expired token') ||
-                           (err is Map && err['message']?.toString().contains('Unauthorized') == true);
-                           
-    if (isUnauthorized && !_isRefreshing) {
-      _isRefreshing = true;
-      Logger.log('🔄 SOCKET: Token expired. Attempting to refresh...');
-      
+                           (err is Map &&
+                               (err['message']?.toString().contains('Unauthorized') == true ||
+                                err['message']?.toString().contains('Invalid or expired token') == true));
+
+    if (!isUnauthorized) return;
+
+    _isRefreshing = true;
+    // Alive check pause করো যাতে refresh এর মাঝে reconnect attempt না আসে
+    _statusTimer?.cancel();
+    _statusTimer = null;
+
+    Logger.log('🔄 SOCKET: Token expired — attempting refresh...');
+
+    try {
       if (onTokenRefreshRequested != null) {
         final newToken = await onTokenRefreshRequested!();
         if (newToken != null && newToken.isNotEmpty) {
-          Logger.log('✅ SOCKET: Token refreshed successfully. Reconnecting...');
-          // Force disconnect and reconnect with the new token
-          _socket?.disconnect();
-          connect(newToken);
+          Logger.log('✅ SOCKET: Token refreshed. Reconnecting with new token...');
+          _isRefreshing = false;     // reset আগে
+          _isConnecting = false;     // reset আগে
+          connect(newToken);         // fresh connect with new token
         } else {
-          Logger.log('❌ SOCKET: Token refresh failed.');
+          Logger.log('❌ SOCKET: Token refresh failed — no new token.');
+          _isRefreshing = false;
         }
+      } else {
+        Logger.log('❌ SOCKET: No token refresh callback registered.');
+        _isRefreshing = false;
       }
-      
+    } catch (e) {
+      Logger.log('❌ SOCKET: Token refresh threw error: $e');
       _isRefreshing = false;
     }
   }
@@ -194,6 +254,10 @@ class SocketService extends WidgetsBindingObserver {
   }
 
   void emit(String event, dynamic data) {
+    if (_socket?.connected != true) {
+      Logger.log('⚠️ SOCKET EMIT skipped (not connected): [$event]');
+      return;
+    }
     Logger.log('📤 SOCKET EMIT [$event]: $data');
     _socket?.emit(event, data);
   }
@@ -201,45 +265,55 @@ class SocketService extends WidgetsBindingObserver {
   Future<Map<String, dynamic>> emitWithAck(String event, dynamic data) {
     final completer = Completer<Map<String, dynamic>>();
     Logger.log('📤 SOCKET EMIT_ACK [$event]: $data');
+
     if (_socket == null || !_socket!.connected) {
-      completer.complete({'ok': false, 'error': {'code': 'NOT_CONNECTED', 'message': 'Socket is not connected'}});
+      completer.complete({
+        'ok': false,
+        'error': {'code': 'NOT_CONNECTED', 'message': 'Socket is not connected'},
+      });
       return completer.future;
     }
-    
+
     try {
-      // Use socket.io emitWithAck behavior
       _socket!.emitWithAck(event, data, ack: (dynamic response) {
-        Logger.log('📥 SOCKET ACK RESPONSE [$event]: $response');
+        Logger.log('📥 SOCKET ACK [$event]: $response');
         if (response is Map) {
           completer.complete(Map<String, dynamic>.from(response));
         } else {
-           // Fallback if server doesn't return the standard Ack<T> object
           completer.complete({'ok': true, 'data': response});
         }
       });
     } catch (e) {
-      completer.complete({'ok': false, 'error': {'code': 'EMIT_ERROR', 'message': e.toString()}});
+      completer.complete({
+        'ok': false,
+        'error': {'code': 'EMIT_ERROR', 'message': e.toString()},
+      });
     }
-    
+
     return completer.future;
   }
 
   void disconnect() {
-    Logger.log('🔌 SOCKET: Manual disconnect called.');
+    Logger.log('🔌 SOCKET: Manual disconnect.');
     _statusTimer?.cancel();
+    _statusTimer = null;
+    _isRefreshing = false;
+    _isConnecting = false;
     _socket?.disconnect();
+    _socket?.destroy();
+    _socket = null;
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (_socket?.connected != true) {
-        // connect('cached_token_here'); 
-      } else {
-        _onReconnected(); 
+      if (_socket?.connected != true && !_isRefreshing && !_isConnecting) {
+        Logger.log('📱 App resumed — socket not connected, attempting reconnect...');
+        _socket?.connect();
+      } else if (_socket?.connected == true) {
+        _onReconnected();
       }
-    } else if (state == AppLifecycleState.paused) {
-      // Optional: disconnect after a timer to save battery
     }
+    // paused: socket.io auto-manages reconnection
   }
 }

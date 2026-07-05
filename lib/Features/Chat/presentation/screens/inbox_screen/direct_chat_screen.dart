@@ -176,9 +176,30 @@ class _ReadyGate extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isReady = ref.watch(_chatReadyProvider);
     if (!isReady) return const SizedBox.expand();
-    return _MessageList(
-      scrollController: _scrollController,
+    return Column(
+      children: [
+        Expanded(
+          child: _MessageList(scrollController: _scrollController),
+        ),
+        // ⬇️ Typing bubble — ISOLATED: শুধু এই widget rebuild হবে typing change এ
+        // Message list কে touch করবে না
+        const _TypingIndicatorWidget(),
+      ],
     );
+  }
+}
+
+// ⬇️ Typing indicator — সম্পূর্ণ আলাদা widget
+// isTyping change হলে শুধু এটাই rebuild হয়, ListView rebuild হয় না
+class _TypingIndicatorWidget extends ConsumerWidget {
+  const _TypingIndicatorWidget();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final chatId = ref.watch(currentChatIdProvider);
+    final isTyping = chatId != null ? ref.watch(typingStatusProvider(chatId)) : false;
+    if (!isTyping) return const SizedBox.shrink();
+    return const _TypingBubble();
   }
 }
 
@@ -194,10 +215,9 @@ class _ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final chatId = ref.watch(currentChatIdProvider);
-    final isTyping = chatId != null ? ref.watch(typingStatusProvider(chatId)) : false;
 
-    final chats = ref.watch(chatProvider);
-    final currentChat = chats.firstWhere(
+    // শুধু stable data (name, image) watch করো — typing/online আলাদা widget-এ
+    final currentChat = ref.watch(chatProvider.select((chats) => chats.firstWhere(
       (c) => c.id == chatId,
       orElse: () => ChatModel(
         id: '',
@@ -208,7 +228,7 @@ class _ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
         unreadCount: 0,
         isOnline: false,
       ),
-    );
+    )));
 
     return AppBar(
       backgroundColor: activeTheme.backgroundColor,
@@ -226,7 +246,7 @@ class _ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
         onTap: () => context.push(AppPaths.chat_profile, extra: currentChat),
         child: Row(
           children: [
-            // RepaintBoundary: avatar image never repaints on message updates
+            // ✅ RepaintBoundary — avatar কখনো repaint হবে না typing/message-এ
             RepaintBoundary(
               child: Stack(
                 children: [
@@ -270,15 +290,14 @@ class _ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  // Status text
-                  Text(
-                    isTyping ? 'Typing...' : (currentChat.isOnline ? 'Online' : 'Offline'),
-                    style: TextStyle(
-                      color: isTyping || currentChat.isOnline ? _kGreen : Colors.grey.shade400,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                  // ✅ Status text আলাদা Consumer — শুধু এটাই rebuild হবে
+                  // typing বা isOnline পরিবর্তে name/avatar rebuild হবে না
+                  if (chatId != null)
+                    _AppBarStatusText(
+                      chatId: chatId,
+                      chatIsOnline: currentChat.isOnline,
+                      headerTextColor: headerTextColor,
                     ),
-                  ),
                 ],
               ),
             ),
@@ -308,6 +327,33 @@ class _ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
         ),
         const SizedBox(width: 8),
       ],
+    );
+  }
+}
+
+// ✅ Isolated status text — শুধু typing/online change এ rebuild হয়
+// Avatar বা name-এ কোনো প্রভাব নেই
+class _AppBarStatusText extends ConsumerWidget {
+  const _AppBarStatusText({
+    required this.chatId,
+    required this.chatIsOnline,
+    required this.headerTextColor,
+  });
+
+  final String chatId;
+  final bool chatIsOnline;
+  final Color headerTextColor;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isTyping = ref.watch(typingStatusProvider(chatId));
+    return Text(
+      isTyping ? 'Typing...' : (chatIsOnline ? 'Online' : 'Offline'),
+      style: TextStyle(
+        color: isTyping || chatIsOnline ? _kGreen : Colors.grey.shade400,
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+      ),
     );
   }
 }
@@ -348,13 +394,11 @@ class _MessageListView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    debugPrint('🟡 MessageListView build');
-    final count = ref.watch(directChatProvider.select((state) => state.messageIds.length));
-    
-    final chatId = ref.watch(currentChatIdProvider);
-    final isTyping = chatId != null ? ref.watch(typingStatusProvider(chatId)) : false;
-
-    final totalCount = count + 1 + (isTyping ? 1 : 0);
+    // ✅ messageIds list-ই watch করছি — শুধু নতুন ID যোগ হলেই rebuild
+    // isTyping এখানে নেই — typing bubble আলাদা widget-এ আছে
+    final messageIds = ref.watch(
+      directChatProvider.select((state) => state.messageIds),
+    );
 
     return ListView.builder(
       reverse: true,
@@ -364,17 +408,14 @@ class _MessageListView extends ConsumerWidget {
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       addAutomaticKeepAlives: false,
-      itemCount: totalCount,
+      addRepaintBoundaries: false, // প্রতিটা bubble নিজেই RepaintBoundary
+      itemCount: messageIds.length + 1, // +1 for date chip
       itemBuilder: (context, index) {
-        if (isTyping) {
-           if (index == 0) return const _TypingBubble();
-           final adjustedIndex = index - 1;
-           if (adjustedIndex == count) return const _DateChip(label: 'Today');
-           return _BubbleRowByIndex(index: adjustedIndex);
-        } else {
-           if (index == count) return const _DateChip(label: 'Today');
-           return _BubbleRowByIndex(index: index);
-        }
+        // Last item = Date chip
+        if (index == messageIds.length) return const _DateChip(label: 'Today');
+        final id = messageIds[index];
+        // ✅ ValueKey(id): Flutter same ID-এর widget reuse করে, rebuild করে না
+        return _BubbleById(key: ValueKey(id), id: id);
       },
     );
   }
@@ -410,27 +451,7 @@ class _TypingBubble extends ConsumerWidget {
   }
 }
 
-class _BubbleRowByIndex extends ConsumerWidget {
-  const _BubbleRowByIndex({
-    super.key,
-    required this.index,
-  });
-
-  final int index;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // প্রথমে শুধু id নাও — id same থাকলে rebuild নেই
-    final id = ref.watch(directChatProvider.select((state) {
-      if (index >= state.messageIds.length || index < 0) return null;
-      return state.messageIds[index];
-    }));
-
-    if (id == null) return const SizedBox.shrink();
-
-    return _BubbleById(id: id);
-  }
-}
+// _BubbleRowByIndex সরিয়ে দেওয়া হয়েছে — এখন messageIds থেকে সরাসরি ID pass হচ্ছে
 
 class _BubbleById extends ConsumerWidget {
   const _BubbleById({super.key, required this.id});
