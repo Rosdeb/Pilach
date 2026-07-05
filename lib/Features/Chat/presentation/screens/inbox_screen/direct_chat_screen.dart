@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app/core/constants/app_constants.dart';
 import 'package:app/Features/Me/presentation/providers/chat_theme_provider.dart';
@@ -633,11 +634,27 @@ class _AttachmentDrawerSection extends ConsumerWidget {
   }
 }
 
-class _AttachmentDrawer extends StatelessWidget {
+class _AttachmentDrawer extends ConsumerWidget {
   const _AttachmentDrawer();
 
+  Future<void> _pickAndSendImage(BuildContext context, WidgetRef ref, ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final XFile? file = await picker.pickImage(source: source, imageQuality: 85);
+      if (file != null) {
+        ref.read(showAttachmentMenuProvider.notifier).state = false;
+        final chatId = ref.read(currentChatIdProvider);
+        if (chatId != null) {
+          await ref.read(directChatProvider.notifier).sendImageAttachment(file.path);
+        }
+      }
+    } catch (e) {
+      print('Failed to pick image: $e');
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       height: 250,
       color: Theme.of(context).scaffoldBackgroundColor,
@@ -645,13 +662,23 @@ class _AttachmentDrawer extends StatelessWidget {
         crossAxisCount: 3,
         physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
-        children: const [
-          _AttachmentIcon(icon: Icons.insert_drive_file, color: Colors.indigo, label: 'Document'),
-          _AttachmentIcon(icon: Icons.camera_alt, color: Colors.pink, label: 'Camera'),
-          _AttachmentIcon(icon: Icons.image, color: Colors.purple, label: 'Gallery'),
-          _AttachmentIcon(icon: Icons.headset, color: Colors.orange, label: 'Audio'),
-          _AttachmentIcon(icon: Icons.location_on, color: Colors.green, label: 'Location'),
-          _AttachmentIcon(icon: Icons.person, color: Colors.blue, label: 'Contact'),
+        children: [
+          const _AttachmentIcon(icon: Icons.insert_drive_file, color: Colors.indigo, label: 'Document'),
+          _AttachmentIcon(
+            icon: Icons.camera_alt,
+            color: Colors.pink,
+            label: 'Camera',
+            onTap: () => _pickAndSendImage(context, ref, ImageSource.camera),
+          ),
+          _AttachmentIcon(
+            icon: Icons.image,
+            color: Colors.purple,
+            label: 'Gallery',
+            onTap: () => _pickAndSendImage(context, ref, ImageSource.gallery),
+          ),
+          const _AttachmentIcon(icon: Icons.headset, color: Colors.orange, label: 'Audio'),
+          const _AttachmentIcon(icon: Icons.location_on, color: Colors.green, label: 'Location'),
+          const _AttachmentIcon(icon: Icons.person, color: Colors.blue, label: 'Contact'),
         ],
       ),
     );
@@ -659,26 +686,30 @@ class _AttachmentDrawer extends StatelessWidget {
 }
 
 class _AttachmentIcon extends StatelessWidget {
-  const _AttachmentIcon({required this.icon, required this.color, required this.label});
+  const _AttachmentIcon({required this.icon, required this.color, required this.label, this.onTap});
 
   final IconData icon;
   final Color color;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        CircleAvatar(
-          radius: 28,
-          backgroundColor: color,
-          child: Icon(icon, color: Colors.white, size: 28),
-        ),
-        const SizedBox(height: 8),
-        Text(label, style: const TextStyle(fontSize: 12)),
-      ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: color,
+            child: Icon(icon, color: Colors.white, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
     );
   }
 }

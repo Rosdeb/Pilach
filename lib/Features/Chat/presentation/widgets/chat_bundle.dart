@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:app/core/constants/app_constants.dart';
 import 'package:app/core/constants/asset_constants.dart';
+import '../../../../core/constants/api_constants.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -202,20 +204,55 @@ class _ChatBubbleState extends State<ChatBubble>
                                   ],
                                 ),
                               ] else ...[
-                                Text(
-                                  widget.message.text,
-                                  style: TextStyle(
-                                    color: widget.message.isMe
-                                        ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
-                                              ? Colors.black87
-                                              : Colors.white)
-                                        : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
-                                              ? Colors.black87
-                                              : Colors.white),
-                                    fontSize: 15,
-                                    height: 1.25,
+                                if (widget.message.mediaUrl != null && widget.message.mediaUrl!.isNotEmpty) ...[
+                                  Builder(
+                                    builder: (context) {
+                                      final rawUrl = widget.message.mediaUrl!;
+                                      final bool isLocalFile = File(rawUrl).existsSync();
+                                      final String networkUrl = (rawUrl.startsWith('http://') || rawUrl.startsWith('https://'))
+                                          ? rawUrl
+                                          : '${ApiConstants.baseUrl}/$rawUrl';
+
+                                      return Container(
+                                        constraints: const BoxConstraints(maxHeight: 250, maxWidth: 260),
+                                        margin: const EdgeInsets.only(bottom: 6.0),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(12),
+                                          child: isLocalFile
+                                              ? Image.file(
+                                                  File(rawUrl),
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 40),
+                                                )
+                                              : CachedNetworkImage(
+                                                  imageUrl: networkUrl,
+                                                  fit: BoxFit.cover,
+                                                  placeholder: (context, url) => const SizedBox(
+                                                    height: 120,
+                                                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                                  ),
+                                                  errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 40),
+                                                ),
+                                        ),
+                                      );
+                                    },
                                   ),
-                                ),
+                                ],
+                                if (widget.message.text.isNotEmpty)
+                                  Text(
+                                    widget.message.text,
+                                    style: TextStyle(
+                                      color: widget.message.isMe
+                                          ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
+                                                ? Colors.black87
+                                                : Colors.white)
+                                          : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
+                                                ? Colors.black87
+                                                : Colors.white),
+                                      fontSize: 15,
+                                      height: 1.25,
+                                    ),
+                                  ),
                               ],
                             ],
                           ),

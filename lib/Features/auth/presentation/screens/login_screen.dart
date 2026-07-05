@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zoom_tap_animation/zoom_tap_animation.dart';
@@ -17,6 +18,9 @@ import 'package:app/Features/auth/presentation/screens/two_factor_email_verify_s
 import 'package:app/Features/auth/presentation/screens/two_factor_sms_verify_screen.dart';
 import 'package:app/core/services/GoogleAuth/googleAuth.dart';
 
+final loginLoadingProvider = StateProvider.autoDispose<bool>((ref) => false);
+final googleLoginLoadingProvider = StateProvider.autoDispose<bool>((ref) => false);
+
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -28,7 +32,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isGoogleLogin = false;
 
   @override
   void dispose() {
@@ -53,13 +56,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    final result = await ref.read(authProvider.notifier).login(
-          _emailController.text,
-          _passwordController.text,
-        );
+    ref.read(loginLoadingProvider.notifier).state = true;
 
+    try {
+      final result = await ref.read(authProvider.notifier).login(
+            _emailController.text,
+            _passwordController.text,
+          );
 
-    if (mounted) {
+      if (!mounted) return;
+
       if (result == null) {
         final errorMsg = ref.read(authProvider).errorMessage ?? "Authentication failed";
         FloatingErrorBar.show(context, message: errorMsg);
@@ -103,23 +109,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             FloatingErrorBar.show(context, message: e.toString());
           }
         }
-      } else {
-        //FloatingSuccessBar.show(context, message: "Logged in successfully!");
-        print("Logged in successfully!");
+      }
+    } catch (e) {
+      if (mounted) {
+        FloatingErrorBar.show(context, message: "An error occurred during login.");
+      }
+    } finally {
+      if (mounted) {
+        ref.read(loginLoadingProvider.notifier).state = false;
       }
     }
   }
 
   void _handleGoogleLogin() async {
-    setState(() {
-      _isGoogleLogin = true;
-    });
+    ref.read(googleLoginLoadingProvider.notifier).state = true;
     try {
       final result = await GoogleSignInService.signInWithGoogle();
       if (result != null && mounted) {
         FloatingSuccessBar.show(context, message: "Google Login Successful!");
-        // TODO: Send token to your backend if needed, or update authProvider state
-        // yes obiously need for later but still now not needed.
       }
     } catch (e) {
       if (mounted) {
@@ -127,16 +134,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _isGoogleLogin = false;
-        });
+        ref.read(googleLoginLoadingProvider.notifier).state = false;
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -178,7 +182,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Center(
                     child: AppText(
                       "Sign in to stay connected with your friends",
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       fontSize: 13,
                       fontWeight: FontWeight.w400,
                       textAlign: TextAlign.center,
@@ -208,9 +212,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {
-                        // TODO: Add forgot password screen routing if needed
-                      },
+                      onPressed: () {},
                       child: AppText(
                         "Forgot Password?",
                         color: theme.colorScheme.primary,
@@ -222,42 +224,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Login Button
-                  ZoomTapAnimation(
-                    onTap: authState.status == AuthStatus.loading ? null : _handleLogin,
-                    child: Container(
-                      height: 56,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [theme.colorScheme.primary, theme.colorScheme.primary.withOpacity(0.8)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: theme.colorScheme.primary.withOpacity(0.2),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: authState.status == AuthStatus.loading
-                            ? const SizedBox(
-                                height: 24,
-                                width: 24,
-                                child: CupertinoActivityIndicator(color: Colors.white),
-                              )
-                            : const AppText(
-                                "Log In",
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                      ),
-                    ),
-                  ),
+                  // Login Button Component
+                  _LoginButton(onTap: _handleLogin),
 
                   const SizedBox(height: 30),
 
@@ -266,7 +234,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     children: [
                       Expanded(
                         child: Divider(
-                          color: theme.colorScheme.onSurface.withOpacity(0.08),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
                           thickness: 1,
                         ),
                       ),
@@ -274,14 +242,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: AppText(
                           "or sign in with",
-                          color: theme.colorScheme.onSurface.withOpacity(0.5),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                       Expanded(
                         child: Divider(
-                          color: theme.colorScheme.onSurface.withOpacity(0.08),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
                           thickness: 1,
                         ),
                       ),
@@ -294,43 +262,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Google
-                       ZoomTapAnimation(
-                          onTap: _isGoogleLogin ? null : _handleGoogleLogin,
-                          child: Container(
-                            height: 52,
-                            width: 52,
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surface,
-                              borderRadius: BorderRadius.circular(50),
-                              border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.08)),
-                            ),
-                            child: _isGoogleLogin
-                                ? CupertinoActivityIndicator(color: theme.colorScheme.onSurface)
-                                : Icon(Icons.g_mobiledata_rounded, color: theme.colorScheme.onSurface, size: 28),
-                          ),
-                        ),
+                      // Google Login Button Component
+                      _GoogleLoginButton(onTap: _handleGoogleLogin),
                       const SizedBox(width: 16),
                       // Apple
                       ZoomTapAnimation(
-                          onTap: () {
-                            if (Platform.isAndroid) {
-                              FloatingErrorBar.show(context, message: "Apple login is not enabled on Android phones.");
-                            } else if (Platform.isIOS) {
-                              // TODO: Add Apple login logic here
-                            }
-                          },
-                          child: Container(
-                            height: 52,
-                            width: 52,
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surface,
-                              borderRadius: BorderRadius.circular(50),
-                              border: Border.all(color: theme.colorScheme.onSurface.withValues(alpha:0.08)),
-                            ),
-                            child: Icon(Icons.apple_rounded, color: theme.colorScheme.onSurface, size: 22),
+                        onTap: () {
+                          if (Platform.isAndroid) {
+                            FloatingErrorBar.show(context, message: "Apple login is not enabled on Android phones.");
+                          }
+                        },
+                        child: Container(
+                          height: 52,
+                          width: 52,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface,
+                            borderRadius: BorderRadius.circular(50),
+                            border: Border.all(color: theme.colorScheme.onSurface.withValues(alpha: 0.08)),
                           ),
+                          child: Icon(Icons.apple_rounded, color: theme.colorScheme.onSurface, size: 22),
                         ),
+                      ),
                     ],
                   ),
 
@@ -342,7 +294,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     children: [
                       AppText(
                         "Don't have an account? ",
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
                       ),
@@ -363,6 +315,82 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LoginButton extends ConsumerWidget {
+  const _LoginButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isLoading = ref.watch(loginLoadingProvider);
+
+    return ZoomTapAnimation(
+      onTap: isLoading ? null : onTap,
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [theme.colorScheme.primary, theme.colorScheme.primary.withValues(alpha: 0.8)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: theme.colorScheme.primary.withValues(alpha: 0.2),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Center(
+          child: isLoading
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CupertinoActivityIndicator(color: Colors.white),
+                )
+              : const AppText(
+                  "Log In",
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GoogleLoginButton extends ConsumerWidget {
+  const _GoogleLoginButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isGoogleLoading = ref.watch(googleLoginLoadingProvider);
+
+    return ZoomTapAnimation(
+      onTap: isGoogleLoading ? null : onTap,
+      child: Container(
+        height: 52,
+        width: 52,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(50),
+          border: Border.all(color: theme.colorScheme.onSurface.withValues(alpha: 0.08)),
+        ),
+        child: isGoogleLoading
+            ? CupertinoActivityIndicator(color: theme.colorScheme.onSurface)
+            : Icon(Icons.g_mobiledata_rounded, color: theme.colorScheme.onSurface, size: 28),
       ),
     );
   }

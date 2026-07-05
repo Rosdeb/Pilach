@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:intl/intl.dart';
-import '../../Features/Chat/data/models/message_model.dart';
+import 'package:app/Features/Chat/data/models/message_model.dart';
 
 class MessageDto {
   final String id;
@@ -16,6 +16,8 @@ class MessageDto {
   final bool deleted;
   final String? replyToId;
   final String? reactionsJson;
+  final String? attachmentsJson;
+  final String? mediaUrl;
 
   MessageDto({
     required this.id,
@@ -31,9 +33,23 @@ class MessageDto {
     this.deleted = false,
     this.replyToId,
     this.reactionsJson,
+    this.attachmentsJson,
+    this.mediaUrl,
   });
 
   factory MessageDto.fromJson(Map<String, dynamic> json) {
+    String? extractedMediaUrl = json['mediaUrl'] as String?;
+    String? attachmentsStr;
+    if (json['attachments'] != null) {
+      attachmentsStr = jsonEncode(json['attachments']);
+      if (extractedMediaUrl == null && json['attachments'] is List && (json['attachments'] as List).isNotEmpty) {
+        final first = (json['attachments'] as List).first;
+        if (first is Map) {
+          extractedMediaUrl = first['url'] as String?;
+        }
+      }
+    }
+
     return MessageDto(
       id: json['id'] as String,
       clientMsgId: json['clientMsgId'] as String?,
@@ -48,6 +64,8 @@ class MessageDto {
       deleted: (json['isDeleted'] ?? json['deleted']) as bool? ?? false,
       replyToId: json['replyToId'] as String?,
       reactionsJson: json['reactions'] != null ? jsonEncode(json['reactions']) : null,
+      attachmentsJson: attachmentsStr,
+      mediaUrl: extractedMediaUrl,
     );
   }
 
@@ -66,6 +84,7 @@ class MessageDto {
       'deleted': deleted ? 1 : 0,
       'reply_to_id': replyToId,
       'reactions_json': reactionsJson,
+      'attachments_json': attachmentsJson ?? (mediaUrl != null ? jsonEncode([{'url': mediaUrl, 'type': type}]) : null),
     };
   }
 }
@@ -109,6 +128,28 @@ extension MessageSqliteMapper on Map<String, dynamic> {
       }
     }
 
+    String? mediaUrl;
+    if (this['attachments_json'] != null) {
+      try {
+        final decoded = jsonDecode(this['attachments_json']);
+        if (decoded is List && decoded.isNotEmpty && decoded.first is Map) {
+          mediaUrl = decoded.first['url'] as String?;
+        }
+      } catch (_) {}
+    }
+
+    final typeStr = (this['type'] as String?)?.toUpperCase() ?? 'TEXT';
+    MessageType msgType = MessageType.text;
+    if (typeStr == 'IMAGE') {
+      msgType = MessageType.image;
+    } else if (typeStr == 'VIDEO') {
+      msgType = MessageType.video;
+    } else if (typeStr == 'AUDIO') {
+      msgType = MessageType.audio;
+    } else if (typeStr == 'FILE') {
+      msgType = MessageType.file;
+    }
+
     final bool isDeleted = this['deleted'] == 1 || this['deleted'] == true || this['is_deleted'] == 1 || this['isDeleted'] == true;
 
     return MessageModel(
@@ -119,6 +160,8 @@ extension MessageSqliteMapper on Map<String, dynamic> {
       isMe: isMe,
       status: msgStatus,
       senderId: senderId,
+      type: msgType,
+      mediaUrl: mediaUrl,
       isDeleted: isDeleted,
       reactions: parsedReactions,
       replyToMessageId: this['reply_to_id'] as String?,

@@ -5,7 +5,8 @@ import 'package:app/core/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:intl/intl.dart';
-import '../../data/models/message_model.dart';
+import '../../../../core/services/upload_service.dart';
+import 'package:app/Features/Chat/data/models/message_model.dart';
 import '../../../../core/database/daos/message_dao.dart';
 import '../../../../core/database/daos/outbox_dao.dart';
 import '../../../../core/models/message_dto.dart';
@@ -14,7 +15,6 @@ import '../../../../core/providers/api_provider.dart';
 import '../../../../core/services/socket_service.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import 'package:uuid/uuid.dart';
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ChatState {
@@ -59,9 +59,9 @@ final directChatProvider = StateNotifierProvider<DirectChatNotifier, ChatState>(
   final chatId = ref.watch(currentChatIdProvider);
   final chatRepo = ref.watch(chatRepositoryProvider);
   final socketService = ref.watch(socketServiceProvider);
+  final uploadService = ref.watch(uploadServiceProvider);
   final authState = ref.watch(authProvider);
-  // We pass authState.id as a fallback, but we will strictly fetch from SharedPreferences in init
-  return DirectChatNotifier(chatId, ref, chatRepo, socketService, authState.id);
+  return DirectChatNotifier(chatId, ref, chatRepo, socketService, uploadService, authState.id);
 });
 
 class DirectChatNotifier extends StateNotifier<ChatState> {
@@ -69,6 +69,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   final Ref _ref;
   final ChatRepository _chatRepository;
   final SocketService _socketService;
+  final UploadService _uploadService;
   final MessageDao _messageDao = MessageDao();
   final OutboxDao _outboxDao = OutboxDao();
   String _currentUserId; // Made mutable
@@ -87,7 +88,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   Timer? _typingDebounce;     
   bool _isTypingEmitted = false;
 
-  DirectChatNotifier(this.chatId, this._ref, this._chatRepository, this._socketService, String? initialUserId) 
+  DirectChatNotifier(this.chatId, this._ref, this._chatRepository, this._socketService, this._uploadService, String? initialUserId) 
     : _currentUserId = initialUserId ?? '', 
       super(ChatState.initial()) {
     if (chatId != null) {
@@ -145,7 +146,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
           
           await _messageDao.insertOrUpdateMessages([sqliteMap]);
           
-          // ✅ Directly insert/update in state without rebuilding all message objects from DB
+          // Directly insert/update in state without rebuilding all message objects from DB
           final newMsg = sqliteMap.toMessageModel(currentUserId);
           final newById = Map<String, MessageModel>.from(state.messagesById);
           List<String> newIds;
@@ -163,14 +164,14 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
           }
           
           state = state.copyWith(messageIds: newIds, messagesById: newById);
-          Logger.log('✅ Message added directly to state.');
+          Logger.log('Message added directly to state.');
           
           if (!newMsg.isMe && newMsg.seq != null) {
             markAsRead(newMsg.seq);
           }
         }
       } catch (e, st) {
-        Logger.log('❌ Error processing new message: $e\n$st', type: "error");
+        Logger.log('Error processing new message: $e\n$st', type: "error");
       }
     });
 
@@ -643,6 +644,80 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       });
     } catch (e) {
       Logger.log('Failed to pin message: $e');
+    }
+  }
+
+  Future<void> sendImageAttachment(String filePath, {String? caption}) async {
+    if (chatId == null) return;
+    try {
+      final clientMsgId = const Uuid().v4();
+      final tempId = 'temp_$clientMsgId';
+      final formattedTime = DateFormat('hh:mm a').format(DateTime.now());
+
+      // 1. Optimistic insertion into UI
+      final optimisticMsg = MessageModel(
+        id: tempId,
+        text: caption ?? '',
+        time: formattedTime,
+        timestamp: DateTime.now(),
+        isMe: true,
+        type: MessageType.image,
+        mediaUrl: filePath,
+        status: MessageStatus.sending,
+      );
+
+      final newById = Map<String, MessageModel>.from(state.messagesById);
+      newById[tempId] = optimisticMsg;
+      final newIds = [tempId, ...state.messageIds];
+      state = state.copyWith(messageIds: newIds, messagesById: newById);
+
+      // 2. Upload file via presigned S3 URL
+      final uploadResult = await _uploadService.uploadMediaFile(
+        filePath: filePath,
+        purpose: 'message',
+      );
+
+      final String objectKey = uploadResult['key'] ?? '';
+      final String contentType = uploadResult['contentType'] ?? 'image/jpeg';
+      final String fileName = uploadResult['fileName'] ?? 'image.jpg';
+
+      // 3. Construct attachment payload (without clientMsgId to pass server validation)
+      final Map<String, dynamic> attachmentObj = {
+        'type': 'IMAGE',
+        'url': objectKey,
+        'mimeType': contentType,
+        'fileName': fileName,
+      };
+
+      final payload = {
+        'conversationId': chatId,
+        'type': 'IMAGE',
+        'text': caption ?? '',
+        'attachments': [attachmentObj],
+      };
+
+      // Save to outbox
+      await _outboxDao.insertOutboxItem({
+        'client_msg_id': clientMsgId,
+        'conversation_id': chatId!,
+        'action': 'SEND_MESSAGE',
+        'payload_json': jsonEncode(payload),
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      final response = await _socketService.emitWithAck('message:send', payload);
+      if (response['ok'] == true) {
+        await _outboxDao.deleteOutboxItem(clientMsgId);
+      } else {
+        final errCode = (response['error'] as Map?)?['code'];
+        Logger.log('Server rejected image message: ${response['error']}');
+        if (errCode == 'VALIDATION_ERROR') {
+          await _outboxDao.deleteOutboxItem(clientMsgId);
+        }
+      }
+      Logger.log('🚀 Image attachment message sent successfully with key $objectKey');
+    } catch (e) {
+      Logger.log('❌ Failed to upload and send image attachment: $e');
     }
   }
 
