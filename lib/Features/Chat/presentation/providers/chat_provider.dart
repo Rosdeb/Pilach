@@ -8,6 +8,7 @@ import '../../../../core/database/daos/chat_dao.dart';
 import '../../../../core/models/chat_dto.dart';
 import '../../../../core/services/socket_service.dart';
 import 'dart:async';
+import 'dart:isolate';
 
 final chatProvider = StateNotifierProvider<ChatNotifier, List<ChatModel>>((ref) {
   final chatRepo = ref.watch(chatRepositoryProvider);
@@ -45,8 +46,6 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     if (!mounted) return;
     bool matched = false;
     state = state.map((chat) {
-      // chat.userId = other person's user ID (private chat)
-      // chat.id = conversation ID — never matches a userId!
       if (chat.userId == userId) {
         matched = true;
         return chat.copyWith(isOnline: isOnline);
@@ -73,12 +72,14 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
 
   Future<void> loadFromDb() async {
     final chatRows = await _chatDao.getAllChats();
-    final models = chatRows.map((row) => row.toChatModel()).toList();
+    final models = await Isolate.run(() {
+      final list = chatRows.map((row) => row.toChatModel()).toList();
+      final pinned = list.where((chat) => chat.isPinned).toList();
+      final unpinned = list.where((chat) => !chat.isPinned).toList();
+      return [...pinned, ...unpinned];
+    });
     
-    // Sort pinned to top
-    final pinned = models.where((chat) => chat.isPinned).toList();
-    final unpinned = models.where((chat) => !chat.isPinned).toList();
-    state = [...pinned, ...unpinned];
+    state = models;
   }
 
   Future<void> fetchFromServer({bool isManualRefresh = false}) async {
@@ -94,17 +95,18 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         final List<dynamic> data = responseData['data'];
         print('📋 Total conversations from API: ${data.length}');
 
-        final List<Map<String, dynamic>> sqliteRows = [];
-        for (final item in data) {
-          try {
-            final dto = ChatDto.fromJson(item as Map<String, dynamic>);
-            final sqliteMap = dto.toSqliteMap();
-            print('💾 Saving chat: id=${sqliteMap['id']}, title=${sqliteMap['title']}, avatar=${sqliteMap['avatar_url']}, otherUserId=${sqliteMap['other_user_id']}');
-            sqliteRows.add(sqliteMap);
-          } catch (e, st) {
-            print('❌ Failed to parse chat item: $e\n$st\nItem: $item');
+        final List<Map<String, dynamic>> sqliteRows = await Isolate.run(() {
+          final rows = <Map<String, dynamic>>[];
+          for (final item in data) {
+            try {
+              final dto = ChatDto.fromJson(item as Map<String, dynamic>);
+              rows.add(dto.toSqliteMap());
+            } catch (e) {
+              // Ignore unparseable item
+            }
           }
-        }
+          return rows;
+        });
 
         await _chatDao.insertOrUpdateChats(sqliteRows);
         print('✅ Saved ${sqliteRows.length} chats to SQLite');
@@ -112,7 +114,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         await loadFromDb();
         print('✅ Loaded ${state.length} chats from DB → UI');
       } else {
-        print('⚠️ API response not success or data is null: success=${responseData['success']}, data=${responseData['data']}');
+        print('⚠️ API response not success or data is null');
       }
     } catch (e, st) {
       print('❌ Failed to fetch chats from server: $e\n$st');

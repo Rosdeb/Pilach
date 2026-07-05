@@ -109,6 +109,8 @@ extension MessageSqliteMapper on Map<String, dynamic> {
       }
     }
 
+    final bool isDeleted = this['deleted'] == 1 || this['deleted'] == true || this['is_deleted'] == 1 || this['isDeleted'] == true;
+
     return MessageModel(
       id: this['id'] as String,
       text: this['text'] ?? '',
@@ -117,8 +119,10 @@ extension MessageSqliteMapper on Map<String, dynamic> {
       isMe: isMe,
       status: msgStatus,
       senderId: senderId,
+      isDeleted: isDeleted,
       reactions: parsedReactions,
       replyToMessageId: this['reply_to_id'] as String?,
+      seq: this['seq'] as int?,
     );
   }
 }

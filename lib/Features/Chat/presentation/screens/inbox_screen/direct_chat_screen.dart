@@ -97,40 +97,66 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
         headerTextColor: headerTextColor,
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: _ReadyGate(
-                scrollController: _scrollController,
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          child: Column(
+            children: [
+              Expanded(
+                child: _ReadyGate(
+                  scrollController: _scrollController,
+                ),
               ),
-            ),
-            const _ReplyPreviewBar(),
-            _ComposerBar(
-              messageController: _messageController,
-              focusNode: _focusNode,
-              activeTheme: activeTheme,
-              onSend: _sendMessage,
-              onAttach: () {
-                final current = ref.read(showAttachmentMenuProvider);
-                if (current) {
-                  ref.read(showAttachmentMenuProvider.notifier).state = false;
-                  _focusNode.requestFocus();
-                } else {
-                  FocusScope.of(context).unfocus();   // ← এখানে change
-                  ref.read(showAttachmentMenuProvider.notifier).state = true;
-                }
-              },
-            ),
-            const _AttachmentDrawerSection(),
+              const _ReplyPreviewBar(),
+              _ComposerBar(
+                messageController: _messageController,
+                focusNode: _focusNode,
+                activeTheme: activeTheme,
+                onSend: _sendMessage,
+                onAttach: () async {
+                  final current = ref.read(showAttachmentMenuProvider);
+                  if (current) {
+                    ref.read(showAttachmentMenuProvider.notifier).state = false;
+                    _focusNode.requestFocus();
+                  } else {
+                    final wasKeyboardOpen = _focusNode.hasFocus;
+                    FocusScope.of(context).unfocus();
 
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 100),
-              height: MediaQuery.of(context).viewInsets.bottom,
-            ),
+                    if (wasKeyboardOpen) {
+                      await Future.delayed(const Duration(milliseconds: 260));
+                      if (!mounted) return;
+                    }
 
-          ],
+                    ref.read(showAttachmentMenuProvider.notifier).state = true;
+                  }
+                },
+              ),
+              const _AttachmentDrawerSection(),
+
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+}
+
+class _AttachmentDrawerOverlay extends ConsumerWidget {
+  const _AttachmentDrawerOverlay();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final show = ref.watch(showAttachmentMenuProvider);
+
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      left: 0,
+      right: 0,
+      bottom: show ? 0 : -260,
+      child: const _AttachmentDrawer(),
     );
   }
 }

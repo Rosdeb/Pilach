@@ -28,6 +28,7 @@ class MessageModel {
   final String? pinnedAt;
   final String? replyToMessageId;
   final List<Map<String, dynamic>>? reactions;
+  final int? seq;
 
   MessageModel({
     required this.id,
@@ -47,6 +48,7 @@ class MessageModel {
     this.pinnedAt,
     this.replyToMessageId,
     this.reactions,
+    this.seq,
   });
 
   // Copy with method for immutable updates
@@ -68,6 +70,7 @@ class MessageModel {
     String? pinnedAt,
     String? replyToMessageId,
     List<Map<String, dynamic>>? reactions,
+    int? seq,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -87,6 +90,7 @@ class MessageModel {
       pinnedAt: pinnedAt ?? this.pinnedAt,
       replyToMessageId: replyToMessageId ?? this.replyToMessageId,
       reactions: reactions ?? this.reactions,
+      seq: seq ?? this.seq,
     );
   }
 
@@ -110,6 +114,7 @@ class MessageModel {
       'pinnedAt': pinnedAt,
       'replyToMessageId': replyToMessageId,
       'reactions': reactions,
+      'seq': seq,
     };
   }
 
@@ -117,10 +122,10 @@ class MessageModel {
   factory MessageModel.fromJson(Map<String, dynamic> json) {
     return MessageModel(
       id: json['id'] as String,
-      text: json['text'] as String,
-      time: json['time'] as String,
+      text: json['text'] as String? ?? '',
+      time: json['time'] as String? ?? '',
       timestamp: DateTime.parse(json['timestamp'] as String),
-      isMe: json['isMe'] as bool,
+      isMe: json['isMe'] as bool? ?? false,
       status: MessageStatus.values.firstWhere(
             (e) => e.name == json['status'],
         orElse: () => MessageStatus.sent,
@@ -141,12 +146,13 @@ class MessageModel {
       reactions: json['reactions'] != null 
           ? List<Map<String, dynamic>>.from(json['reactions']) 
           : null,
+      seq: json['seq'] as int?,
     );
   }
 
   @override
   String toString() {
-    return 'MessageModel(id: $id, text: $text, time: $time, status: $status)';
+    return 'MessageModel(id: $id, text: $text, time: $time, status: $status, seq: $seq)';
   }
 
   @override
@@ -162,6 +168,7 @@ class MessageModel {
            other.time == time &&
            other.timestamp == timestamp &&
            other.senderId == senderId &&
+           other.seq == seq &&
            _reactionsEqual(other.reactions, reactions);
   }
 
@@ -169,12 +176,11 @@ class MessageModel {
     if (a == null && b == null) return true;
     if (a == null || b == null) return false;
     if (a.length != b.length) return false;
-    // Simple deep compare for list of maps
     return a.toString() == b.toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, status, text, isDeleted, isEdited, isMe, time, timestamp, senderId, reactions?.toString());
+  int get hashCode => Object.hash(id, status, text, isDeleted, isEdited, isMe, time, timestamp, senderId, seq, reactions?.toString());
 }
 
 // Message types for future features

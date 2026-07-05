@@ -114,7 +114,7 @@ class _ChatBubbleState extends State<ChatBubble>
                     children: [
                       // Bubble Layer Canvas Block Box
                       GestureDetector(
-                        onLongPress: () => _showMessageOptions(context),
+                        onLongPress: widget.message.isDeleted ? null : () => _showMessageOptions(context),
                         child: Container(
                           decoration: BoxDecoration(
                             color: widget.message.isMe
@@ -167,20 +167,56 @@ class _ChatBubbleState extends State<ChatBubble>
                                   ),
                                 ),
                               ],
-                              Text(
-                                widget.message.text,
-                                style: TextStyle(
-                                  color: widget.message.isMe
-                                      ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
-                                            ? Colors.black87
-                                            : Colors.white)
-                                      : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
-                                            ? Colors.black87
-                                            : Colors.white),
-                                  fontSize: 15,
-                                  height: 1.25,
+                              if (widget.message.isDeleted) ...[
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.block,
+                                      size: 15,
+                                      color: widget.message.isMe
+                                          ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
+                                              ? Colors.black54
+                                              : Colors.white70)
+                                          : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
+                                              ? Colors.black54
+                                              : Colors.white70),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      widget.message.isMe
+                                          ? 'You deleted this message'
+                                          : 'This message was deleted',
+                                      style: TextStyle(
+                                        color: widget.message.isMe
+                                            ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
+                                                ? Colors.black54
+                                                : Colors.white70)
+                                            : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
+                                                ? Colors.black54
+                                                : Colors.white70),
+                                        fontSize: 14,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
+                              ] else ...[
+                                Text(
+                                  widget.message.text,
+                                  style: TextStyle(
+                                    color: widget.message.isMe
+                                        ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
+                                              ? Colors.black87
+                                              : Colors.white)
+                                        : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
+                                              ? Colors.black87
+                                              : Colors.white),
+                                    fontSize: 15,
+                                    height: 1.25,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
