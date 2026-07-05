@@ -80,6 +80,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   StreamSubscription? _messageUnpinnedSubscription;
   StreamSubscription? _messageReactionSubscription;
   StreamSubscription? _messageReadReceiptSubscription;
+  StreamSubscription? _messageDeliveredSubscription;
   StreamSubscription? _userActionSubscription;
   StreamSubscription? _reconnectSubscription;
   Timer? _typingResetTimer;   
@@ -271,10 +272,30 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       }
     });
 
+    _messageDeliveredSubscription = _socketService.onMessageDelivered.listen((data) {
+      Logger.log('🚚 DELIVERED RECEIPT received — data: $data');
+      if (data['conversationId'] == chatId || data['chatId'] == chatId) {
+        final int? deliveredSeq = (data['seq'] ?? data['lastDeliveredSeq']) as int?;
+        if (deliveredSeq != null && mounted) {
+          final newById = Map<String, MessageModel>.from(state.messagesById);
+          bool hasChanges = false;
+          newById.forEach((id, msg) {
+            if (msg.isMe && (msg.seq == null || msg.seq! <= deliveredSeq) && (msg.status == MessageStatus.sent || msg.status == MessageStatus.sending)) {
+              newById[id] = msg.copyWith(status: MessageStatus.delivered);
+              hasChanges = true;
+            }
+          });
+          if (hasChanges) {
+            state = state.copyWith(messagesById: newById);
+          }
+        }
+      }
+    });
+
     _userActionSubscription = _socketService.onUserTyping.listen((data) {
-      Logger.log('⌨️ TYPING EVENT received — data: $data, our chatId: $chatId');
+      Logger.log(' TYPING EVENT received — data: $data, our chatId: $chatId');
       if (data['chatId'] == chatId || data['conversationId'] == chatId) {
-        Logger.log('✅ TYPING matched our chat — showing indicator');
+        Logger.log('TYPING matched our chat — showing indicator');
         _ref.read(typingStatusProvider(chatId!).notifier).state = true;
         
         _typingResetTimer?.cancel();
@@ -282,7 +303,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
            if (mounted) _ref.read(typingStatusProvider(chatId!).notifier).state = false;
         });
       } else {
-        Logger.log('❌ TYPING chatId mismatch — ignored');
+        Logger.log('TYPING chatId mismatch — ignored');
       }
     });
 
@@ -360,6 +381,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     _messageUnpinnedSubscription?.cancel();
     _messageReactionSubscription?.cancel();
     _messageReadReceiptSubscription?.cancel();
+    _messageDeliveredSubscription?.cancel();
     _userActionSubscription?.cancel();
     _reconnectSubscription?.cancel();
     _typingResetTimer?.cancel();

@@ -250,7 +250,7 @@ class _ChatBubbleState extends State<ChatBubble>
                               widget.message.status != null) ...[
                             const SizedBox(width: 4),
                             Icon(
-                              widget.message.status == MessageStatus.seen
+                              (widget.message.status == MessageStatus.seen || widget.message.status == MessageStatus.delivered)
                                   ? Icons.done_all
                                   : Icons.done,
                               size: 14,
