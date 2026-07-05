@@ -221,9 +221,14 @@ class SocketService extends WidgetsBindingObserver {
     if (!isUnauthorized) return;
 
     _isRefreshing = true;
-    // Alive check pause করো যাতে refresh এর মাঝে reconnect attempt না আসে
+    // Alive check pause করো এবং পুরাতন expired socket disconnect করো
     _statusTimer?.cancel();
     _statusTimer = null;
+    try {
+      _socket?.disconnect();
+      _socket?.dispose();
+    } catch (_) {}
+    _socket = null;
 
     Logger.log('🔄 SOCKET: Token expired — attempting refresh...');
 

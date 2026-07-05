@@ -329,18 +329,43 @@ class _TypingIndicatorWidget extends ConsumerWidget {
   }
 }
 
-class _TypingBubble extends ConsumerWidget {
+class _TypingBubble extends ConsumerStatefulWidget {
   const _TypingBubble();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TypingBubble> createState() => _TypingBubbleState();
+}
+
+class _TypingBubbleState extends ConsumerState<_TypingBubble>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final activeTheme = ref.watch(chatThemeProvider);
     final isDarkBg = activeTheme.receivedMessageColor.computeLuminance() <= 0.5;
+    final dotColor = isDarkBg ? Colors.white70 : Colors.black54;
+
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4.0),
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        margin: const EdgeInsets.symmetric(vertical: 4.0,horizontal: 25),
+        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
         decoration: BoxDecoration(
           color: activeTheme.receivedMessageColor,
           borderRadius: const BorderRadius.only(
@@ -350,18 +375,51 @@ class _TypingBubble extends ConsumerWidget {
             bottomLeft: Radius.circular(4),
           ),
         ),
-        child: Text(
-          'Typing...',
-          style: TextStyle(
-            color: isDarkBg ? Colors.white70 : Colors.black54,
-            fontSize: 13,
-            fontStyle: FontStyle.italic,
+        child: SizedBox(
+          width: 32,
+          height: 12,
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(3, (i) {
+                  // Stagger each dot's phase by 0.2 of the cycle
+                  final t = (_controller.value - (i * 0.2)) % 1.0;
+                  // Bounce curve: 0 -> 1 -> 0 over the cycle, eased
+                  final bounce = t < 0.5
+                      ? Curves.easeOut.transform(t * 2)
+                      : Curves.easeIn.transform((1 - t) * 2);
+                  final scale = 0.6 + (bounce * 0.4);
+                  final opacity = 0.4 + (bounce * 0.6);
+
+                  return Padding(
+                    padding: EdgeInsets.only(right: i < 2 ? 5.0 : 0),
+                    child: Transform.scale(
+                      scale: scale,
+                      child: Opacity(
+                        opacity: opacity,
+                        child: Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: dotColor,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              );
+            },
           ),
         ),
       ),
     );
   }
 }
+
 
 class _DateChip extends StatelessWidget {
   const _DateChip({required this.label});
@@ -374,7 +432,7 @@ class _DateChip extends StatelessWidget {
     return Center(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        margin: const EdgeInsets.symmetric(vertical: 16),
+        margin: const EdgeInsets.symmetric(vertical: 16,),
         decoration: BoxDecoration(
           color: theme.dividerColor.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(10),

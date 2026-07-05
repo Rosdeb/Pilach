@@ -136,10 +136,17 @@ class AuthInterceptor extends Interceptor {
         String? newRefreshToken;
 
         final data = response.data;
-        if (data != null && data['tokens'] != null) {
-          newAccessToken = data['tokens']['access']['token'];
-          newRefreshToken = data['tokens']['refresh']['token'];
-        } else {
+        if (data is Map) {
+          newAccessToken = data['accessToken'] ?? data['token'] ?? data['access_token'] ?? data['data']?['accessToken'] ?? data['data']?['token'];
+          newRefreshToken = data['refreshToken'] ?? data['refresh_token'] ?? data['data']?['refreshToken'];
+
+          if (newAccessToken == null && data['tokens'] != null) {
+            newAccessToken = data['tokens']?['access']?['token'] ?? data['tokens']?['accessToken'];
+            newRefreshToken = data['tokens']?['refresh']?['token'] ?? data['tokens']?['refreshToken'];
+          }
+        }
+
+        if (newAccessToken == null || newAccessToken.isEmpty) {
           final cookies = response.headers.map['set-cookie'] ?? [];
           for (var cookie in cookies) {
             if (cookie.contains('access_token=')) {
