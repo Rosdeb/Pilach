@@ -49,6 +49,7 @@ class UploadService {
       contentType = 'image/gif';
     } else if (extension == 'webp') {
       contentType = 'image/webp';
+
     } else if (extension == 'mp4') {
       contentType = 'video/mp4';
     } else if (extension == 'pdf') {

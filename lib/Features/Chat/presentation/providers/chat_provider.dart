@@ -51,7 +51,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         // Save incoming message to local SQLite DB immediately in background
         try {
           if (messageData is Map<String, dynamic>) {
-            final dto = MessageDto.fromJson(messageData);
+             final dto = MessageDto.fromJson(messageData);
             await _messageDao.insertOrUpdateMessages([dto.toSqliteMap()]);
           }
         } catch (e) {

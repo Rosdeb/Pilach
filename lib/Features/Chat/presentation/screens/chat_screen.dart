@@ -34,9 +34,7 @@ class ChatScreen extends ConsumerWidget {
       body: Stack(
         children: [
           CustomScrollView(
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
-            ),
+            physics: const BouncingScrollPhysics(),
             slivers: [
               const _ChatSliverAppBar(),
 

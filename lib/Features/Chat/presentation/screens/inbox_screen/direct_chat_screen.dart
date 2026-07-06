@@ -238,9 +238,7 @@ class _MessageListView extends ConsumerWidget {
     return ListView.custom(
       reverse: true,
       controller: scrollController,
-      physics: const BouncingScrollPhysics(
-        parent: AlwaysScrollableScrollPhysics(),
-      ),
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       childrenDelegate: SliverChildBuilderDelegate(
         (context, index) {
