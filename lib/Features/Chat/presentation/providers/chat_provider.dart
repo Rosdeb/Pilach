@@ -11,9 +11,11 @@ import '../../../../core/database/daos/message_dao.dart';
 import '../../../../core/models/chat_dto.dart';
 import '../../../../core/services/socket_service.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'dart:isolate';
 
 import 'package:intl/intl.dart';
+import '../../../../core/database/daos/outbox_dao.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'direct_chat_provider.dart';
 
@@ -48,9 +50,41 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
 
         final messageData = data['message'] ?? data;
 
+        // If the broadcast is minimal, try to fill it from SQLite or Outbox
+        final String? msgId = (messageData['id'] ?? messageData['messageId'])?.toString();
+        if (msgId != null && (messageData['senderId'] == null || messageData['text'] == null)) {
+          final localMsg = await _messageDao.getMessageById(msgId);
+          if (localMsg != null) {
+            messageData['senderId'] ??= localMsg['sender_id'];
+            messageData['text'] ??= localMsg['text'];
+            messageData['type'] ??= localMsg['type'];
+            messageData['createdAt'] ??= localMsg['created_at'];
+          }
+        }
+        final clientMsgId = messageData['clientMsgId'] as String?;
+        if (messageData['text'] == null && (clientMsgId != null || messageData['senderId'] == null || messageData['senderId'] == _currentUserId)) {
+           final outboxDao = OutboxDao();
+           final pending = await outboxDao.getPendingMessages(conversationId);
+           if (pending.isNotEmpty) {
+             for (var item in pending) {
+               if (clientMsgId != null && item['client_msg_id'] == clientMsgId) {
+                 final payload = jsonDecode(item['payload_json']);
+                 messageData['text'] ??= payload['text'];
+                 messageData['type'] ??= payload['type'];
+                 break;
+               } else if (clientMsgId == null) {
+                 final payload = jsonDecode(item['payload_json']);
+                 messageData['text'] ??= payload['text'];
+                 messageData['type'] ??= payload['type'];
+                 break;
+               }
+             }
+           }
+        }
+
         // Save incoming message to local SQLite DB immediately in background
         try {
-          if (messageData is Map<String, dynamic>) {
+          if (messageData is Map<String, dynamic> && messageData['text'] != null) {
              final dto = MessageDto.fromJson(messageData);
             await _messageDao.insertOrUpdateMessages([dto.toSqliteMap()]);
           }

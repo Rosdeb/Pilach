@@ -11,6 +11,7 @@ class ChatModel {
   final bool isRead;
   final String? draft;
   final bool isPinned;
+  final String? lastActive;
 
   ChatModel({
     required this.id,
@@ -25,6 +26,7 @@ class ChatModel {
     this.isRead = false,
     this.draft,
     this.isPinned = false,
+    this.lastActive,
   });
 
   ChatModel copyWith({
@@ -40,6 +42,7 @@ class ChatModel {
     bool? isRead,
     String? draft,
     bool? isPinned,
+    String? lastActive,
   }) {
     return ChatModel(
       id: id ?? this.id,
@@ -54,6 +57,7 @@ class ChatModel {
       isRead: isRead ?? this.isRead,
       draft: draft ?? this.draft,
       isPinned: isPinned ?? this.isPinned,
+      lastActive: lastActive ?? this.lastActive,
     );
   }
 }

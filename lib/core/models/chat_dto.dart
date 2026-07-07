@@ -55,6 +55,8 @@ class ChatDto {
     String? displayTitle = title;
     String? displayAvatar = avatarUrl;
     String? otherUserId;
+    bool isOnline = false;
+    String? lastActive;
     
     // PRIVATE chat: other member-এর info নাও
     if (type == 'PRIVATE' && members != null && members!.isNotEmpty) {
@@ -69,6 +71,16 @@ class ChatDto {
           // Other member-এর name ও avatar দিয়ে override করো
           displayTitle = profile['name']?.toString() ?? displayTitle;
           displayAvatar = profile['avatarUrl']?.toString() ?? displayAvatar;
+        }
+
+        final userObj = firstMember['user'] as Map?;
+        if (userObj != null) {
+          final status = userObj['status'];
+          final isOnlineBool = userObj['isOnline'];
+          if (isOnlineBool == true || status == 'ONLINE') {
+            isOnline = true;
+          }
+          lastActive = userObj['lastActive']?.toString();
         }
       }
     }
@@ -98,6 +110,8 @@ class ChatDto {
       'last_message_at': lastMessageAt,
       'created_at': createdAt,
       'updated_at': updatedAt,
+      'is_online': isOnline ? 1 : 0,
+      'last_active_at': lastActive,
     };
   }
 }
@@ -173,10 +187,11 @@ extension ChatSqliteMapper on Map<String, dynamic> {
       image: resolvedAvatar,
       time: formattedTime,
       unreadCount: (this['unread_count'] as num?)?.toInt() ?? 0,
-      isOnline: false,
+      isOnline: (this['is_online'] as num?)?.toInt() == 1,
       isMuted: (this['is_muted'] as num?)?.toInt() == 1,
       isRead: ((this['unread_count'] as num?)?.toInt() ?? 0) == 0,
       isPinned: (this['is_pinned'] as num?)?.toInt() == 1,
+      lastActive: this['last_active_at'] as String?,
     );
   }
 }

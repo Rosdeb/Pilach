@@ -103,7 +103,9 @@ class SocketService extends WidgetsBindingObserver {
           'Cookie': 'access_token=$token',
         })
         .disableAutoConnect()          // manual connect করব
-        .disableReconnection()         // socket.io auto-reconnect বন্ধ — আমরা নিজে handle করব
+        .disableReconnection() // socket.io auto-reconnect বন্ধ — আমরা নিজে handle করব
+        .enableForceNew()
+        .enableMultiplex()
         .build());
 
     _socket!.onConnect((_) {

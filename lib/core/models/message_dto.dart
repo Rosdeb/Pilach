@@ -51,15 +51,15 @@ class MessageDto {
     }
 
     return MessageDto(
-      id: json['id'] as String,
+      id: (json['id'] ?? json['messageId'])?.toString() ?? '',
       clientMsgId: json['clientMsgId'] as String?,
-      conversationId: (json['chatId'] ?? json['conversationId']) as String,
+      conversationId: (json['chatId'] ?? json['conversationId'])?.toString() ?? '',
       seq: json['seq'] as int?,
-      senderId: json['senderId'] as String,
+      senderId: (json['senderId'] ?? (json['sender'] is Map ? (json['sender']['id'] ?? json['sender']['_id']) : null))?.toString() ?? '',
       type: json['type'] as String? ?? 'TEXT',
       text: json['text'] as String?,
       status: json['status'] as String? ?? 'sent',
-      createdAt: json['createdAt'] as String,
+      createdAt: json['createdAt']?.toString() ?? DateTime.now().toIso8601String(),
       editedAt: json['editedAt'] as String?,
       deleted: (json['isDeleted'] ?? json['deleted']) as bool? ?? false,
       replyToId: json['replyToId'] as String?,

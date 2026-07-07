@@ -63,21 +63,22 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
                         ? CachedNetworkImageProvider(currentChat.image)
                         : AssetImage(currentChat.image) as ImageProvider,
                   ),
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: _kGreen,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Theme.of(context).scaffoldBackgroundColor,
-                          width: 1.5,
+                  if (currentChat.isOnline)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: _kGreen,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Theme.of(context).scaffoldBackgroundColor,
+                            width: 1.5,
+                          ),
                         ),
+                        child: const SizedBox(width: 10, height: 10),
                       ),
-                      child: const SizedBox(width: 10, height: 10),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -101,6 +102,7 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
                     _AppBarStatusText(
                       chatId: chatId,
                       chatIsOnline: currentChat.isOnline,
+                      lastActive: currentChat.lastActive,
                       headerTextColor: headerTextColor,
                     ),
                 ],
@@ -141,18 +143,38 @@ class _AppBarStatusText extends ConsumerWidget {
   const _AppBarStatusText({
     required this.chatId,
     required this.chatIsOnline,
+    required this.lastActive,
     required this.headerTextColor,
   });
 
   final String chatId;
   final bool chatIsOnline;
+  final String? lastActive;
   final Color headerTextColor;
+
+  String _formatLastActive(String? isoString) {
+    if (isoString == null || isoString.isEmpty) return 'Offline';
+    final dt = DateTime.tryParse(isoString);
+    if (dt == null) return 'Offline';
+    
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'Last active: Just now';
+    if (diff.inMinutes < 60) return 'Last active: ${diff.inMinutes} mins ago';
+    if (diff.inHours < 24) return 'Last active: ${diff.inHours} hours ago';
+    if (diff.inDays < 7) return 'Last active: ${diff.inDays} days ago';
+    if (diff.inDays < 30) return 'Last active: ${diff.inDays ~/ 7} weeks ago';
+    return 'Last active: ${diff.inDays ~/ 30} months ago';
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isTyping = ref.watch(typingStatusProvider(chatId));
+    final statusText = isTyping 
+        ? 'Typing...' 
+        : (chatIsOnline ? 'Online' : _formatLastActive(lastActive));
+        
     return Text(
-      isTyping ? 'Typing...' : (chatIsOnline ? 'Online' : 'Offline'),
+      statusText,
       style: TextStyle(
         color: isTyping || chatIsOnline ? _kGreen : Colors.grey.shade400,
         fontSize: 12,

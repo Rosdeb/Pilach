@@ -20,7 +20,7 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -28,6 +28,10 @@ class AppDatabase {
         }
         if (oldVersion < 3) {
           await db.execute('ALTER TABLE messages ADD COLUMN reactions_json TEXT');
+        }
+        if (oldVersion < 4) {
+          await db.execute('ALTER TABLE chats ADD COLUMN is_online INTEGER DEFAULT 0');
+          await db.execute('ALTER TABLE chats ADD COLUMN last_active_at TEXT');
         }
       },
     );
@@ -49,7 +53,9 @@ class AppDatabase {
         created_at TEXT NOT NULL,
         updated_at TEXT,
         is_pinned INTEGER DEFAULT 0,
-        is_muted INTEGER DEFAULT 0
+        is_muted INTEGER DEFAULT 0,
+        is_online INTEGER DEFAULT 0,
+        last_active_at TEXT
       )
     ''');
 

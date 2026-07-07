@@ -71,6 +71,18 @@ class MessageDao {
     );
   }
 
+  Future<Map<String, dynamic>?> getMessageById(String messageId) async {
+    final database = await db;
+    final List<Map<String, dynamic>> results = await database.query(
+      'messages',
+      where: 'id = ?',
+      whereArgs: [messageId],
+      limit: 1,
+    );
+    if (results.isNotEmpty) return results.first;
+    return null;
+  }
+
   Future<List<Map<String, dynamic>>> getMessagesForChat(String conversationId, {int limit = 30, int offset = 0, int? beforeSeq}) async {
     final database = await db;
     String whereClause = 'conversation_id = ?';
