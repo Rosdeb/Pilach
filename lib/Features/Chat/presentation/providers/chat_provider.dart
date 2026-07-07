@@ -8,8 +8,10 @@ import '../../../../core/providers/api_provider.dart';
 import '../../data/models/chat_model.dart';
 import '../../../../core/database/daos/chat_dao.dart';
 import '../../../../core/database/daos/message_dao.dart';
+import '../../../../core/database/daos/outbox_dao.dart';
 import '../../../../core/models/chat_dto.dart';
 import '../../../../core/services/socket_service.dart';
+import 'dart:convert';
 import 'dart:async';
 import 'dart:isolate';
 
@@ -27,6 +29,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
   final Ref _ref;
   final ChatDao _chatDao = ChatDao();
   final MessageDao _messageDao = MessageDao();
+  final OutboxDao _outboxDao = OutboxDao();
   final ChatRepository _chatRepository;
   final SocketService _socketService;
   StreamSubscription? _onlineSub;
@@ -46,14 +49,39 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         final conversationId = (data['conversationId'] ?? data['chatId'])?.toString();
         if (conversationId == null) return;
 
-        final messageData = data['message'] ?? data;
+        Map<String, dynamic> messageData = Map<String, dynamic>.from(data['message'] is Map ? data['message'] : data);
+        messageData['conversationId'] ??= conversationId;
+        messageData['chatId'] ??= conversationId;
+
+        // If the broadcast event is minimal (confirmation of our sent message),
+        // fetch the full details from local SQLite database if we already saved it.
+        final String? msgId = messageData['id']?.toString() ?? messageData['messageId']?.toString();
+        if (msgId != null && (messageData['senderId'] == null || messageData['text'] == null || messageData['senderId'] == '')) {
+          final localMsg = await _messageDao.getMessageById(msgId);
+          if (localMsg != null) {
+            messageData['senderId'] ??= localMsg['sender_id'];
+            messageData['text'] ??= localMsg['text'];
+            messageData['type'] ??= localMsg['type'];
+            messageData['createdAt'] ??= localMsg['created_at'];
+            messageData['status'] ??= localMsg['status'];
+            messageData['clientMsgId'] ??= localMsg['client_msg_id'];
+          } else {
+            // Check outbox fallback
+            final pending = await _outboxDao.getPendingMessages(conversationId);
+            if (pending.isNotEmpty) {
+              final payload = jsonDecode(pending.last['payload_json']);
+              messageData['text'] ??= payload['text'];
+              messageData['senderId'] ??= _currentUserId;
+              messageData['type'] ??= payload['type'] ?? 'TEXT';
+              messageData['createdAt'] ??= pending.last['created_at'];
+            }
+          }
+        }
 
         // Save incoming message to local SQLite DB immediately in background
         try {
-          if (messageData is Map<String, dynamic>) {
-             final dto = MessageDto.fromJson(messageData);
-            await _messageDao.insertOrUpdateMessages([dto.toSqliteMap()]);
-          }
+          final dto = MessageDto.fromJson(messageData);
+          await _messageDao.insertOrUpdateMessages([dto.toSqliteMap()]);
         } catch (e) {
           Logger.log('Failed to save background message to DB: $e');
         }
