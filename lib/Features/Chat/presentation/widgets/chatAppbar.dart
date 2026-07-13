@@ -10,7 +10,7 @@ import '../providers/chat_provider.dart';
 import '../providers/direct_chat_provider.dart';
 
 const String kAvatarUrl = 'https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp';
-const Color _kGreen = Color(0xFF34C759);
+const Color _kGreen = Color(0xFF082DE3);
 
 
 class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {

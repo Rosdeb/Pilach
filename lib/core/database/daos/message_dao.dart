@@ -147,4 +147,15 @@ class MessageDao {
       whereArgs: [id, id],
     );
   }
+
+  Future<Map<String, dynamic>?> getMessageById(String id) async {
+    final database = await db;
+    final results = await database.query(
+      'messages',
+      where: 'id = ? OR client_msg_id = ?',
+      whereArgs: [id, id],
+      limit: 1,
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
 }

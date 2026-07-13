@@ -82,6 +82,10 @@ class _ChatBubbleState extends State<ChatBubble>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasImage = widget.message.mediaUrl != null &&
+        widget.message.mediaUrl!.isNotEmpty &&
+        !widget.message.isDeleted;
+
     return FadeTransition(
       opacity: fade,
       child: SlideTransition(
@@ -118,6 +122,7 @@ class _ChatBubbleState extends State<ChatBubble>
                       GestureDetector(
                         onLongPress: widget.message.isDeleted ? null : () => _showMessageOptions(context),
                         child: Container(
+                          clipBehavior: Clip.antiAlias,
                           decoration: BoxDecoration(
                             color: widget.message.isMe
                                 ? widget.activeTheme.sentMessageColor
@@ -140,56 +145,53 @@ class _ChatBubbleState extends State<ChatBubble>
                               ),
                             ],
                           ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14.0,
-                            vertical: 10.0,
-                          ),
+                          padding: hasImage
+                              ? EdgeInsets.zero
+                              : const EdgeInsets.symmetric(
+                                  horizontal: 14.0,
+                                  vertical: 10.0,
+                                ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               if (widget.repliedMessage != null) ...[
-                                Container(
-                                  margin: const EdgeInsets.only(bottom: 6.0),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border(left: BorderSide(color: widget.activeTheme.accentColor ?? Colors.green, width: 3)),
-                                  ),
-                                  child: Text(
-                                    widget.repliedMessage!.text,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: widget.message.isMe 
-                                        ? Colors.white.withOpacity(0.9) 
-                                        : Colors.black.withOpacity(0.7),
-                                      fontSize: 13,
+                                Padding(
+                                  padding: hasImage
+                                      ? const EdgeInsets.only(left: 14.0, right: 14.0, top: 10.0, bottom: 4.0)
+                                      : EdgeInsets.zero,
+                                  child: Container(
+                                    margin: const EdgeInsets.only(bottom: 6.0),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border(left: BorderSide(color: widget.activeTheme.accentColor ?? Colors.green, width: 3)),
+                                    ),
+                                    child: Text(
+                                      widget.repliedMessage!.text,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: widget.message.isMe 
+                                          ? Colors.white.withOpacity(0.9) 
+                                          : Colors.black.withOpacity(0.7),
+                                        fontSize: 13,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ],
                               if (widget.message.isDeleted) ...[
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.block,
-                                      size: 15,
-                                      color: widget.message.isMe
-                                          ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
-                                              ? Colors.black54
-                                              : Colors.white70)
-                                          : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
-                                              ? Colors.black54
-                                              : Colors.white70),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      widget.message.isMe
-                                          ? 'You deleted this message'
-                                          : 'This message was deleted',
-                                      style: TextStyle(
+                                Padding(
+                                  padding: hasImage
+                                      ? const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0)
+                                      : EdgeInsets.zero,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.block,
+                                        size: 15,
                                         color: widget.message.isMe
                                             ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
                                                 ? Colors.black54
@@ -197,14 +199,29 @@ class _ChatBubbleState extends State<ChatBubble>
                                             : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
                                                 ? Colors.black54
                                                 : Colors.white70),
-                                        fontSize: 14,
-                                        fontStyle: FontStyle.italic,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        widget.message.isMe
+                                            ? 'You deleted this message'
+                                            : 'This message was deleted',
+                                        style: TextStyle(
+                                          color: widget.message.isMe
+                                              ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
+                                                  ? Colors.black54
+                                                  : Colors.white70)
+                                              : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
+                                                  ? Colors.black54
+                                                  : Colors.white70),
+                                          fontSize: 14,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ] else ...[
-                                if (widget.message.mediaUrl != null && widget.message.mediaUrl!.isNotEmpty) ...[
+                                if (hasImage) ...[
                                   Builder(
                                     builder: (context) {
                                       final rawUrl = widget.message.mediaUrl!;
@@ -223,27 +240,38 @@ class _ChatBubbleState extends State<ChatBubble>
                                         ),
                                         child: Hero(
                                           tag: heroTag,
-                                          child: Container(
-                                            constraints: const BoxConstraints(maxHeight: 250, maxWidth: 260),
-                                            margin: const EdgeInsets.only(bottom: 6.0),
-                                            child: ClipRRect(
-                                              borderRadius: BorderRadius.circular(12),
-                                              child: isLocalFile
-                                                  ? Image.file(
-                                                      File(rawUrl),
-                                                      fit: BoxFit.cover,
-                                                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 40),
-                                                    )
-                                                  : CachedNetworkImage(
-                                                      imageUrl: networkUrl,
-                                                      fit: BoxFit.cover,
-                                                      placeholder: (context, url) => const SizedBox(
-                                                        height: 120,
-                                                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                                                      ),
-                                                      errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 40),
+                                          child: SizedBox(
+                                            width: 250.0,
+                                            height: 190.0,
+                                            child: isLocalFile
+                                                ? Image.file(
+                                                    File(rawUrl),
+                                                    width: 250.0,
+                                                    height: 190.0,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (context, error, stackTrace) => Container(
+                                                      color: Theme.of(context).brightness == Brightness.dark
+                                                          ? Colors.grey[850]
+                                                          : Colors.grey[200],
+                                                      child: const Icon(Icons.broken_image, size: 40),
                                                     ),
-                                            ),
+                                                  )
+                                                : CachedNetworkImage(
+                                                    imageUrl: networkUrl,
+                                                    width: 250.0,
+                                                    height: 190.0,
+                                                    fit: BoxFit.cover,
+                                                    placeholder: (context, url) => const _ShimmerPlaceholder(
+                                                      width: 250.0,
+                                                      height: 190.0,
+                                                    ),
+                                                    errorWidget: (context, url, error) => Container(
+                                                      color: Theme.of(context).brightness == Brightness.dark
+                                                          ? Colors.grey[850]
+                                                          : Colors.grey[200],
+                                                      child: const Icon(Icons.broken_image, size: 40),
+                                                    ),
+                                                  ),
                                           ),
                                         ),
                                       );
@@ -251,18 +279,23 @@ class _ChatBubbleState extends State<ChatBubble>
                                   ),
                                 ],
                                 if (widget.message.text.isNotEmpty)
-                                  Text(
-                                    widget.message.text,
-                                    style: TextStyle(
-                                      color: widget.message.isMe
-                                          ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
-                                                ? Colors.black87
-                                                : Colors.white)
-                                          : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
-                                                ? Colors.black87
-                                                : Colors.white),
-                                      fontSize: 15,
-                                      height: 1.25,
+                                  Padding(
+                                    padding: hasImage
+                                        ? const EdgeInsets.only(left: 14.0, right: 14.0, bottom: 10.0, top: 8.0)
+                                        : EdgeInsets.zero,
+                                    child: Text(
+                                      widget.message.text,
+                                      style: TextStyle(
+                                        color: widget.message.isMe
+                                            ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
+                                                  ? Colors.black87
+                                                  : Colors.white)
+                                            : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
+                                                  ? Colors.black87
+                                                  : Colors.white),
+                                        fontSize: 15,
+                                        height: 1.25,
+                                      ),
                                     ),
                                   ),
                               ],
@@ -442,5 +475,91 @@ class _ChatBubbleState extends State<ChatBubble>
         );
       },
     );
+  }
+}
+
+class _ShimmerPlaceholder extends StatefulWidget {
+  final double width;
+  final double height;
+
+  const _ShimmerPlaceholder({
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  State<_ShimmerPlaceholder> createState() => _ShimmerPlaceholderState();
+}
+
+class _ShimmerPlaceholderState extends State<_ShimmerPlaceholder>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.grey[850]! : Colors.grey[300]!;
+    final highlightColor = isDark ? Colors.grey[800]! : Colors.grey[100]!;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                baseColor,
+                highlightColor,
+                baseColor,
+              ],
+              stops: const [0.3, 0.5, 0.7],
+              transform: _SlidingGradientTransform(slidePercent: _controller.value),
+            ),
+          ),
+          child: const Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white30),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SlidingGradientTransform extends GradientTransform {
+  const _SlidingGradientTransform({
+    required this.slidePercent,
+  });
+
+  final double slidePercent;
+
+  @override
+  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
+    return Matrix4.translationValues(bounds.width * (slidePercent - 0.5) * 2, 0.0, 0.0);
   }
 }

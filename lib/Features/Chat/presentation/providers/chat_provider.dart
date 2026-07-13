@@ -195,7 +195,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
 
   Future<void> updateLastMessage(String chatId, String message, String time, {bool bumpToTop = true}) async {
     if (!mounted) return;
-    
+
     bool found = false;
     final updatedList = state.map((c) {
       if (c.id == chatId) {
@@ -204,7 +204,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       }
       return c;
     }).toList();
-    
+
     if (found) {
       if (bumpToTop) {
         final target = updatedList.firstWhere((c) => c.id == chatId);
@@ -215,11 +215,11 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       } else {
         state = updatedList;
       }
-      
+
       await _chatDao.updateChatLastMessage(
-        chatId, 
-        message, 
-        DateTime.now().toIso8601String(), 
+        chatId,
+        message,
+        DateTime.now().toIso8601String(),
         updatedList.firstWhere((c) => c.id == chatId).unreadCount,
       );
     }

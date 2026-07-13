@@ -17,6 +17,7 @@ import 'chat_slide_controller.dart';
 const Color _kWaGreen    = Color(0xFF25D366);
 const Color _kBlueTick   = Color(0xFF34B7F1);
 const Color _kDraftRed   = Color(0xFFE94235);
+const Color _kActiveBlue  = Color(0xFF007AFF);
 const _kMutedGrey        = Color(0xFF9E9E9E); // Grey.shade500 as const
 
 /// WhatsApp-style chat list tile with bidirectional swipe-to-reveal actions.
@@ -240,7 +241,7 @@ class _ChatTileContent extends ConsumerWidget {
               child: ChatAvatar(
                 imageUrl: chat.image,
                 isOnline: chat.isOnline,
-                onlineColor: _kWaGreen,
+                onlineColor: _kActiveBlue,
                 borderColor: bgColor,
               ),
             ),
