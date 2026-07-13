@@ -33,66 +33,67 @@ class ChatScreen extends ConsumerWidget {
       backgroundColor: theme.scaffoldBackgroundColor,
       body: Stack(
         children: [
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics()
+          RefreshIndicator(
+            onRefresh: () async {
+              await ref.read(chatProvider.notifier).fetchFromServer(isManualRefresh: true);
+            },
+            color: theme.colorScheme.primary,
+            backgroundColor: theme.cardColor,
+            strokeWidth: 3.0,
+            displacement: 80.0,
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics()
+              ),
+              slivers: [
+                const _ChatSliverAppBar(),
+
+                // ── Search bar ────────────────────────────────────────────────
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 2),
+                    child: IOSSearchBar(
+                      controller: _searchController,
+                      readOnly: true,
+                      onTap: () => context.push(AppPaths.chat_search),
+                    ),
+                  ),
+                ),
+
+                // ── Chat list ─────────────────────────────────────────────────
+                if (isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Text(
+                        'No conversations yet',
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) => _ChatTileRow(
+                          key: ValueKey(ref.read(chatProvider)[index].id),
+                          index: index,
+                          isLast: index == count - 1,
+                        ),
+                        childCount: count,
+                        addAutomaticKeepAlives: false,
+                      ),
+                    ),
+                  ),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 100)),
+              ],
             ),
-            slivers: [
-              const _ChatSliverAppBar(),
-
-              // ── Pull to Refresh ───────────────────────────────────────────
-              CupertinoSliverRefreshControl(
-                onRefresh: () async {
-                  await ref.read(chatProvider.notifier).fetchFromServer(isManualRefresh: true);
-                },
-              ),
-
-              // ── Search bar ────────────────────────────────────────────────
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 2),
-                  child: IOSSearchBar(
-                    controller: _searchController,
-                    readOnly: true,
-                    onTap: () => context.push(AppPaths.chat_search),
-                  ),
-                ),
-              ),
-
-              // ── Chat list ─────────────────────────────────────────────────
-              if (isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: Text(
-                      'No conversations yet',
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
-                      ),
-                    ),
-                  ),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) => _ChatTileRow(
-                        key: ValueKey(ref.read(chatProvider)[index].id),
-                        index: index,
-                        isLast: index == count - 1,
-                      ),
-                      childCount: count,
-                      addAutomaticKeepAlives: false,
-
-                    ),
-                  ),
-                ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
-            ],
           ),
 
           Positioned(

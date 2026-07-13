@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
+import 'package:app/Features/Chat/presentation/providers/chat_provider.dart';
 import 'package:app/core/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -484,8 +485,14 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     // 1. Load instantly from local SQLite (Offline-first)
     await loadFromDb();
     
-    // 2. Fetch latest from server
-    await fetchMessagesFromServer();
+    // 2. Fetch latest from server if mismatched or missing
+    if (chatId != null) {
+      final isUpToDate = await _messageDao.isChatUpToDate(chatId!);
+      if (!isUpToDate) {
+        await fetchMessagesFromServer();
+      }
+    }
+    
     if (mounted && _ref.read(currentChatIdProvider) == chatId) {
       markAsRead();
     }
@@ -657,7 +664,18 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     state = state.copyWith(isLoadingMore: true);
     
     final nextPage = state.page + 1;
-    await fetchMessagesFromServer(page: nextPage);
+    final previousCount = state.messageIds.length;
+    
+    // First try to load the next page from local SQLite database
+    state = state.copyWith(page: nextPage);
+    await loadFromDb();
+    
+    if (!mounted) return;
+    
+    // If the local database didn't have enough messages for the next page, fetch from server
+    if (state.messageIds.length < nextPage * 30 && state.messageIds.length == previousCount) {
+      await fetchMessagesFromServer(page: nextPage);
+    }
     
     if (!mounted) return;
     state = state.copyWith(isLoadingMore: false);
@@ -726,6 +744,9 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     final newById = Map<String, MessageModel>.from(state.messagesById);
     newById[tempMsg.id!] = tempMsg;
     state = ChatState(messageIds: newIds, messagesById: newById);
+
+    // Update chat list immediately
+    _ref.read(chatProvider.notifier).updateLastMessage(chatId!, text, DateFormat('hh:mm a').format(now));
 
     // 2. Save to Outbox (Offline support)
     await _outboxDao.insertOutboxItem({
@@ -849,6 +870,9 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       newById[tempId] = optimisticMsg;
       final newIds = [tempId, ...state.messageIds];
       state = state.copyWith(messageIds: newIds, messagesById: newById);
+
+      // Update chat list immediately
+      _ref.read(chatProvider.notifier).updateLastMessage(chatId!, '📷 Photo', formattedTime);
 
       // 2. Upload file via presigned S3 URL
       final uploadResult = await _uploadService.uploadMediaFile(

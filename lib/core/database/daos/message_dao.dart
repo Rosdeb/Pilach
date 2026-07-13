@@ -13,6 +13,18 @@ class MessageDao {
     );
   }
 
+  Future<bool> isChatUpToDate(String chatId) async {
+    final database = await db;
+    final chatRes = await database.query('chats', columns: ['last_message_seq'], where: 'id = ?', whereArgs: [chatId]);
+    if (chatRes.isEmpty) return false;
+    final lastSeqInChat = chatRes.first['last_message_seq'] as int? ?? 0;
+    
+    final msgRes = await database.rawQuery('SELECT MAX(seq) as max_seq FROM messages WHERE conversation_id = ?', [chatId]);
+    final maxSeqInMessages = msgRes.first['max_seq'] as int? ?? 0;
+    
+    return maxSeqInMessages >= lastSeqInChat && maxSeqInMessages > 0;
+  }
+
   Future<void> insertOrUpdateMessages(List<Map<String, dynamic>> messages) async {
     final database = await db;
     final batch = database.batch();

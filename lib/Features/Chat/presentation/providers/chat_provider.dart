@@ -93,15 +93,18 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         }
 
         final senderId = messageData['senderId']?.toString();
-        final text = messageData['text']?.toString() ?? '';
+        String? rawText = messageData['text']?.toString();
         final type = messageData['type']?.toString() ?? 'TEXT';
         final createdAtStr = messageData['createdAt']?.toString() ?? DateTime.now().toIso8601String();
 
-        String previewText = text;
-        if (type == 'IMAGE') previewText = '📷 Photo';
-        else if (type == 'VIDEO') previewText = '🎥 Video';
-        else if (type == 'AUDIO') previewText = '🎵 Audio';
-        else if (type == 'FILE') previewText = '📁 File';
+        String? previewText;
+        if (rawText != null && rawText.isNotEmpty) {
+          previewText = rawText;
+          if (type == 'IMAGE') previewText = '📷 Photo';
+          else if (type == 'VIDEO') previewText = '🎥 Video';
+          else if (type == 'AUDIO') previewText = '🎵 Audio';
+          else if (type == 'FILE') previewText = '📁 File';
+        }
 
         final currentChatId = _ref.read(currentChatIdProvider);
         final isCurrentlyOpen = currentChatId == conversationId;
@@ -112,6 +115,12 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         bool chatFound = false;
         final isIncoming = senderId != null && senderId.isNotEmpty && senderId != _currentUserId;
 
+        if (previewText == null && isIncoming) {
+          // If we couldn't resolve text for an incoming message, force fetch from server to get accurate preview
+          await fetchFromServer();
+          return;
+        }
+
         final updatedList = state.map((chat) {
           if (chat.id == conversationId) {
             chatFound = true;
@@ -120,7 +129,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
                 : (isCurrentlyOpen ? 0 : chat.unreadCount);
 
             return chat.copyWith(
-              message: previewText,
+              message: previewText ?? chat.message,
               time: formattedTime,
               unreadCount: newUnreadCount,
               isRead: newUnreadCount == 0,
@@ -139,7 +148,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
 
           await _chatDao.updateChatLastMessage(
             conversationId,
-            previewText,
+            previewText ?? target.message,
             createdAtStr,
             target.unreadCount,
           );
@@ -182,6 +191,38 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
   Future<void> clearUnreadCount(String id) async {
     state = state.map((c) => c.id == id ? c.copyWith(unreadCount: 0, isRead: true) : c).toList();
     await _chatDao.clearUnreadCount(id);
+  }
+
+  Future<void> updateLastMessage(String chatId, String message, String time, {bool bumpToTop = true}) async {
+    if (!mounted) return;
+    
+    bool found = false;
+    final updatedList = state.map((c) {
+      if (c.id == chatId) {
+        found = true;
+        return c.copyWith(message: message, time: time);
+      }
+      return c;
+    }).toList();
+    
+    if (found) {
+      if (bumpToTop) {
+        final target = updatedList.firstWhere((c) => c.id == chatId);
+        final rest = updatedList.where((c) => c.id != chatId).toList();
+        final pinned = [target, ...rest].where((c) => c.isPinned).toList();
+        final unpinned = [target, ...rest].where((c) => !c.isPinned).toList();
+        state = [...pinned, ...unpinned];
+      } else {
+        state = updatedList;
+      }
+      
+      await _chatDao.updateChatLastMessage(
+        chatId, 
+        message, 
+        DateTime.now().toIso8601String(), 
+        updatedList.firstWhere((c) => c.id == chatId).unreadCount,
+      );
+    }
   }
 
   @override
