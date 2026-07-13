@@ -190,6 +190,7 @@ class _ReadyGate extends ConsumerWidget {
     if (!isReady) return const SizedBox.expand();
     return Column(
       children: [
+        const _PinnedMessageBar(),
         Expanded(
           child: _MessageList(scrollController: _scrollController),
         ),
@@ -198,6 +199,83 @@ class _ReadyGate extends ConsumerWidget {
     );
   }
 }
+
+class _PinnedMessageBar extends ConsumerWidget {
+  const _PinnedMessageBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pinnedMessage = ref.watch(directChatProvider.select((state) {
+      try {
+        return state.messagesById.values.firstWhere((m) => m.isPinned == true);
+      } catch (_) {
+        return null;
+      }
+    }));
+
+    if (pinnedMessage == null) return const SizedBox.shrink();
+
+    final theme = ref.watch(chatThemeProvider);
+    final headerTextColor = ref.watch(_headerTextColorProvider);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.backgroundColor.withOpacity(0.95),
+        border: Border(bottom: BorderSide(color: headerTextColor.withOpacity(0.1))),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.blueAccent,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Pinned Message',
+                  style: TextStyle(
+                    color: Colors.blueAccent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  pinnedMessage.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: headerTextColor,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+               if (pinnedMessage.id != null) {
+                 ref.read(directChatProvider.notifier).pinMessage(pinnedMessage.id!, false);
+               }
+            },
+            child: Icon(Icons.close, size: 20, color: headerTextColor.withOpacity(0.6)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class _MessageList extends ConsumerWidget {
   const _MessageList({required this.scrollController});
@@ -494,7 +572,12 @@ class _ReplyPreviewBar extends ConsumerWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  replyTo.text,
+                  replyTo.text.isNotEmpty 
+                      ? replyTo.text 
+                      : (replyTo.type == MessageType.image ? '📷 Photo' 
+                          : (replyTo.type == MessageType.video ? '🎥 Video' 
+                          : (replyTo.type == MessageType.audio ? '🎵 Audio' 
+                          : '📁 Attachment'))),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

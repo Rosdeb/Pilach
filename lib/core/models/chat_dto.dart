@@ -51,7 +51,7 @@ class ChatDto {
   }
 
   // To save to SQLite
-  Map<String, dynamic> toSqliteMap() {
+  Map<String, dynamic> toSqliteMap([String? currentUserId]) {
     String? displayTitle = title;
     String? displayAvatar = avatarUrl;
     String? otherUserId;
@@ -60,20 +60,28 @@ class ChatDto {
     
     // PRIVATE chat: other member-এর info নাও
     if (type == 'PRIVATE' && members != null && members!.isNotEmpty) {
-      final firstMember = members!.first;
-      if (firstMember is Map) {
+      // Find the other user if currentUserId is provided
+      var otherMember = members!.first;
+      if (currentUserId != null) {
+        otherMember = members!.firstWhere(
+          (m) => (m is Map) && (m['userId'] == currentUserId || (m['user'] as Map?)?['id'] == currentUserId) ? false : true,
+          orElse: () => members!.first,
+        );
+      }
+      
+      if (otherMember is Map) {
         // API তে member-এ 'userId' নেই — 'user.id' বা অন্য field চেক করো
-        otherUserId = firstMember['userId'] as String?         // ভবিষ্যতে যদি আসে
-                   ?? (firstMember['user'] as Map?)?['id'] as String?; // user.id
+        otherUserId = otherMember['userId'] as String?         // ভবিষ্যতে যদি আসে
+                   ?? (otherMember['user'] as Map?)?['id'] as String?; // user.id
 
-        final profile = (firstMember['user'] as Map?)?['profile'] as Map?;
+        final profile = (otherMember['user'] as Map?)?['profile'] as Map?;
         if (profile != null) {
           // Other member-এর name ও avatar দিয়ে override করো
           displayTitle = profile['name']?.toString() ?? displayTitle;
           displayAvatar = profile['avatarUrl']?.toString() ?? displayAvatar;
         }
 
-        final userObj = firstMember['user'] as Map?;
+        final userObj = otherMember['user'] as Map?;
         if (userObj != null) {
           final status = userObj['status'];
           final isOnlineBool = userObj['isOnline'];
@@ -118,7 +126,7 @@ class ChatDto {
 
 extension ChatDtoMapper on ChatDto {
   /// Converts the backend DTO perfectly into the UI ChatModel
-  ChatModel toDomain() {
+  ChatModel toDomain([String? currentUserId]) {
     String formattedTime = '';
     if (lastMessageAt != null) {
       final dt = DateTime.tryParse(lastMessageAt!);
@@ -131,10 +139,18 @@ extension ChatDtoMapper on ChatDto {
     
     // Fallback for PRIVATE chats
     if (type == 'PRIVATE' && members != null && members!.isNotEmpty) {
-      final firstMember = members!.first;
-      if (firstMember is Map) {
-        otherUserId = firstMember['userId'] as String?;
-        final profile = (firstMember['user'] as Map?)?['profile'] as Map?;
+      var otherMember = members!.first;
+      if (currentUserId != null) {
+        otherMember = members!.firstWhere(
+          (m) => (m is Map) && (m['userId'] == currentUserId || (m['user'] as Map?)?['id'] == currentUserId) ? false : true,
+          orElse: () => members!.first,
+        );
+      }
+
+      if (otherMember is Map) {
+        otherUserId = otherMember['userId'] as String?
+                   ?? (otherMember['user'] as Map?)?['id'] as String?;
+        final profile = (otherMember['user'] as Map?)?['profile'] as Map?;
         if (profile != null) {
           // Force override title and avatar from the member's profile for private chats
           displayTitle = profile['name']?.toString() ?? displayTitle;

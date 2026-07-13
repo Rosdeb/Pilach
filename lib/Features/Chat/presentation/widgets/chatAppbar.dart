@@ -154,7 +154,16 @@ class _AppBarStatusText extends ConsumerWidget {
 
   String _formatLastActive(String? isoString) {
     if (isoString == null || isoString.isEmpty) return 'Offline';
-    final dt = DateTime.tryParse(isoString);
+    
+    DateTime? dt = DateTime.tryParse(isoString);
+    if (dt == null) {
+      // Fallback if the string is just a raw epoch timestamp
+      final parsedInt = int.tryParse(isoString);
+      if (parsedInt != null) {
+        dt = DateTime.fromMillisecondsSinceEpoch(parsedInt);
+      }
+    }
+    
     if (dt == null) return 'Offline';
     
     final diff = DateTime.now().difference(dt);

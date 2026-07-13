@@ -309,14 +309,10 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
     _messagePinnedSubscription = _socketService.onMessagePinned.listen((data) async {
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
-        final messageData = data['message'] ?? data;
-        final dto = MessageDto.fromJson(messageData);
-        final sqliteMap = dto.toSqliteMap();
-        await _messageDao.insertOrUpdateMessages([sqliteMap]);
-        final updatedMsg = sqliteMap.toMessageModel(currentUserId);
-        if (state.messagesById.containsKey(updatedMsg.id)) {
+        final String? msgId = (data['messageId'] ?? data['id'] ?? (data['message'] is Map ? data['message']['id'] : null))?.toString();
+        if (msgId != null && state.messagesById.containsKey(msgId)) {
           final newById = Map<String, MessageModel>.from(state.messagesById);
-          newById[updatedMsg.id!] = updatedMsg;
+          newById[msgId] = newById[msgId]!.copyWith(isPinned: true);
           state = state.copyWith(messagesById: newById);
         }
       }
@@ -324,14 +320,10 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
     _messageUnpinnedSubscription = _socketService.onMessageUnpinned.listen((data) async {
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
-        final messageData = data['message'] ?? data;
-        final dto = MessageDto.fromJson(messageData);
-        final sqliteMap = dto.toSqliteMap();
-        await _messageDao.insertOrUpdateMessages([sqliteMap]);
-        final updatedMsg = sqliteMap.toMessageModel(currentUserId);
-        if (state.messagesById.containsKey(updatedMsg.id)) {
+        final String? msgId = (data['messageId'] ?? data['id'] ?? (data['message'] is Map ? data['message']['id'] : null))?.toString();
+        if (msgId != null && state.messagesById.containsKey(msgId)) {
           final newById = Map<String, MessageModel>.from(state.messagesById);
-          newById[updatedMsg.id!] = updatedMsg;
+          newById[msgId] = newById[msgId]!.copyWith(isPinned: false);
           state = state.copyWith(messagesById: newById);
         }
       }
@@ -836,14 +828,41 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
   Future<void> pinMessage(String messageId, bool isPinned) async {
     if (chatId == null) return;
+    
+    // 1. Optimistic Update
+    final msg = state.messagesById[messageId];
+    if (msg != null) {
+      final updatedMsg = msg.copyWith(isPinned: isPinned);
+      final newById = Map<String, MessageModel>.from(state.messagesById);
+      newById[messageId] = updatedMsg;
+      state = state.copyWith(messagesById: newById);
+    }
+
     try {
-      _socketService.emit('message:pin', {
+      final response = await _socketService.emitWithAck('message:pin', {
         'conversationId': chatId,
         'messageId': messageId,
         'isPinned': isPinned,
       });
+
+      if (response['ok'] == true) {
+         Logger.log('Message pinned successfully');
+      } else {
+         Logger.log('Server rejected pin message: ${response['error']}');
+         // Revert on error
+         if (msg != null) {
+           final newById = Map<String, MessageModel>.from(state.messagesById);
+           newById[messageId] = msg;
+           state = state.copyWith(messagesById: newById);
+         }
+      }
     } catch (e) {
       Logger.log('Failed to pin message: $e');
+      if (msg != null) {
+        final newById = Map<String, MessageModel>.from(state.messagesById);
+        newById[messageId] = msg;
+        state = state.copyWith(messagesById: newById);
+      }
     }
   }
 

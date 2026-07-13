@@ -96,14 +96,27 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         String? rawText = messageData['text']?.toString();
         final type = messageData['type']?.toString() ?? 'TEXT';
         final createdAtStr = messageData['createdAt']?.toString() ?? DateTime.now().toIso8601String();
+        final attachments = messageData['attachments'] as List<dynamic>?;
+        
+        String? attachmentType;
+        if (attachments != null && attachments.isNotEmpty) {
+          attachmentType = attachments.first['type']?.toString();
+        }
+
+        final actualType = attachmentType ?? type;
 
         String? previewText;
         if (rawText != null && rawText.isNotEmpty) {
           previewText = rawText;
-          if (type == 'IMAGE') previewText = '📷 Photo';
-          else if (type == 'VIDEO') previewText = '🎥 Video';
-          else if (type == 'AUDIO') previewText = '🎵 Audio';
-          else if (type == 'FILE') previewText = '📁 File';
+          if (actualType == 'IMAGE') previewText = '📷 $rawText';
+          else if (actualType == 'VIDEO') previewText = '🎥 $rawText';
+          else if (actualType == 'AUDIO') previewText = '🎵 $rawText';
+          else if (actualType == 'FILE') previewText = '📁 $rawText';
+        } else {
+          if (actualType == 'IMAGE') previewText = '📷 Photo';
+          else if (actualType == 'VIDEO') previewText = '🎥 Video';
+          else if (actualType == 'AUDIO') previewText = '🎵 Audio';
+          else if (actualType == 'FILE') previewText = '📁 File';
         }
 
         final currentChatId = _ref.read(currentChatIdProvider);
@@ -170,18 +183,37 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     
     _offlineSub = _socketService.onPresenceOffline.listen((data) {
       final userId = data['userId'] as String?;
-      Logger.log('PRESENCE OFFLINE received: userId=$userId');
-      if (userId != null) _updatePresence(userId, false);
+      final lastSeen = data['lastSeen'];
+      String? lastActiveIso;
+      
+      if (lastSeen != null) {
+        if (lastSeen is int) {
+          lastActiveIso = DateTime.fromMillisecondsSinceEpoch(lastSeen).toIso8601String();
+        } else if (lastSeen is String) {
+          final parsed = int.tryParse(lastSeen);
+          if (parsed != null) {
+            lastActiveIso = DateTime.fromMillisecondsSinceEpoch(parsed).toIso8601String();
+          } else {
+            lastActiveIso = lastSeen; // Fallback in case backend sends iso string
+          }
+        }
+      }
+      
+      Logger.log('PRESENCE OFFLINE received: userId=$userId, lastActive=$lastActiveIso');
+      if (userId != null) _updatePresence(userId, false, lastActive: lastActiveIso);
     });
   }
 
-  void _updatePresence(String userId, bool isOnline) {
+  void _updatePresence(String userId, bool isOnline, {String? lastActive}) {
     if (!mounted) return;
     bool matched = false;
     state = state.map((chat) {
       if (chat.userId == userId) {
         matched = true;
-        return chat.copyWith(isOnline: isOnline);
+        return chat.copyWith(
+          isOnline: isOnline,
+          lastActive: lastActive ?? chat.lastActive,
+        );
       }
       return chat;
     }).toList();
@@ -269,12 +301,13 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         final List<dynamic> data = responseData['data'];
         Logger.log('Total conversations from API: ${data.length}');
 
+        final currentUserId = _currentUserId;
         final List<Map<String, dynamic>> sqliteRows = await Isolate.run(() {
           final rows = <Map<String, dynamic>>[];
           for (final item in data) {
             try {
               final dto = ChatDto.fromJson(item as Map<String, dynamic>);
-              rows.add(dto.toSqliteMap());
+              rows.add(dto.toSqliteMap(currentUserId));
             } catch (e) {
               // Ignore unparseable item
             }
