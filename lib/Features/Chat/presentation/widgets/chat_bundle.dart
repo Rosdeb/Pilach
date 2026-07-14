@@ -124,210 +124,7 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
                       // Bubble Layer Canvas Block Box
                       GestureDetector(
                         onLongPress: widget.message.isDeleted ? null : () => _showMessageOptions(context),
-                        child: Container(
-                          key: _bubbleKey,
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(
-                            color: widget.message.isMe
-                                ? widget.activeTheme.sentMessageColor
-                                : widget.activeTheme.receivedMessageColor,
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(16),
-                              topRight: const Radius.circular(16),
-                              bottomLeft: Radius.circular(
-                                widget.message.isMe ? 16 : 4,
-                              ),
-                              bottomRight: Radius.circular(
-                                widget.message.isMe ? 4 : 16,
-                              ),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.02),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          padding: hasImage
-                              ? EdgeInsets.zero
-                              : const EdgeInsets.symmetric(
-                                  horizontal: 14.0,
-                                  vertical: 10.0,
-                                ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (widget.repliedMessage != null) ...[
-                                Padding(
-                                  padding: hasImage
-                                      ? const EdgeInsets.only(left: 14.0, right: 14.0, top: 10.0, bottom: 4.0)
-                                      : EdgeInsets.zero,
-                                  child: Container(
-                                    margin: const EdgeInsets.only(bottom: 6.0),
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border(left: BorderSide(color: widget.activeTheme.accentColor ?? Colors.green, width: 3)),
-                                    ),
-                                    child: Text(
-                                      widget.repliedMessage!.text,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: widget.message.isMe 
-                                          ? Colors.white.withOpacity(0.9) 
-                                          : Colors.black.withOpacity(0.7),
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                              if (widget.message.isDeleted) ...[
-                                Padding(
-                                  padding: hasImage
-                                      ? const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0)
-                                      : EdgeInsets.zero,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.block,
-                                        size: 15,
-                                        color: widget.message.isMe
-                                            ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
-                                                ? Colors.black54
-                                                : Colors.white70)
-                                            : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
-                                                ? Colors.black54
-                                                : Colors.white70),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        widget.message.isMe
-                                            ? 'You deleted this message'
-                                            : 'This message was deleted',
-                                        style: TextStyle(
-                                          color: widget.message.isMe
-                                              ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
-                                                  ? Colors.black54
-                                                  : Colors.white70)
-                                              : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
-                                                  ? Colors.black54
-                                                  : Colors.white70),
-                                          fontSize: 14,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ] else ...[
-                                if (hasImage) ...[
-                                  Builder(
-                                    builder: (context) {
-                                      final rawUrl = widget.message.mediaUrl!;
-                                      final bool isLocalFile = File(rawUrl).existsSync();
-                                      final String networkUrl = (rawUrl.startsWith('http://') || rawUrl.startsWith('https://'))
-                                          ? rawUrl
-                                          : 'https://xdtunnel.icu/$rawUrl';
-                                      final String heroTag = 'hero_img_${widget.message.id}';
-
-                                      return GestureDetector(
-                                        onTap: () => FullScreenImageViewer.open(
-                                          context,
-                                          imagePathOrUrl: isLocalFile ? rawUrl : networkUrl,
-                                          heroTag: heroTag,
-                                          title: widget.message.time,
-                                        ),
-                                        child: Hero(
-                                          tag: heroTag,
-                                          child: SizedBox(
-                                            width: 250.0,
-                                            height: 190.0,
-                                            child: isLocalFile
-                                                ? Image.file(
-                                                    File(rawUrl),
-                                                    width: 250.0,
-                                                    height: 190.0,
-                                                    fit: BoxFit.cover,
-                                                    errorBuilder: (context, error, stackTrace) => Container(
-                                                      color: Theme.of(context).brightness == Brightness.dark
-                                                          ? Colors.grey[850]
-                                                          : Colors.grey[200],
-                                                      child: const Icon(Icons.broken_image, size: 40),
-                                                    ),
-                                                  )
-                                                : CachedNetworkImage(
-                                                    imageUrl: networkUrl,
-                                                    width: 250.0,
-                                                    height: 190.0,
-                                                    fit: BoxFit.cover,
-                                                    placeholder: (context, url) => const _ShimmerPlaceholder(
-                                                      width: 250.0,
-                                                      height: 190.0,
-                                                    ),
-                                                    errorWidget: (context, url, error) => Container(
-                                                      color: Theme.of(context).brightness == Brightness.dark
-                                                          ? Colors.grey[850]
-                                                          : Colors.grey[200],
-                                                      child: const Icon(Icons.broken_image, size: 40),
-                                                    ),
-                                                  ),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ],
-                                if (widget.message.text.isNotEmpty)
-                                  Padding(
-                                    padding: hasImage
-                                        ? const EdgeInsets.only(left: 14.0, right: 14.0, bottom: 10.0, top: 8.0)
-                                        : EdgeInsets.zero,
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                                            widget.message.text,
-                                            style: TextStyle(
-                                              color: widget.message.isMe
-                                                  ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
-                                                        ? Colors.black87
-                                                        : Colors.white)
-                                                  : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
-                                                        ? Colors.black87
-                                                        : Colors.white),
-                                              fontSize: 15,
-                                              height: 1.25,
-                                            ),
-                                          ),
-                                        ),
-                                        if (widget.message.isEdited == true && !widget.message.isDeleted)
-                                        Padding(
-                                          padding: const EdgeInsets.only(left: 4.0),
-                                          child: Text(
-                                            '(Edited)',
-                                            style: TextStyle(
-                                              color: (widget.message.isMe
-                                                      ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white)
-                                                      : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white))
-                                                  .withValues(alpha: 0.7),
-                                              fontSize: 10,
-                                              fontStyle: FontStyle.italic,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-                            ],
-                          ),
-                        ),
+                        child: _buildBubbleContent(context, hasImage, isOverlay: false),
                       ),
   
                       const SizedBox(height: 4),
@@ -376,6 +173,217 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildBubbleContent(BuildContext context, bool hasImage, {bool isOverlay = false}) {
+    return Container(
+      key: isOverlay ? null : _bubbleKey,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: widget.message.isMe
+            ? widget.activeTheme.sentMessageColor
+            : widget.activeTheme.receivedMessageColor,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(16),
+          topRight: const Radius.circular(16),
+          bottomLeft: Radius.circular(
+            widget.message.isMe ? 16 : 4,
+          ),
+          bottomRight: Radius.circular(
+            widget.message.isMe ? 4 : 16,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: hasImage
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(
+              horizontal: 14.0,
+              vertical: 10.0,
+            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (widget.repliedMessage != null) ...[
+            Padding(
+              padding: hasImage
+                  ? const EdgeInsets.only(left: 14.0, right: 14.0, top: 10.0, bottom: 4.0)
+                  : EdgeInsets.zero,
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 6.0),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border(left: BorderSide(color: widget.activeTheme.accentColor ?? Colors.green, width: 3)),
+                ),
+                child: Text(
+                  widget.repliedMessage!.text,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: widget.message.isMe 
+                      ? Colors.white.withOpacity(0.9) 
+                      : Colors.black.withOpacity(0.7),
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+          ],
+          if (widget.message.isDeleted) ...[
+            Padding(
+              padding: hasImage
+                  ? const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0)
+                  : EdgeInsets.zero,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.block,
+                    size: 15,
+                    color: widget.message.isMe
+                        ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
+                            ? Colors.black54
+                            : Colors.white70)
+                        : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
+                            ? Colors.black54
+                            : Colors.white70),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    widget.message.isMe
+                        ? 'You deleted this message'
+                        : 'This message was deleted',
+                    style: TextStyle(
+                      color: widget.message.isMe
+                          ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
+                              ? Colors.black54
+                              : Colors.white70)
+                          : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
+                              ? Colors.black54
+                              : Colors.white70),
+                      fontSize: 14,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            if (hasImage) ...[
+              Builder(
+                builder: (context) {
+                  final rawUrl = widget.message.mediaUrl!;
+                  final bool isLocalFile = File(rawUrl).existsSync();
+                  final String networkUrl = (rawUrl.startsWith('http://') || rawUrl.startsWith('https://'))
+                      ? rawUrl
+                      : 'https://xdtunnel.icu/$rawUrl';
+                  final String heroTag = isOverlay ? 'hero_img_overlay_${widget.message.id}' : 'hero_img_${widget.message.id}';
+
+                  return GestureDetector(
+                    onTap: () {
+                      if (!isOverlay) {
+                        FullScreenImageViewer.open(
+                          context,
+                          imagePathOrUrl: isLocalFile ? rawUrl : networkUrl,
+                          heroTag: heroTag,
+                          title: widget.message.time,
+                        );
+                      }
+                    },
+                    child: Hero(
+                      tag: heroTag,
+                      child: SizedBox(
+                        width: 250.0,
+                        height: 190.0,
+                        child: isLocalFile
+                            ? Image.file(
+                                File(rawUrl),
+                                width: 250.0,
+                                height: 190.0,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => Container(
+                                  color: Theme.of(context).brightness == Brightness.dark
+                                      ? Colors.grey[850]
+                                      : Colors.grey[200],
+                                  child: const Icon(Icons.broken_image, size: 40),
+                                ),
+                              )
+                            : CachedNetworkImage(
+                                imageUrl: networkUrl,
+                                width: 250.0,
+                                height: 190.0,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => const _ShimmerPlaceholder(
+                                  width: 250.0,
+                                  height: 190.0,
+                                ),
+                                errorWidget: (context, url, error) => Container(
+                                  color: Theme.of(context).brightness == Brightness.dark
+                                      ? Colors.grey[850]
+                                      : Colors.grey[200],
+                                  child: const Icon(Icons.broken_image, size: 40),
+                                ),
+                              ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+            if (widget.message.text.isNotEmpty)
+              Padding(
+                padding: hasImage
+                    ? const EdgeInsets.only(left: 14.0, right: 14.0, bottom: 10.0, top: 8.0)
+                    : EdgeInsets.zero,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        widget.message.text,
+                        style: TextStyle(
+                          color: widget.message.isMe
+                              ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
+                                    ? Colors.black87
+                                    : Colors.white)
+                              : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
+                                    ? Colors.black87
+                                    : Colors.white),
+                          fontSize: 15,
+                          height: 1.25,
+                        ),
+                      ),
+                    ),
+                    if (widget.message.isEdited == true && !widget.message.isDeleted)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4.0),
+                      child: Text(
+                        '(Edited)',
+                        style: TextStyle(
+                          color: (widget.message.isMe
+                                  ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white)
+                                  : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white))
+                              .withValues(alpha: 0.7),
+                          fontSize: 10,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ],
       ),
     );
   }
@@ -452,11 +460,19 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
       openBelow ? bubbleTopLeft.dy + bubbleSize.height : bubbleTopLeft.dy,
     );
 
+    final hasImage = widget.message.mediaUrl != null &&
+        widget.message.mediaUrl!.isNotEmpty &&
+        !widget.message.isDeleted;
+    final copiedBubble = _buildBubbleContent(context, hasImage, isOverlay: true);
+
     _menuOverlay = OverlayEntry(
       builder: (_) => _MessageActionOverlay(
         isMe: widget.message.isMe,   // <-- NEW
+        bubbleTop: bubbleTopLeft.dy, // <-- NEW
         bubbleLeft: bubbleLeft,      // <-- NEW
         bubbleRight: bubbleRight,    // <-- NEW
+        bubbleSize: bubbleSize,      // <-- NEW
+        copiedBubble: copiedBubble,  // <-- NEW
         screenWidth: screenSize.width,
         top: top,
         left: left,
@@ -594,8 +610,11 @@ class _SlidingGradientTransform extends GradientTransform {
 class _MessageActionOverlay extends StatefulWidget {
   final double top;
   final bool isMe;              // <-- NEW
+  final double bubbleTop;       // <-- NEW
   final double bubbleLeft;      // <-- NEW
   final double bubbleRight;     // <-- NEW
+  final Size bubbleSize;        // <-- NEW
+  final Widget copiedBubble;    // <-- NEW
   final double screenWidth;
   final double left;
   final double menuWidth;
@@ -611,8 +630,11 @@ class _MessageActionOverlay extends StatefulWidget {
   const _MessageActionOverlay({
     required this.top,
     required this.isMe,
+    required this.bubbleTop,
     required this.bubbleLeft,
     required this.bubbleRight,
+    required this.bubbleSize,
+    required this.copiedBubble,
     required this.screenWidth,
     required this.left,
     required this.menuWidth,
@@ -672,7 +694,21 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
             onTap: widget.onDismiss,
             child: FadeTransition(
               opacity: _fade,
-              child: Container(color: Colors.black.withOpacity(0.15)),
+              child: Container(color: Colors.black.withOpacity(0.5)),
+            ),
+          ),
+        ),
+        // Focused Bubble Duplicate
+        Positioned(
+          top: widget.bubbleTop,
+          left: widget.bubbleLeft,
+          width: widget.bubbleSize.width,
+          height: widget.bubbleSize.height,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.95, end: 1.0).animate(_controller),
+            child: Material(
+              color: Colors.transparent,
+              child: widget.copiedBubble,
             ),
           ),
         ),
