@@ -86,10 +86,6 @@ class _ChatTileState extends ConsumerState<ChatTile> with SingleTickerProviderSt
     _slide.close();
     final newMuteState = !widget.chat.isMuted;
     ref.read(chatProvider.notifier).muteConversation(widget.chat.id, newMuteState);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(newMuteState ? 'Muted' : 'Unmuted'),
-      duration: const Duration(seconds: 1),
-    ));
   }
 
   Future<void> _handleDelete() async {

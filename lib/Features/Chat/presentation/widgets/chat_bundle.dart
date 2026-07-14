@@ -433,27 +433,44 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
 
     final Offset bubbleTopLeft = box.localToGlobal(Offset.zero, ancestor: overlayBox);
     final Size bubbleSize = box.size;
-    final Size screenSize = overlayBox.size;
-    final double topSafe = MediaQuery.of(context).padding.top;
-    final double bottomSafe = MediaQuery.of(context).padding.bottom;
+    final media = MediaQuery.of(context);
+
+    final double screenHeight = media.size.height - media.viewInsets.bottom;
+
+    final keyboardHeight = media.viewInsets.bottom;
+
+    final adjustedBubbleTop = bubbleTopLeft.dy - (keyboardHeight * 0.15);
+
+    final double screenWidth = media.size.width;
+
+    final double topSafe = media.padding.top;
+    final double bottomSafe = media.padding.bottom;
 
     const double menuWidth = 230;
-    const double estimatedMenuHeight = 250;
+    const double estimatedMenuHeight = 170;
     const double gap = 8;
 
-    final double spaceBelow = screenSize.height - bottomSafe - (bubbleTopLeft.dy + bubbleSize.height);
+    final double spaceBelow =
+        screenHeight -
+            bottomSafe -
+            (bubbleTopLeft.dy + bubbleSize.height);
+
     final bool openBelow = spaceBelow > estimatedMenuHeight;
 
     final double bubbleLeft = bubbleTopLeft.dx;
     final double bubbleRight = bubbleTopLeft.dx + bubbleSize.width;
 
-    final double top = openBelow
-        ? bubbleTopLeft.dy + bubbleSize.height + gap
-        : (bubbleTopLeft.dy - estimatedMenuHeight - gap).clamp(topSafe + gap, screenSize.height);
+    final top = openBelow
+        ? adjustedBubbleTop + bubbleSize.height + gap
+        : (adjustedBubbleTop - estimatedMenuHeight - gap)
+        .clamp(topSafe + gap, screenHeight);
 
     final double left = widget.message.isMe
-        ? (bubbleTopLeft.dx + bubbleSize.width - menuWidth).clamp(12.0, screenSize.width - menuWidth - 12.0)
-        : bubbleTopLeft.dx.clamp(12.0, screenSize.width - menuWidth - 12.0);
+        ? (bubbleTopLeft.dx + bubbleSize.width - menuWidth)
+        .clamp(12.0, screenWidth - menuWidth - 12.0)
+        : bubbleTopLeft.dx
+        .clamp(12.0, screenWidth - menuWidth - 12.0);
+
 
     final anchorOffset = Offset(
       bubbleTopLeft.dx + bubbleSize.width / 2,
@@ -468,12 +485,12 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
     _menuOverlay = OverlayEntry(
       builder: (_) => _MessageActionOverlay(
         isMe: widget.message.isMe,   // <-- NEW
-        bubbleTop: bubbleTopLeft.dy, // <-- NEW
+        bubbleTop: adjustedBubbleTop, // <-- NEW
         bubbleLeft: bubbleLeft,      // <-- NEW
         bubbleRight: bubbleRight,    // <-- NEW
         bubbleSize: bubbleSize,      // <-- NEW
         copiedBubble: copiedBubble,  // <-- NEW
-        screenWidth: screenSize.width,
+        screenWidth: screenWidth,
         top: top,
         left: left,
         menuWidth: menuWidth,
@@ -744,7 +761,7 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
 
   Widget _buildEmojiPill(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
       decoration: BoxDecoration(
         color: theme.scaffoldBackgroundColor,
         borderRadius: BorderRadius.circular(28),
@@ -752,18 +769,21 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
           BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 10, offset: const Offset(0, 3)),
         ],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: ['❤️', '😂', '😮', '😢', '👍', '👎'].map((emoji) {
-          return GestureDetector(
-            onTap: () => widget.onReact(emoji),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(emoji, style: const TextStyle(fontSize: 22)),
-            ),
-          );
-        }).toList(),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: ['❤️', '😂', '😮', '😢', '👍', '👎'].map((emoji) {
+            return GestureDetector(
+              onTap: () => widget.onReact(emoji),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(emoji, style: const TextStyle(fontSize: 22)),
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
