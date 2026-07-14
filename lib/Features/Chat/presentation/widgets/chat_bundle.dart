@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:app/core/constants/app_constants.dart';
 import 'package:app/core/constants/asset_constants.dart';
 import 'package:flutter/cupertino.dart';
@@ -711,7 +712,19 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
             onTap: widget.onDismiss,
             child: FadeTransition(
               opacity: _fade,
-              child: Container(color: Colors.black.withOpacity(0.5)),
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(
+                    sigmaX: 12,
+                    sigmaY: 12,
+                  ),
+                  child: Container(
+                    color: theme.brightness == Brightness.dark
+                        ? Colors.black.withValues(alpha: 0.35)
+                        : Colors.white.withValues(alpha: 0.20),
+                  ),
+                ),
+              ),
             ),
           ),
         ),

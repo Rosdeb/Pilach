@@ -9,7 +9,10 @@ import 'package:app/Features/Chat/presentation/screens/inbox_screen/direct_chat_
 import 'package:app/Features/Chat/presentation/screens/inbox_screen/chat_profile_screen.dart';
 import 'package:app/Features/Chat/presentation/screens/chat_search_screen.dart';
 import 'package:app/Features/Discovers/presentation/screens/all_stories_screen.dart';
+import 'package:app/Features/Discovers/presentation/screens/create_story_screen.dart';
 import 'package:app/Features/Discovers/presentation/screens/story_details_screen.dart';
+import 'package:app/Features/Discovers/models/story_model.dart';
+import 'package:app/Features/Discovers/presentation/providers/story_provider.dart';
 import 'package:app/Features/Me/presentation/screens/block_userlist/block_userlist_screen.dart';
 import 'package:app/Features/Me/presentation/screens/chats_setting/chat_theme_selection_screen.dart';
 import 'package:app/Features/Me/presentation/screens/chats_setting/chats_settings_screen.dart';
@@ -40,7 +43,16 @@ import '../constants/app_paths.dart';
 class RiverpodRouterRefreshListenable extends ChangeNotifier {
   RiverpodRouterRefreshListenable(Ref ref) {
     ref.listen<AuthState>(authProvider, (previous, next) {
-      if (previous?.status != next.status) notifyListeners();
+      if (previous?.status != next.status) {
+        notifyListeners();
+      }
+      
+      // PRELOAD SYSTEM: Once token is verified and user is authenticated, preload the stories API immediately
+      if (next.status == AuthStatus.authenticated && previous?.status != AuthStatus.authenticated) {
+        Future.microtask(() {
+          ref.read(myStoriesProvider.notifier).fetchMyStories();
+        });
+      }
     });
   }
 }
@@ -329,12 +341,29 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const AllStoriesScreen()),
       ),
       GoRoute(
+        path: AppPaths.create_story,
+        name: AppRoutes.create_story,
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const CreateStoryScreen()),
+      ),
+      GoRoute(
         path: AppPaths.story_details,
         name: AppRoutes.story_details,
-        pageBuilder: (c, s) => _slidePage(
-          key: s.pageKey,
-          child: StoryDetailsScreen(storyIndex: s.extra as int? ?? 0),
-        ),
+        pageBuilder: (c, s) {
+          final extra = s.extra;
+          List<StoryModel> stories = [];
+          if (extra is List<StoryModel>) {
+            stories = extra;
+          } else if (extra is StoryModel) {
+            stories = [extra];
+          }
+          return _slidePage(
+            key: s.pageKey,
+            child: StoryDetailsScreen(
+              stories: stories,
+              initialIndex: 0,
+            ),
+          );
+        },
       ),
 
       // ── Other screens ──────────────────────────────────────────────────────

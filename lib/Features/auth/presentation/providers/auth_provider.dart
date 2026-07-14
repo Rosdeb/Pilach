@@ -6,6 +6,7 @@ import 'package:app/core/network/api_exceptions.dart';
 import '../../../../core/providers/api_provider.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/services/socket_service.dart';
+import '../../../../core/services/storage_service.dart';
 import '../../data/repositories/auth_repository.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
@@ -58,6 +59,7 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
     ref.watch(authRepositoryProvider),
     ref.watch(notificationServiceProvider),
     ref.watch(socketServiceProvider),
+    ref.watch(authStorageProvider),
   );
   
   ref.listen<int>(unauthenticatedTriggerProvider, (previous, next) {
@@ -73,18 +75,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final AuthRepository _authRepository;
   final NotificationService _notificationService;
   final SocketService _socketService;
+  final LocalAuthStorageService _storage;
   
-  AuthNotifier(this._authRepository, this._notificationService, this._socketService) : super(AuthState.initial()) {
+  AuthNotifier(this._authRepository, this._notificationService, this._socketService, this._storage) : super(AuthState.initial()) {
     checkAuth();
   }
 
-  static const _tokenKey = 'auth_token';
-
-  Future<void> checkAuth() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(_tokenKey);
+  void checkAuth() {
+    final token = _storage.token;
     if (token != null) {
-      String? id = prefs.getString('user_id');
+      String? id = _storage.userId;
       
       // Fallback: Extract ID from JWT if it was not saved correctly
       if (id == null && token.split('.').length == 3) {
@@ -96,14 +96,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
           final rawId = payload['id'] ?? payload['_id'] ?? payload['userId'] ?? payload['sub'];
           id = rawId?.toString();
           if (id != null) {
-             await prefs.setString('user_id', id);
+             _storage.setUserId(id);
           }
         } catch (_) {}
       }
 
-      final email = prefs.getString('auth_email') ?? "user";
-      final name = prefs.getString('auth_name');
-      final profileImage = prefs.getString('auth_profile_image');
+      final email = _storage.email ?? "user";
+      final name = _storage.name;
+      final profileImage = _storage.profileImage;
       state = AuthState.authenticated(email, id: id, name: name, profileImage: profileImage);
       _notificationService.registerFcmToken();
       _socketService.connect(token);
@@ -128,14 +128,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final name = userData?['name'];
       final profileImage = userData?['profilePicture'] ?? userData?['avatar'];
       
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('auth_email', resolvedEmail);
-      if (id != null) await prefs.setString('user_id', id);
-      if (name != null) await prefs.setString('auth_name', name);
-      if (profileImage != null) await prefs.setString('auth_profile_image', profileImage);
+      await _storage.setEmail(resolvedEmail);
+      if (id != null) await _storage.setUserId(id);
+      if (name != null) await _storage.setName(name);
+      if (profileImage != null) await _storage.setProfileImage(profileImage);
+      print("rawId : $rawId");
       
       // We assume the token was saved by AuthRepository. Let's get it to connect socket.
-      final token = prefs.getString(_tokenKey) ?? result['token'] ?? '';
+      final token = _storage.token ?? result['token'] ?? '';
       
       state = AuthState.authenticated(resolvedEmail, id: id, name: name, profileImage: profileImage);
       _notificationService.registerFcmToken();
@@ -151,15 +151,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> setAuthenticated(String email, {String? id, String? name, String? profileImage}) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('auth_email', email);
-    if (id != null) await prefs.setString('user_id', id);
-    if (name != null) await prefs.setString('auth_name', name);
-    if (profileImage != null) await prefs.setString('auth_profile_image', profileImage);
+    await _storage.setEmail(email);
+    if (id != null) await _storage.setUserId(id);
+    if (name != null) await _storage.setName(name);
+    if (profileImage != null) await _storage.setProfileImage(profileImage);
     state = AuthState.authenticated(email, id: id, name: name, profileImage: profileImage);
     _notificationService.registerFcmToken();
     
-    final token = prefs.getString(_tokenKey);
+    final token = _storage.token;
     if (token != null) _socketService.connect(token);
   }
 
@@ -203,11 +202,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (_) {
       // Ignore API errors, we still want to log out locally
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('user_id');
-    await prefs.remove('auth_email');
-    await prefs.remove('auth_name');
-    await prefs.remove('auth_profile_image');
+    
+    await _storage.clearAll();
     state = AuthState.unauthenticated();
   }
 }

@@ -30,7 +30,9 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    ref.read(twoFactorNotifierProvider.notifier).loadMethods();
+    Future.microtask(() {
+      ref.read(twoFactorNotifierProvider.notifier).loadMethods();
+    });
     _syncNotificationPermissionState();
   }
 
