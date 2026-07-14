@@ -579,9 +579,20 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     }
     
     // Optimize: Only update Riverpod state if message IDs list or message contents have changed
-    final bool changed = _hasStateChanged(state.messageIds, ids, state.messagesById, byId);
+    final int newPage = (ids.length / 30).ceil().clamp(1, 99999);
+    final bool newHasMore = ids.length >= 30;
+    
+    final bool changed = _hasStateChanged(state.messageIds, ids, state.messagesById, byId) ||
+                         state.page != newPage ||
+                         state.hasMore != newHasMore;
+                         
     if (changed) {
-      state = state.copyWith(messageIds: ids, messagesById: byId);
+      state = state.copyWith(
+        messageIds: ids, 
+        messagesById: byId,
+        page: newPage,
+        hasMore: newHasMore,
+      );
     }
   }
 
@@ -620,6 +631,21 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         });
         if (!mounted) return;
 
+        bool hasChanges = true;
+        if (page == 1 && state.messageIds.isNotEmpty && sqliteRows.isNotEmpty) {
+          final serverLatestId = sqliteRows.first['id']?.toString();
+          final localLatestId = state.messageIds.first;
+          
+          if (serverLatestId == localLatestId) {
+            hasChanges = false;
+          }
+        }
+
+        // If it's a pagination request (page > 1) and the data we got is already in local DB, no need to update
+        if (page > 1 && sqliteRows.isNotEmpty && state.messageIds.contains(sqliteRows.first['id']?.toString())) {
+          hasChanges = false;
+        }
+
         if (outboxItems.isNotEmpty) {
           final outboxTexts = outboxItems.map((e) {
             final payload = jsonDecode(e['payload_json']);
@@ -639,11 +665,16 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
           }
         }
 
-        await _messageDao.insertOrUpdateMessages(sqliteRows);
-        if (!mounted) return;
-        
-        state = state.copyWith(page: page, hasMore: hasNext);
-        await loadFromDb();
+        if (hasChanges) {
+          await _messageDao.insertOrUpdateMessages(sqliteRows);
+          if (!mounted) return;
+          
+          state = state.copyWith(page: page, hasMore: hasNext);
+          await loadFromDb();
+        } else {
+          // Skip UI update and DB write, just update pagination state
+          state = state.copyWith(page: page, hasMore: hasNext);
+        }
       }
     } catch (e) {
       print('Failed to fetch messages: $e');

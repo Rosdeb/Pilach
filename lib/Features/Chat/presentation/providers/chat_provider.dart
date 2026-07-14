@@ -315,11 +315,36 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
           return rows;
         });
 
-        await _chatDao.insertOrUpdateChats(sqliteRows);
-        Logger.log('Saved ${sqliteRows.length} chats to SQLite');
+        final localRows = await _chatDao.getAllChats();
+        bool hasChanges = sqliteRows.length != localRows.length;
+        if (!hasChanges) {
+          final localMap = {for (var row in localRows) row['id']: row};
+          for (final serverRow in sqliteRows) {
+            final localRow = localMap[serverRow['id']];
+            if (localRow == null) {
+              hasChanges = true;
+              break;
+            }
+            if (serverRow['last_message_at']?.toString() != localRow['last_message_at']?.toString() ||
+                serverRow['last_message_preview']?.toString() != localRow['last_message_preview']?.toString() ||
+                serverRow['unread_count']?.toString() != localRow['unread_count']?.toString() ||
+                serverRow['title']?.toString() != localRow['title']?.toString() ||
+                serverRow['avatar_url']?.toString() != localRow['avatar_url']?.toString()) {
+              hasChanges = true;
+              break;
+            }
+          }
+        }
 
-        await loadFromDb();
-        Logger.log('Loaded ${state.length} chats from DB → UI');
+        if (hasChanges) {
+          await _chatDao.insertOrUpdateChats(sqliteRows);
+          Logger.log('Saved ${sqliteRows.length} chats to SQLite');
+
+          await loadFromDb();
+          Logger.log('Loaded ${state.length} chats from DB → UI');
+        } else {
+          Logger.log('Local DB is up-to-date. Skipping UI update.');
+        }
       } else {
         Logger.log('API response not success or data is null');
       }
