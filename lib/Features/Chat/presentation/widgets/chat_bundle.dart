@@ -13,10 +13,11 @@ class ChatBubble extends StatefulWidget {
   final ChatTheme activeTheme;
   final String? otherUserAvatar;
   final MessageModel? repliedMessage;
-  final VoidCallback? onDelete;
-  final VoidCallback? onPin;
+  final VoidCallback onDelete;
+  final VoidCallback onPin;
   final Function(String)? onReact;
   final VoidCallback? onReply;
+  final VoidCallback? onEdit;
 
   const ChatBubble({
     super.key,
@@ -24,10 +25,11 @@ class ChatBubble extends StatefulWidget {
     required this.activeTheme,
     this.otherUserAvatar,
     this.repliedMessage,
-    this.onDelete,
-    this.onPin,
+    required this.onDelete,
+    required this.onPin,
     this.onReact,
     this.onReply,
+    this.onEdit,
   });
 
   @override
@@ -283,19 +285,41 @@ class _ChatBubbleState extends State<ChatBubble>
                                     padding: hasImage
                                         ? const EdgeInsets.only(left: 14.0, right: 14.0, bottom: 10.0, top: 8.0)
                                         : EdgeInsets.zero,
-                                    child: Text(
-                                      widget.message.text,
-                                      style: TextStyle(
-                                        color: widget.message.isMe
-                                            ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
-                                                  ? Colors.black87
-                                                  : Colors.white)
-                                            : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
-                                                  ? Colors.black87
-                                                  : Colors.white),
-                                        fontSize: 15,
-                                        height: 1.25,
-                                      ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            widget.message.text,
+                                            style: TextStyle(
+                                              color: widget.message.isMe
+                                                  ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
+                                                        ? Colors.black87
+                                                        : Colors.white)
+                                                  : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
+                                                        ? Colors.black87
+                                                        : Colors.white),
+                                              fontSize: 15,
+                                              height: 1.25,
+                                            ),
+                                          ),
+                                        ),
+                                        if (widget.message.isEdited == true && !widget.message.isDeleted)
+                                        Padding(
+                                          padding: const EdgeInsets.only(left: 4.0),
+                                          child: Text(
+                                            '(Edited)',
+                                            style: TextStyle(
+                                              color: (widget.message.isMe
+                                                      ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white)
+                                                      : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white))
+                                                  .withValues(alpha: 0.7),
+                                              fontSize: 10,
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                               ],
@@ -444,6 +468,18 @@ class _ChatBubbleState extends State<ChatBubble>
                           if (widget.onReply != null) widget.onReply!();
                         },
                       ),
+                      if (widget.message.isMe && widget.message.type == MessageType.text) ...[
+                        Divider(height: 1, indent: 16, endIndent: 16, color: Colors.grey.withValues(alpha: 0.2)),
+                        ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.edit, size: 22),
+                          title: Text('Edit', style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 16)),
+                          onTap: () {
+                            Navigator.pop(context);
+                            if (widget.onEdit != null) widget.onEdit!();
+                          },
+                        ),
+                      ],
                       Divider(height: 1, indent: 16, endIndent: 16, color: Colors.grey.withValues(alpha: 0.2)),
                       ListTile(
                         dense: true,

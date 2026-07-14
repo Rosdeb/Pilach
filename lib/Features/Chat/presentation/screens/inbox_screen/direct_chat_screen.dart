@@ -25,6 +25,7 @@ final _headerTextColorProvider = Provider.autoDispose<Color>((ref) {
 });
 
 final replyingToProvider = StateProvider.autoDispose<MessageModel?>((ref) => null);
+final editingMessageProvider = StateProvider.autoDispose<MessageModel?>((ref) => null);
 final showAttachmentMenuProvider = StateProvider.autoDispose<bool>((_) => false);
 
 
@@ -74,10 +75,16 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
-    final replyTo = ref.read(replyingToProvider);
-    ref.read(directChatProvider.notifier).sendMessage(text, replyToId: replyTo?.id);
+    final editingMsg = ref.read(editingMessageProvider);
+    if (editingMsg != null) {
+      ref.read(directChatProvider.notifier).editMessage(editingMsg.id, text);
+      ref.read(editingMessageProvider.notifier).state = null;
+    } else {
+      final replyTo = ref.read(replyingToProvider);
+      ref.read(directChatProvider.notifier).sendMessage(text, replyToId: replyTo?.id);
+      ref.read(replyingToProvider.notifier).state = null;
+    }
 
-    ref.read(replyingToProvider.notifier).state = null;
     _messageController.clear();
     _focusNode.requestFocus();
 
@@ -93,6 +100,13 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(editingMessageProvider, (previous, next) {
+      if (next != null) {
+        _messageController.text = next.text;
+        _focusNode.requestFocus();
+      }
+    });
+    
     final activeTheme = ref.watch(chatThemeProvider);
     final headerTextColor = ref.watch(_headerTextColorProvider);
 
@@ -121,6 +135,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                   scrollController: _scrollController,
                 ),
               ),
+              const _EditPreviewBar(),
               const _ReplyPreviewBar(),
               _ComposerBar(
                 messageController: _messageController,
@@ -402,6 +417,9 @@ class _BubbleById extends ConsumerWidget {
       onPin: () => ref.read(directChatProvider.notifier).pinMessage(msg.id, !(msg.isPinned ?? false)),
       onReact: (emoji) => ref.read(directChatProvider.notifier).reactToMessage(msg.id, emoji),
       onReply: () => ref.read(replyingToProvider.notifier).state = msg,
+      onEdit: () {
+        ref.read(editingMessageProvider.notifier).state = msg;
+      },
     );
   }
 }
@@ -534,6 +552,62 @@ class _DateChip extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _EditPreviewBar extends ConsumerWidget {
+  const _EditPreviewBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final editMsg = ref.watch(editingMessageProvider);
+    if (editMsg == null) return const SizedBox.shrink();
+    final activeTheme = ref.watch(chatThemeProvider);
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        border: Border(top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.2))),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.edit, color: activeTheme.accentColor ?? Colors.green, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Editing message',
+                  style: TextStyle(
+                    color: activeTheme.accentColor ?? Colors.green,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  editMsg.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 20),
+            onPressed: () {
+              ref.read(editingMessageProvider.notifier).state = null;
+            },
+          ),
+        ],
       ),
     );
   }

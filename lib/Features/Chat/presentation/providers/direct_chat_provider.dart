@@ -358,7 +358,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
           final newById = Map<String, MessageModel>.from(state.messagesById);
           bool hasChanges = false;
           newById.forEach((id, msg) {
-            if (msg.isMe && (msg.seq == null || msg.seq! <= readSeq) && msg.status != MessageStatus.seen) {
+            if (msg.isMe && (msg.seq != null && msg.seq! <= readSeq) && msg.status != MessageStatus.seen) {
               newById[id] = msg.copyWith(status: MessageStatus.seen);
               hasChanges = true;
             }
@@ -381,7 +381,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
           final newById = Map<String, MessageModel>.from(state.messagesById);
           bool hasChanges = false;
           newById.forEach((id, msg) {
-            if (msg.isMe && (msg.seq == null || msg.seq! <= deliveredSeq) && (msg.status == MessageStatus.sent || msg.status == MessageStatus.sending)) {
+            if (msg.isMe && (msg.seq != null && msg.seq! <= deliveredSeq) && (msg.status == MessageStatus.sent || msg.status == MessageStatus.sending)) {
               newById[id] = msg.copyWith(status: MessageStatus.delivered);
               hasChanges = true;
             }
@@ -823,6 +823,46 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       }
     } catch (e) {
       Logger.log('Failed to delete message: $e');
+    }
+  }
+
+  Future<void> editMessage(String messageId, String newText) async {
+    if (chatId == null) return;
+    
+    // Optimistic Update
+    final msg = state.messagesById[messageId];
+    if (msg != null) {
+      final updatedMsg = msg.copyWith(text: newText, isEdited: true);
+      final newById = Map<String, MessageModel>.from(state.messagesById);
+      newById[messageId] = updatedMsg;
+      state = state.copyWith(messagesById: newById);
+    }
+
+    try {
+      final response = await _socketService.emitWithAck('message:edit', {
+        'conversationId': chatId,
+        'messageId': messageId,
+        'text': newText,
+      });
+
+      if (response['ok'] == true) {
+         Logger.log('Message edited successfully');
+      } else {
+         Logger.log('Server rejected edit message: ${response['error']}');
+         // Revert on error
+         if (msg != null) {
+           final newById = Map<String, MessageModel>.from(state.messagesById);
+           newById[messageId] = msg;
+           state = state.copyWith(messagesById: newById);
+         }
+      }
+    } catch (e) {
+      Logger.log('Failed to edit message: $e');
+      if (msg != null) {
+        final newById = Map<String, MessageModel>.from(state.messagesById);
+        newById[messageId] = msg;
+        state = state.copyWith(messagesById: newById);
+      }
     }
   }
 
