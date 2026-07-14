@@ -36,13 +36,15 @@ class ChatBubble extends StatefulWidget {
   State<ChatBubble> createState() => _ChatBubbleState();
 }
 
-class _ChatBubbleState extends State<ChatBubble>
-    with SingleTickerProviderStateMixin {
+class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateMixin {
   late AnimationController controller;
 
   late Animation<double> fade;
 
   late Animation<Offset> slide;
+
+  final GlobalKey _bubbleKey = GlobalKey();
+  OverlayEntry? _menuOverlay;
 
   @override
   void initState() {
@@ -60,14 +62,12 @@ class _ChatBubbleState extends State<ChatBubble>
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: controller, curve: Curves.easeOutCubic));
 
-    // ✅ Prevents list blinking when temp message is replaced by real message:
-    // Only animate when initially sending or when receiving a brand-new incoming message.
-    if (widget.message.status == MessageStatus.sending || 
-        (!widget.message.isMe && DateTime.now().difference(widget.message.timestamp).inSeconds < 3)) {
+    if (widget.message.status == MessageStatus.sending || (!widget.message.isMe && DateTime.now().difference(widget.message.timestamp).inSeconds < 3)) {
       controller.forward();
     } else {
       controller.value = 1.0;
     }
+
   }
 
   @override
@@ -77,6 +77,7 @@ class _ChatBubbleState extends State<ChatBubble>
 
   @override
   void dispose() {
+    _removeOverlay();
     controller.dispose();
     super.dispose();
   }
@@ -124,6 +125,7 @@ class _ChatBubbleState extends State<ChatBubble>
                       GestureDetector(
                         onLongPress: widget.message.isDeleted ? null : () => _showMessageOptions(context),
                         child: Container(
+                          key: _bubbleKey,
                           clipBehavior: Clip.antiAlias,
                           decoration: BoxDecoration(
                             color: widget.message.isMe
@@ -417,101 +419,90 @@ class _ChatBubbleState extends State<ChatBubble>
   }
 
   void _showMessageOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        final theme = Theme.of(context);
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Floating Emoji Pill
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                  decoration: BoxDecoration(
-                    color: theme.scaffoldBackgroundColor,
-                    borderRadius: BorderRadius.circular(32),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: ['❤️', '😂', '😮', '😢', '👍', '👎'].map((emoji) {
-                      return GestureDetector(
-                        onTap: () {
-                          Navigator.pop(context);
-                          if (widget.onReact != null) widget.onReact!(emoji);
-                        },
-                        child: Text(emoji, style: const TextStyle(fontSize: 28)),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // Actions Card
-                Container(
-                  decoration: BoxDecoration(
-                    color: theme.scaffoldBackgroundColor,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ListTile(
-                        dense: true,
-                        leading: const Icon(Icons.reply, size: 22),
-                        title: Text('Reply', style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 16)),
-                        onTap: () {
-                          Navigator.pop(context);
-                          if (widget.onReply != null) widget.onReply!();
-                        },
-                      ),
-                      if (widget.message.isMe && widget.message.type == MessageType.text) ...[
-                        Divider(height: 1, indent: 16, endIndent: 16, color: Colors.grey.withValues(alpha: 0.2)),
-                        ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.edit, size: 22),
-                          title: Text('Edit', style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 16)),
-                          onTap: () {
-                            Navigator.pop(context);
-                            if (widget.onEdit != null) widget.onEdit!();
-                          },
-                        ),
-                      ],
-                      Divider(height: 1, indent: 16, endIndent: 16, color: Colors.grey.withValues(alpha: 0.2)),
-                      ListTile(
-                        dense: true,
-                        leading: const Icon(Icons.push_pin_outlined, size: 22),
-                        title: Text('Pin Message', style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 16)),
-                        onTap: () {
-                          Navigator.pop(context);
-                          if (widget.onPin != null) widget.onPin!();
-                        },
-                      ),
-                      if (widget.message.isMe) ...[
-                        Divider(height: 1, indent: 16, endIndent: 16, color: Colors.grey.withValues(alpha: 0.2)),
-                        ListTile(
-                          dense: true,
-                          leading: Image.asset(Assets.trash, color: Colors.red, height: 22,width: 22,),
-                          title: const Text('Delete Message', style: TextStyle(color: Colors.redAccent, fontSize: 16)),
-                          onTap: () {
-                            Navigator.pop(context);
-                            if (widget.onDelete != null) widget.onDelete!();
-                          },
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    final RenderBox? box = _bubbleKey.currentContext?.findRenderObject() as RenderBox?;
+    final overlayBox = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (box == null || overlayBox == null) return;
+
+    final Offset bubbleTopLeft = box.localToGlobal(Offset.zero, ancestor: overlayBox);
+    final Size bubbleSize = box.size;
+    final Size screenSize = overlayBox.size;
+    final double topSafe = MediaQuery.of(context).padding.top;
+    final double bottomSafe = MediaQuery.of(context).padding.bottom;
+
+    const double menuWidth = 230;
+    const double estimatedMenuHeight = 250;
+    const double gap = 8;
+
+    final double spaceBelow = screenSize.height - bottomSafe - (bubbleTopLeft.dy + bubbleSize.height);
+    final bool openBelow = spaceBelow > estimatedMenuHeight;
+
+    final double bubbleLeft = bubbleTopLeft.dx;
+    final double bubbleRight = bubbleTopLeft.dx + bubbleSize.width;
+
+    final double top = openBelow
+        ? bubbleTopLeft.dy + bubbleSize.height + gap
+        : (bubbleTopLeft.dy - estimatedMenuHeight - gap).clamp(topSafe + gap, screenSize.height);
+
+    final double left = widget.message.isMe
+        ? (bubbleTopLeft.dx + bubbleSize.width - menuWidth).clamp(12.0, screenSize.width - menuWidth - 12.0)
+        : bubbleTopLeft.dx.clamp(12.0, screenSize.width - menuWidth - 12.0);
+
+    final anchorOffset = Offset(
+      bubbleTopLeft.dx + bubbleSize.width / 2,
+      openBelow ? bubbleTopLeft.dy + bubbleSize.height : bubbleTopLeft.dy,
     );
+
+    _menuOverlay = OverlayEntry(
+      builder: (_) => _MessageActionOverlay(
+        isMe: widget.message.isMe,   // <-- NEW
+        bubbleLeft: bubbleLeft,      // <-- NEW
+        bubbleRight: bubbleRight,    // <-- NEW
+        screenWidth: screenSize.width,
+        top: top,
+        left: left,
+        menuWidth: menuWidth,
+        openBelow: openBelow,
+        anchorOffset: anchorOffset,
+        onDismiss: _removeOverlay,
+        onReact: (emoji) {
+          _removeOverlay();
+          widget.onReact?.call(emoji);
+        },
+        onReply: widget.onReply == null
+            ? null
+            : () {
+          _removeOverlay();
+          widget.onReply!();
+        },
+        onEdit: (widget.message.isMe &&
+            widget.message.type == MessageType.text &&
+            widget.onEdit != null)
+            ? () {
+          _removeOverlay();
+          widget.onEdit!();
+        }
+            : null,
+        onPin: () {
+          _removeOverlay();
+          widget.onPin();
+        },
+        onDelete: widget.message.isMe
+            ? () {
+          _removeOverlay();
+          widget.onDelete();
+        }
+            : null,
+      ),
+    );
+
+    Overlay.of(context).insert(_menuOverlay!);
   }
+
+  void _removeOverlay() {
+    _menuOverlay?.remove();
+    _menuOverlay = null;
+  }
+
 }
 
 class _ShimmerPlaceholder extends StatefulWidget {
@@ -597,5 +588,191 @@ class _SlidingGradientTransform extends GradientTransform {
   @override
   Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
     return Matrix4.translationValues(bounds.width * (slidePercent - 0.5) * 2, 0.0, 0.0);
+  }
+}
+
+class _MessageActionOverlay extends StatefulWidget {
+  final double top;
+  final bool isMe;              // <-- NEW
+  final double bubbleLeft;      // <-- NEW
+  final double bubbleRight;     // <-- NEW
+  final double screenWidth;
+  final double left;
+  final double menuWidth;
+  final bool openBelow;
+  final Offset anchorOffset;
+  final VoidCallback onDismiss;
+  final Function(String) onReact;
+  final VoidCallback? onReply;
+  final VoidCallback? onEdit;
+  final VoidCallback onPin;
+  final VoidCallback? onDelete;
+
+  const _MessageActionOverlay({
+    required this.top,
+    required this.isMe,
+    required this.bubbleLeft,
+    required this.bubbleRight,
+    required this.screenWidth,
+    required this.left,
+    required this.menuWidth,
+    required this.openBelow,
+    required this.anchorOffset,
+    required this.onDismiss,
+    required this.onReact,
+    required this.onPin,
+    this.onReply,
+    this.onEdit,
+    this.onDelete,
+  });
+
+  @override
+  State<_MessageActionOverlay> createState() => _MessageActionOverlayState();
+}
+
+class _MessageActionOverlayState extends State<_MessageActionOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scale;
+  late Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 160),
+    );
+    _scale = CurvedAnimation(parent: _controller, curve: Curves.easeOutBack);
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // origin near the bubble edge so scale grows from that point, Messenger-style
+    final alignmentX = (widget.anchorOffset.dx - widget.left) / widget.menuWidth;
+    final alignment = Alignment(
+      (alignmentX.clamp(0.0, 1.0) * 2) - 1,
+      widget.openBelow ? -1.0 : 1.0,
+    );
+
+    return Stack(
+      children: [
+        // Dim backdrop — tap outside to close
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: widget.onDismiss,
+            child: FadeTransition(
+              opacity: _fade,
+              child: Container(color: Colors.black.withOpacity(0.15)),
+            ),
+          ),
+        ),
+        Positioned(
+          top: widget.top,
+          left: widget.left,
+          width: widget.menuWidth,
+          child: ScaleTransition(
+            scale: _scale,
+            alignment: alignment,
+            child: FadeTransition(
+              opacity: _fade,
+              child: Material(
+                color: Colors.transparent,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.openBelow) _buildEmojiPill(theme),
+                    if (widget.openBelow) const SizedBox(height: 6),
+                    _buildActionsCard(theme),
+                    if (!widget.openBelow) const SizedBox(height: 6),
+                    if (!widget.openBelow) _buildEmojiPill(theme),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmojiPill(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 10, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: ['❤️', '😂', '😮', '😢', '👍', '👎'].map((emoji) {
+          return GestureDetector(
+            onTap: () => widget.onReact(emoji),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(emoji, style: const TextStyle(fontSize: 22)),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildActionsCard(ThemeData theme) {
+    final items = <Widget>[];
+
+    void addTile(IconData icon, String label, VoidCallback onTap, {Color? color}) {
+      if (items.isNotEmpty) {
+        items.add(Divider(height: 1, indent: 14, endIndent: 14, color: Colors.grey.withOpacity(0.15)));
+      }
+      items.add(
+        InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: color ?? theme.colorScheme.onSurface),
+                const SizedBox(width: 10),
+                Text(label, style: TextStyle(fontSize: 14, color: color ?? theme.colorScheme.onSurface)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (widget.onReply != null) addTile(Icons.reply, 'Reply', widget.onReply!);
+    if (widget.onEdit != null) addTile(Icons.edit, 'Edit', widget.onEdit!);
+    addTile(Icons.push_pin_outlined, 'Pin Message', widget.onPin);
+    if (widget.onDelete != null) {
+      addTile(Icons.delete_outline, 'Delete Message', widget.onDelete!, color: Colors.redAccent);
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 10, offset: const Offset(0, 3)),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(mainAxisSize: MainAxisSize.min, children: items),
+    );
   }
 }

@@ -443,8 +443,7 @@ class _TypingBubble extends ConsumerStatefulWidget {
   ConsumerState<_TypingBubble> createState() => _TypingBubbleState();
 }
 
-class _TypingBubbleState extends ConsumerState<_TypingBubble>
-    with SingleTickerProviderStateMixin {
+class _TypingBubbleState extends ConsumerState<_TypingBubble> with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
   @override
