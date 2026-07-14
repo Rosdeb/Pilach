@@ -51,9 +51,15 @@ class TwoFactorNotifier extends StateNotifier<TwoFactorState> {
     state = state.copyWith(isLoading: true);
     try {
       final methods = await _authRepository.fetchTwoFactorMethods();
+      print('FETCHED 2FA METHODS: $methods'); // added for debugging
       state = state.copyWith(enrolledMethods: methods, isLoading: false, hasLoaded: true);
       // Synchronize with twoFactorProvider in security_privacy_providers
-      final hasActive2Fa = methods.any((m) => m is Map && m['isEnabled'] == true);
+      final hasActive2Fa = methods.any((m) {
+        if (m is Map) {
+          return m['isEnabled'] == true || m['is_enabled'] == true || m['enabled'] == true || m['active'] == true || m['is_active'] == true || m['status'] == 'active' || m['status'] == 'enabled';
+        }
+        return false;
+      });
       _ref.read(twoFactorProvider.notifier).state = hasActive2Fa;
     } on ApiException catch (e) {
       state = state.copyWith(errorMessage: e.message, isLoading: false);

@@ -184,7 +184,8 @@ class _TwoFactorSettingsScreenState extends ConsumerState<TwoFactorSettingsScree
       (m) {
         if (m is Map) {
           final type = m['type']?.toString().toLowerCase() ?? '';
-          return type.contains('email') && m['isEnabled'] == true;
+          final isActive = m['isEnabled'] == true || m['is_enabled'] == true || m['enabled'] == true || m['active'] == true || m['is_active'] == true || m['status'] == 'active' || m['status'] == 'enabled';
+          return type.contains('email') && isActive;
         }
         if (m is String) {
           return m.toLowerCase().contains('email');
@@ -197,7 +198,8 @@ class _TwoFactorSettingsScreenState extends ConsumerState<TwoFactorSettingsScree
       (m) {
         if (m is Map) {
           final type = m['type']?.toString().toLowerCase() ?? '';
-          return type.contains('sms') && m['isEnabled'] == true;
+          final isActive = m['isEnabled'] == true || m['is_enabled'] == true || m['enabled'] == true || m['active'] == true || m['is_active'] == true || m['status'] == 'active' || m['status'] == 'enabled';
+          return type.contains('sms') && isActive;
         }
         if (m is String) {
           return m.toLowerCase().contains('sms');

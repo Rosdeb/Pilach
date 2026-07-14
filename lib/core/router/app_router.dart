@@ -180,7 +180,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (status == AuthStatus.authenticated) {
-        if (isAuth || isSplash) return AppPaths.bottom_manu;
+        // Only redirect login/register/verify_email to bottom menu.
+        // We allow authenticated users to visit two_factor_*_verify screens for enrollment.
+        final isStrictAuth = path == AppPaths.login ||
+                             path == AppPaths.register ||
+                             path == AppPaths.verify_email;
+                             
+        if (isStrictAuth || isSplash) return AppPaths.bottom_manu;
       }
 
       return null;

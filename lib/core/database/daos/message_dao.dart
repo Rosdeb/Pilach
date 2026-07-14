@@ -25,6 +25,16 @@ class MessageDao {
     return maxSeqInMessages >= lastSeqInChat && maxSeqInMessages > 0;
   }
 
+  Future<int> getLastSeq(String chatId) async {
+    final database = await db;
+    final result = await database.rawQuery(
+      'SELECT MAX(seq) as maxSeq FROM messages WHERE conversation_id = ?',
+      [chatId],
+    );
+    final val = result.first['maxSeq'];
+    return val == null ? 0 : (val as int);
+  }
+
   Future<void> insertOrUpdateMessages(List<Map<String, dynamic>> messages) async {
     final database = await db;
     final batch = database.batch();
@@ -123,6 +133,15 @@ class MessageDao {
       'messages',
       where: 'id = ? OR client_msg_id = ?',
       whereArgs: [id, id],
+    );
+  }
+
+  Future<void> deleteMessagesByConversationId(String conversationId) async {
+    final database = await db;
+    await database.delete(
+      'messages',
+      where: 'conversation_id = ?',
+      whereArgs: [conversationId],
     );
   }
 

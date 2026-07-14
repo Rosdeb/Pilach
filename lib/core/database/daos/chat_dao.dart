@@ -110,4 +110,14 @@ class ChatDao {
       whereArgs: [id],
     );
   }
+
+  Future<void> updateMuteStatus(String id, bool isMuted) async {
+    final database = await db;
+    await database.update(
+      'chats',
+      {'is_muted': isMuted ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 }

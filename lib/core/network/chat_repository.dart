@@ -23,6 +23,16 @@ class ChatRepository {
     return response.data as Map<String, dynamic>;
   }
 
+  Future<int> getLatestSeq(String chatId) async {
+    final response = await _apiService.get('/api/v1/conversations/$chatId/latest-seq');
+    return response.data['latestSeq'] ?? 0;
+  }
+
+  Future<Map<String, dynamic>> getMessagesAfterSeq(String chatId, int afterSeq) async {
+    final response = await _apiService.get('/api/v1/chats/$chatId/messages?afterSeq=$afterSeq');
+    return response.data as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> sendMessage(String chatId, String text, String clientMsgId) async {
     final response = await _apiService.post('/api/v1/messages/send', data: {
       'conversationId': chatId,
@@ -34,6 +44,13 @@ class ChatRepository {
 
   Future<Map<String, dynamic>> removeMember(String conversationId, String userId) async {
     final response = await _apiService.delete('/api/v1/conversations/$conversationId/members/$userId');
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> muteConversation(String conversationId, bool isMuted) async {
+    final response = await _apiService.patch('/api/v1/conversations/$conversationId/mute', data: {
+      'mutedUntil': isMuted ? DateTime.now().add(const Duration(days: 365 * 100)).toIso8601String() : null,
+    });
     return response.data as Map<String, dynamic>;
   }
 }

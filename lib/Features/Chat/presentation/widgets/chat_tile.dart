@@ -84,9 +84,10 @@ class _ChatTileState extends ConsumerState<ChatTile> with SingleTickerProviderSt
 
   void _handleMute() {
     _slide.close();
-    ref.read(chatProvider.notifier).toggleMuteChat(widget.chat.id);
+    final newMuteState = !widget.chat.isMuted;
+    ref.read(chatProvider.notifier).muteConversation(widget.chat.id, newMuteState);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(widget.chat.isMuted ? 'Unmuted' : 'Muted'),
+      content: Text(newMuteState ? 'Muted' : 'Unmuted'),
       duration: const Duration(seconds: 1),
     ));
   }
@@ -232,7 +233,7 @@ class _ChatTileContent extends ConsumerWidget {
       // the ripple visual. We absorb taps at GestureDetector level.
       onTap: null,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
         child: Row(
           children: [
             // Avatar — gets its own RepaintBoundary: image decode is expensive

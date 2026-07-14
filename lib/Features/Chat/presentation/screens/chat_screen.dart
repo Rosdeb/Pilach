@@ -74,12 +74,7 @@ class ChatScreen extends ConsumerWidget {
                     ),
                   )
                 else
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    sliver: SliverList(
+                   SliverList(
                       delegate: SliverChildBuilderDelegate((context, index) => _ChatTileRow(
                           key: ValueKey(ref.read(chatProvider)[index].id),
                           index: index,
@@ -89,7 +84,6 @@ class ChatScreen extends ConsumerWidget {
                         addAutomaticKeepAlives: false,
                       ),
                     ),
-                  ),
 
                 const SliverToBoxAdapter(child: SizedBox(height: 100)),
               ],

@@ -49,7 +49,12 @@ class _SecurityPrivacyScreenState extends ConsumerState<SecurityPrivacyScreen> w
   Widget build(BuildContext context) {
     final isBiometricEnabled = ref.watch(biometricProvider);
     final twoFactorState = ref.watch(twoFactorNotifierProvider);
-    final isTwoFactorEnabled = twoFactorState.enrolledMethods.any((m) => m is Map && m['isEnabled'] == true);
+    final isTwoFactorEnabled = twoFactorState.enrolledMethods.any((m) {
+      if (m is Map) {
+        return m['isEnabled'] == true || m['is_enabled'] == true || m['enabled'] == true || m['active'] == true || m['is_active'] == true || m['status'] == 'active' || m['status'] == 'enabled';
+      }
+      return false;
+    });
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -219,7 +224,12 @@ class _SecurityPrivacyScreenState extends ConsumerState<SecurityPrivacyScreen> w
           builder: (sheetContext, setSheetState) {
             final twoFactorState = ref.watch(twoFactorNotifierProvider);
             final activeMethods = twoFactorState.enrolledMethods
-                .where((m) => m is Map && m['isEnabled'] == true)
+                .where((m) {
+                  if (m is Map) {
+                    return m['isEnabled'] == true || m['is_enabled'] == true || m['enabled'] == true || m['active'] == true || m['is_active'] == true || m['status'] == 'active' || m['status'] == 'enabled';
+                  }
+                  return false;
+                })
                 .toList();
             final is2FaActive = activeMethods.isNotEmpty;
             final isLoading = twoFactorState.isLoading;

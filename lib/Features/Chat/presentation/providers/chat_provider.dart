@@ -2,22 +2,22 @@ import 'package:app/core/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
-import '../../../../core/models/message_dto.dart';
-import '../../../../core/network/chat_repository.dart';
-import '../../../../core/providers/api_provider.dart';
-import '../../data/models/chat_model.dart';
-import '../../../../core/database/daos/chat_dao.dart';
-import '../../../../core/database/daos/message_dao.dart';
-import '../../../../core/models/chat_dto.dart';
-import '../../../../core/services/socket_service.dart';
+import 'package:app/core/models/message_dto.dart';
+import 'package:app/core/network/chat_repository.dart';
+import 'package:app/core/providers/api_provider.dart';
+import 'package:app/Features/Chat/data/models/chat_model.dart';
+import 'package:app/core/database/daos/chat_dao.dart';
+import 'package:app/core/database/daos/message_dao.dart';
+import 'package:app/core/models/chat_dto.dart';
+import 'package:app/core/services/socket_service.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
 
 import 'package:intl/intl.dart';
-import '../../../../core/database/daos/outbox_dao.dart';
+import 'package:app/core/database/daos/outbox_dao.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'direct_chat_provider.dart';
+import 'package:app/Features/Chat/presentation/providers/direct_chat_provider.dart';
 
 final chatProvider = StateNotifierProvider<ChatNotifier, List<ChatModel>>((ref) {
   final chatRepo = ref.watch(chatRepositoryProvider);
@@ -353,26 +353,43 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     }
   }
 
-  Future<void> deleteChat(String id) async {
-    ChatModel? targetChat;
-    for (final c in state) {
-      if (c.id == id) {
-        targetChat = c;
-        break;
+  Future<void> muteConversation(String conversationId, bool isMuted) async {
+    // Optimistic UI update
+    state = state.map((chat) {
+      if (chat.id == conversationId) {
+        return chat.copyWith(isMuted: isMuted);
       }
+      return chat;
+    }).toList();
+
+    // Local DB persist
+    try {
+      await _chatDao.updateMuteStatus(conversationId, isMuted);
+    } catch (e, st) {
+      Logger.log('Failed to save mute status to DB: $e\n$st', type: "error");
     }
 
+    // Server API call
+    try {
+      await _chatRepository.muteConversation(conversationId, isMuted);
+    } catch (e, st) {
+      Logger.log('Failed to mute conversation on server: $e\n$st', type: "error");
+    }
+  }
+
+  Future<void> deleteChat(String id) async {
     // Optimistically update UI state
     state = state.where((chat) => chat.id != id).toList();
 
     // Delete locally from SQLite
     await _chatDao.deleteChat(id);
+    await _messageDao.deleteMessagesByConversationId(id);
 
     // Call server endpoint if target chat member/userId is available
-    if (targetChat?.userId != null) {
+    if (_currentUserId.isNotEmpty) {
       try {
-        await _chatRepository.removeMember(id, targetChat!.userId!);
-        Logger.log('Successfully removed member ${targetChat.userId} from chat $id on server');
+        await _chatRepository.removeMember(id, _currentUserId);
+        Logger.log('Successfully removed myself ($_currentUserId) from chat $id on server');
       } catch (e) {
         Logger.log('Failed to remove member on server: $e');
       }
@@ -380,20 +397,9 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
   }
 
   void toggleUnreadChat(String id) {
-    state = state.map((c) => c.id == id
-        ? c.copyWith(unreadCount: c.unreadCount > 0 ? 0 : 1)
-        : c,
-    ).toList();
+    state = state.map((c) => c.id == id ? c.copyWith(unreadCount: c.unreadCount > 0 ? 0 : 1) : c,).toList();
   }
 
-  void toggleMuteChat(String id) {
-    state = state.map((chat) {
-      if (chat.id == id) {
-        return chat.copyWith(isMuted: !chat.isMuted);
-      }
-      return chat;
-    }).toList();
-  }
 
   void togglePinChat(String id) {
     state = state.map((chat) {
