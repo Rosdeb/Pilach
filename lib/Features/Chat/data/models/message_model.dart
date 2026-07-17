@@ -8,6 +8,51 @@ enum MessageStatus {
   failed,   // Message failed to send
 }
 
+class ReplyMessageModel {
+  final String id;
+  final String text;
+  final String? senderId;
+  final bool isDeleted;
+
+  ReplyMessageModel({
+    required this.id,
+    required this.text,
+    this.senderId,
+    this.isDeleted = false,
+  });
+
+  factory ReplyMessageModel.fromJson(Map<String, dynamic> json) {
+    return ReplyMessageModel(
+      id: json['id'] as String,
+      text: json['text'] as String? ?? '',
+      senderId: json['senderId'] as String?,
+      isDeleted: json['isDeleted'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'text': text,
+      'senderId': senderId,
+      'isDeleted': isDeleted,
+    };
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ReplyMessageModel &&
+        other.id == id &&
+        other.text == text &&
+        other.senderId == senderId &&
+        other.isDeleted == isDeleted;
+  }
+
+  @override
+  int get hashCode => Object.hash(id, text, senderId, isDeleted);
+}
+
 class MessageModel {
   final String id;
   final String text;
@@ -27,6 +72,7 @@ class MessageModel {
   final bool? isPinned;
   final String? pinnedAt;
   final String? replyToMessageId;
+  final ReplyMessageModel? replyToMessage;
   final List<Map<String, dynamic>>? reactions;
   final int? seq;
 
@@ -47,6 +93,7 @@ class MessageModel {
     this.isPinned = false,
     this.pinnedAt,
     this.replyToMessageId,
+    this.replyToMessage,
     this.reactions,
     this.seq,
   });
@@ -69,6 +116,7 @@ class MessageModel {
     bool? isPinned,
     String? pinnedAt,
     String? replyToMessageId,
+    ReplyMessageModel? replyToMessage,
     List<Map<String, dynamic>>? reactions,
     int? seq,
   }) {
@@ -89,6 +137,7 @@ class MessageModel {
       isPinned: isPinned ?? this.isPinned,
       pinnedAt: pinnedAt ?? this.pinnedAt,
       replyToMessageId: replyToMessageId ?? this.replyToMessageId,
+      replyToMessage: replyToMessage ?? this.replyToMessage,
       reactions: reactions ?? this.reactions,
       seq: seq ?? this.seq,
     );
@@ -113,6 +162,7 @@ class MessageModel {
       'isPinned': isPinned,
       'pinnedAt': pinnedAt,
       'replyToMessageId': replyToMessageId,
+      'replyToMessage': replyToMessage?.toJson(),
       'reactions': reactions,
       'seq': seq,
     };
@@ -143,6 +193,9 @@ class MessageModel {
       isPinned: json['isPinned'] as bool? ?? false,
       pinnedAt: json['pinnedAt'] as String?,
       replyToMessageId: json['replyToMessageId'] as String?,
+      replyToMessage: json['replyToMessage'] != null
+          ? ReplyMessageModel.fromJson(json['replyToMessage'])
+          : null,
       reactions: json['reactions'] != null 
           ? List<Map<String, dynamic>>.from(json['reactions']) 
           : null,

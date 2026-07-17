@@ -15,6 +15,7 @@ class MessageDto {
   final String? editedAt;
   final bool deleted;
   final String? replyToId;
+  final String? replyToJson;
   final String? reactionsJson;
   final String? attachmentsJson;
   final String? mediaUrl;
@@ -32,6 +33,7 @@ class MessageDto {
     this.editedAt,
     this.deleted = false,
     this.replyToId,
+    this.replyToJson,
     this.reactionsJson,
     this.attachmentsJson,
     this.mediaUrl,
@@ -63,6 +65,7 @@ class MessageDto {
       editedAt: json['editedAt'] as String?,
       deleted: (json['isDeleted'] ?? json['deleted']) as bool? ?? false,
       replyToId: json['replyToId'] as String?,
+      replyToJson: json['replyTo'] != null ? jsonEncode(json['replyTo']) : null,
       reactionsJson: json['reactions'] != null ? jsonEncode(json['reactions']) : null,
       attachmentsJson: attachmentsStr,
       mediaUrl: extractedMediaUrl,
@@ -83,6 +86,7 @@ class MessageDto {
       'edited_at': editedAt,
       'deleted': deleted ? 1 : 0,
       'reply_to_id': replyToId,
+      'reply_to_json': replyToJson,
       'reactions_json': reactionsJson,
       'attachments_json': attachmentsJson ?? (mediaUrl != null ? jsonEncode([{'url': mediaUrl, 'type': type}]) : null),
     };
@@ -140,6 +144,16 @@ extension MessageSqliteMapper on Map<String, dynamic> {
       } catch (_) {}
     }
 
+    ReplyMessageModel? parsedReplyTo;
+    if (this['reply_to_json'] != null) {
+      try {
+        final decoded = jsonDecode(this['reply_to_json']);
+        if (decoded is Map<String, dynamic>) {
+          parsedReplyTo = ReplyMessageModel.fromJson(decoded);
+        }
+      } catch (_) {}
+    }
+
     final typeStr = (this['type'] as String?)?.toUpperCase() ?? 'TEXT';
     MessageType msgType = MessageType.text;
     if (typeStr == 'IMAGE') {
@@ -167,6 +181,7 @@ extension MessageSqliteMapper on Map<String, dynamic> {
       isDeleted: isDeleted,
       reactions: parsedReactions,
       replyToMessageId: this['reply_to_id'] as String?,
+      replyToMessage: parsedReplyTo,
       seq: this['seq'] as int?,
     );
   }

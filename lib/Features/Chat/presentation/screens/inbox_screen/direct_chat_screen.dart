@@ -403,9 +403,18 @@ class _BubbleById extends ConsumerWidget {
       ),
     );
 
-    final repliedMsg = msg.replyToMessageId != null
-        ? ref.watch(directChatProvider.select((state) => state.messagesById[msg.replyToMessageId]))
-        : null;
+    MessageModel? repliedMsg;
+    if (msg.replyToMessage != null) {
+      repliedMsg = MessageModel(
+        id: msg.replyToMessage!.id,
+        text: msg.replyToMessage!.text,
+        time: '',
+        timestamp: DateTime.now(),
+        isMe: false,
+      );
+    } else if (msg.replyToMessageId != null) {
+      repliedMsg = ref.watch(directChatProvider.select((state) => state.messagesById[msg.replyToMessageId]));
+    }
 
     return ChatBubble(
       key: ValueKey(id),

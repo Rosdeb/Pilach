@@ -41,8 +41,8 @@ class MessageDao {
     for (var msg in messages) {
       batch.rawInsert(
         '''
-        INSERT INTO messages (id, client_msg_id, conversation_id, seq, sender_id, type, text, status, created_at, edited_at, deleted, reply_to_id, reactions_json, attachments_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO messages (id, client_msg_id, conversation_id, seq, sender_id, type, text, status, created_at, edited_at, deleted, reply_to_id, reply_to_json, reactions_json, attachments_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           client_msg_id = COALESCE(excluded.client_msg_id, messages.client_msg_id),
           conversation_id = excluded.conversation_id,
@@ -59,6 +59,7 @@ class MessageDao {
           edited_at = excluded.edited_at,
           deleted = excluded.deleted,
           reply_to_id = excluded.reply_to_id,
+          reply_to_json = excluded.reply_to_json,
           reactions_json = COALESCE(excluded.reactions_json, messages.reactions_json),
           attachments_json = COALESCE(excluded.attachments_json, messages.attachments_json)
         ''',
@@ -75,6 +76,7 @@ class MessageDao {
           msg['edited_at'],
           msg['deleted'],
           msg['reply_to_id'],
+          msg['reply_to_json'],
           msg['reactions_json'],
           msg['attachments_json'],
         ],

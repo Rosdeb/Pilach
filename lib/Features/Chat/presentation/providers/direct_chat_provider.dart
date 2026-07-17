@@ -222,8 +222,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
           }
           
           if (msgId != null && state.messagesById.containsKey(msgId)) {
-            Logger.log('Message $msgId already handled by ACK, skipping broadcast overwrite.');
-            return;
+            Logger.log('Message $msgId already handled by ACK, but parsing broadcast to fill missing data.');
           }
           
           // Secondary fallback: if still no senderId, it MUST be our own message that lacked a temp match
@@ -258,6 +257,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
                 status: newMsg.status,
                 text: (newMsg.text.isNotEmpty) ? newMsg.text : existing.text,
                 mediaUrl: (newMsg.mediaUrl != null && newMsg.mediaUrl!.isNotEmpty) ? newMsg.mediaUrl : existing.mediaUrl,
+                replyToMessage: newMsg.replyToMessage ?? existing.replyToMessage,
               );
             } else {
               newById[newMsg.id!] = newMsg;
@@ -427,8 +427,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
        for (final item in pending) {
           try {
             final payload = jsonDecode(item['payload_json']);
-            final cleanPayload = Map<String, dynamic>.from(payload)
-              ..remove('replyToId');
+            final cleanPayload = Map<String, dynamic>.from(payload);
 
             final response = await _socketService.emitWithAck('message:send', cleanPayload);
 
@@ -632,15 +631,6 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         if (!mounted) return;
 
         bool hasChanges = true;
-        if (page == 1 && state.messageIds.isNotEmpty && sqliteRows.isNotEmpty) {
-          final serverLatestId = sqliteRows.first['id']?.toString();
-          final localLatestId = state.messageIds.first;
-          
-          if (serverLatestId == localLatestId) {
-            hasChanges = false;
-          }
-        }
-
         // If it's a pagination request (page > 1) and the data we got is already in local DB, no need to update
         if (page > 1 && sqliteRows.isNotEmpty && state.messageIds.contains(sqliteRows.first['id']?.toString())) {
           hasChanges = false;
@@ -749,6 +739,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       'text': text,
       'type': 'TEXT',
       'attachments': [],
+      if (replyToId != null) 'replyToId': replyToId,
     };
     
     // 1. Optimistic Update (UI)
@@ -815,6 +806,8 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
                 text: text,
                 status: 'sent',
                 createdAt: now.toIso8601String(),
+                replyToId: newMsg.replyToMessageId,
+                replyToJson: newMsg.replyToMessage != null ? jsonEncode(newMsg.replyToMessage!.toJson()) : null,
               ).toSqliteMap();
               await _messageDao.insertOrUpdateMessages([sqliteMap]);
             }
@@ -937,7 +930,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  Future<void> sendImageAttachment(String filePath, {String? caption}) async {
+  Future<void> sendImageAttachment(String filePath, {String? caption, String? replyToId}) async {
     if (chatId == null) return;
     try {
       final clientMsgId = const Uuid().v4();
@@ -954,6 +947,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         type: MessageType.image,
         mediaUrl: filePath,
         status: MessageStatus.sending,
+        replyToMessageId: replyToId,
       );
 
       final newById = Map<String, MessageModel>.from(state.messagesById);
@@ -994,6 +988,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         'type': 'IMAGE',
         'text': caption ?? '',
         'attachments': [attachmentObj],
+        if (replyToId != null) 'replyToId': replyToId,
       };
 
       // Save to outbox

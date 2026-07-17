@@ -62,16 +62,19 @@ class _CreateStoryScreenState extends ConsumerState<CreateStoryScreen> {
         "mediaUrl": mediaUrl,
         "thumbnailUrl": mediaUrl,
         "caption": _captionController.text.trim(),
-        "entities": {},
+        "entities": [], // Use empty array instead of object for entities
         "privacy": "EVERYONE",
         "allowedUserIds": [],
         "ttlHours": 24,
       };
 
-      await apiService.post('/api/v1/stories', data: payload);
+      final response = await apiService.post('/api/v1/stories', data: payload);
       
-      // Refresh the stories list
-      ref.read(myStoriesProvider.notifier).fetchMyStories();
+      // Delay slightly in case the backend takes time to process/index the new story
+      await Future.delayed(const Duration(milliseconds: 1000));
+      
+      // Refresh the stories list and wait for it to complete
+      await ref.read(myStoriesProvider.notifier).fetchMyStories();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Story created successfully!')));

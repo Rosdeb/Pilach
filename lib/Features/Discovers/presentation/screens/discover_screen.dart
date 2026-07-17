@@ -330,8 +330,15 @@ class DiscoverScreen extends ConsumerWidget {
           }
 
           if (hasMyStories && index == 1) {
-            // Display the user's own fetched story
-            final latestStory = myStories.first;
+            // Pick the most recent story for the thumbnail
+            final latestStory = myStories.reduce((a, b) {
+              if (a.createdAt == null) return b;
+              if (b.createdAt == null) return a;
+              return a.createdAt!.isAfter(b.createdAt!) ? a : b;
+            });
+            
+            final String? displayUrl = latestStory.thumbnailUrl ?? latestStory.mediaUrl;
+
             return Padding(
               padding: const EdgeInsets.only(right: 16.0),
               child: GestureDetector(
@@ -357,15 +364,28 @@ class DiscoverScreen extends ConsumerWidget {
                           color: theme.scaffoldBackgroundColor,
                           shape: BoxShape.circle,
                         ),
-                        child: CircleAvatar(
-                          radius: 28,
-                          backgroundColor: theme.colorScheme.onSurface.withOpacity(0.05),
-                          backgroundImage: latestStory.thumbnailUrl != null 
-                              ? CachedNetworkImageProvider(latestStory.thumbnailUrl!) 
-                              : null,
-                          child: latestStory.thumbnailUrl == null 
-                              ? Icon(CupertinoIcons.person_fill, color: theme.colorScheme.onSurface.withOpacity(0.4))
-                              : null,
+                        child: SizedBox(
+                          width: 56,
+                          height: 56,
+                          child: ClipOval(
+                            child: displayUrl != null && displayUrl.isNotEmpty
+                                ? CachedNetworkImage(
+                                    imageUrl: displayUrl,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) => Container(
+                                      color: theme.colorScheme.onSurface.withOpacity(0.1),
+                                      child: const CupertinoActivityIndicator(),
+                                    ),
+                                    errorWidget: (context, url, error) => Icon(
+                                      CupertinoIcons.person_fill, 
+                                      color: theme.colorScheme.onSurface.withOpacity(0.4),
+                                    ),
+                                  )
+                                : Icon(
+                                    CupertinoIcons.person_fill, 
+                                    color: theme.colorScheme.onSurface.withOpacity(0.4),
+                                  ),
+                          ),
                         ),
                       ),
                     ),

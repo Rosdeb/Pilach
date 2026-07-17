@@ -4,6 +4,7 @@ import 'package:app/core/constants/app_constants.dart';
 import 'package:app/core/constants/asset_constants.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/theme/chat_theme_model.dart';
 import '../../data/models/message_model.dart';
@@ -37,8 +38,9 @@ class ChatBubble extends StatefulWidget {
   State<ChatBubble> createState() => _ChatBubbleState();
 }
 
-class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateMixin {
+class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
   late AnimationController controller;
+  late AnimationController _swipeController;
 
   late Animation<double> fade;
 
@@ -47,9 +49,17 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
   final GlobalKey _bubbleKey = GlobalKey();
   OverlayEntry? _menuOverlay;
 
+  bool _isReplyTriggered = false;
+  final double _maxDragDistance = 60.0;
+
   @override
   void initState() {
     super.initState();
+
+    _swipeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    );
 
     controller = AnimationController(
       vsync: this,
@@ -63,12 +73,14 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: controller, curve: Curves.easeOutCubic));
 
-    if (widget.message.status == MessageStatus.sending || (!widget.message.isMe && DateTime.now().difference(widget.message.timestamp).inSeconds < 3)) {
+    if (widget.message.status == MessageStatus.sending ||
+        (!widget.message.isMe &&
+            DateTime.now().difference(widget.message.timestamp).inSeconds <
+                3)) {
       controller.forward();
     } else {
       controller.value = 1.0;
     }
-
   }
 
   @override
@@ -80,13 +92,15 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
   void dispose() {
     _removeOverlay();
     controller.dispose();
+    _swipeController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasImage = widget.message.mediaUrl != null &&
+    final hasImage =
+        widget.message.mediaUrl != null &&
         widget.message.mediaUrl!.isNotEmpty &&
         !widget.message.isDeleted;
 
@@ -94,91 +108,180 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
       opacity: fade,
       child: SlideTransition(
         position: slide,
-        child: Align(
-          alignment: widget.message.isMe
-              ? Alignment.centerRight
-              : Alignment.centerLeft,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (!widget.message.isMe && widget.otherUserAvatar != null) ...[
-                CircleAvatar(
-                  radius: 12,
-                  backgroundImage: widget.otherUserAvatar!.startsWith('http')
-                      ? CachedNetworkImageProvider(widget.otherUserAvatar!)
-                      : AssetImage(widget.otherUserAvatar!) as ImageProvider,
-                ),
-                const SizedBox(width: 8),
-              ],
-              Flexible(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 6.0),
-                  constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width * 0.70,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: widget.message.isMe
-                        ? CrossAxisAlignment.end
-                        : CrossAxisAlignment.start,
-                    children: [
-                      // Bubble Layer Canvas Block Box
-                      GestureDetector(
-                        onLongPress: widget.message.isDeleted ? null : () => _showMessageOptions(context),
-                        child: _buildBubbleContent(context, hasImage, isOverlay: false),
+        child: GestureDetector(
+          onHorizontalDragStart: (details) {
+            if (widget.message.isDeleted || widget.onReply == null) return;
+            _swipeController.stop();
+          },
+          onHorizontalDragUpdate: (details) {
+            if (widget.message.isDeleted || widget.onReply == null) return;
+            double newVal =
+                _swipeController.value - (details.delta.dx / _maxDragDistance);
+            if (newVal < 0) newVal = 0;
+            if (newVal > 1.5) newVal = 1.5;
+            _swipeController.value = newVal;
+
+            if (_swipeController.value >= 1.0 && !_isReplyTriggered) {
+              _isReplyTriggered = true;
+              HapticFeedback.lightImpact();
+              widget.onReply!();
+            } else if (_swipeController.value < 1.0) {
+              _isReplyTriggered = false;
+            }
+          },
+          onHorizontalDragEnd: (details) {
+            _isReplyTriggered = false;
+            _swipeController.animateTo(0.0, curve: Curves.easeOutBack);
+          },
+          onHorizontalDragCancel: () {
+            _isReplyTriggered = false;
+            _swipeController.animateTo(0.0, curve: Curves.easeOutBack);
+          },
+          child: AnimatedBuilder(
+            animation: _swipeController,
+            builder: (context, child) {
+              final double offset =
+                  -(_swipeController.value * _maxDragDistance);
+              return Stack(
+                children: [
+                  Positioned(
+                    right: 24,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Opacity(
+                        opacity: (_swipeController.value > 0.1)
+                            ? ((_swipeController.value - 0.1) / 0.9).clamp(
+                                0.0,
+                                1.0,
+                              )
+                            : 0.0,
+                        child: Transform.scale(
+                          scale: _swipeController.value >= 1.0 ? 1.2 : 1.0,
+                          child: Icon(
+                            Icons.reply,
+                            color: _swipeController.value >= 1.0
+                                ? (widget.activeTheme.accentColor ??
+                                      Colors.green)
+                                : Colors.grey,
+                            size: 24,
+                          ),
+                        ),
                       ),
-  
-                      const SizedBox(height: 4),
-  
-                      // Timestamp and Delivery Status indicators block line
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
+                    ),
+                  ),
+                  Transform.translate(offset: Offset(offset, 0), child: child),
+                ],
+              );
+            },
+            child: Align(
+              alignment: widget.message.isMe
+                  ? Alignment.centerRight
+                  : Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (!widget.message.isMe &&
+                      widget.otherUserAvatar != null) ...[
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundImage:
+                          widget.otherUserAvatar!.startsWith('http')
+                          ? CachedNetworkImageProvider(widget.otherUserAvatar!)
+                          : AssetImage(widget.otherUserAvatar!)
+                                as ImageProvider,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Flexible(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6.0),
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width * 0.70,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: widget.message.isMe
+                            ? CrossAxisAlignment.end
+                            : CrossAxisAlignment.start,
                         children: [
-                          if (widget.message.reactions != null &&
-                              widget.message.reactions!.isNotEmpty) ...[
-                            Wrap(
-                              spacing: 4.0,
-                              runSpacing: 4.0,
-                              children: _buildReactions(
-                                widget.message.reactions!,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                          ],
-                          Text(
-                            widget.message.time,
-                            style: TextStyle(
-                              color: theme.colorScheme.onSurface.withOpacity(0.6),
-                              fontSize: 11,
+                          // Bubble Layer Canvas Block Box
+                          GestureDetector(
+                            onLongPress: widget.message.isDeleted
+                                ? null
+                                : () => _showMessageOptions(context),
+                            child: _buildBubbleContent(
+                              context,
+                              hasImage,
+                              isOverlay: false,
                             ),
                           ),
-                          if (widget.message.isMe &&
-                              widget.message.status != null) ...[
-                            const SizedBox(width: 4),
-                            Icon(
-                              (widget.message.status == MessageStatus.seen || widget.message.status == MessageStatus.delivered)
-                                  ? Icons.done_all
-                                  : Icons.done,
-                              size: 14,
-                              color: widget.message.status == MessageStatus.seen
-                                  ? const Color(0xFF34C759)
-                                  : theme.colorScheme.onSurface.withOpacity(0.6),
-                            ),
-                          ],
+
+                          const SizedBox(height: 4),
+
+                          // Timestamp and Delivery Status indicators block line
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (widget.message.reactions != null &&
+                                  widget.message.reactions!.isNotEmpty) ...[
+                                Wrap(
+                                  spacing: 4.0,
+                                  runSpacing: 4.0,
+                                  children: _buildReactions(
+                                    widget.message.reactions!,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                              ],
+                              Text(
+                                widget.message.time,
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface
+                                      .withOpacity(0.6),
+                                  fontSize: 11,
+                                ),
+                              ),
+                              if (widget.message.isMe &&
+                                  widget.message.status != null) ...[
+                                const SizedBox(width: 4),
+                                Icon(
+                                  (widget.message.status ==
+                                              MessageStatus.seen ||
+                                          widget.message.status ==
+                                              MessageStatus.delivered)
+                                      ? Icons.done_all
+                                      : Icons.done,
+                                  size: 14,
+                                  color:
+                                      widget.message.status ==
+                                          MessageStatus.seen
+                                      ? const Color(0xFF34C759)
+                                      : theme.colorScheme.onSurface.withOpacity(
+                                          0.6,
+                                        ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildBubbleContent(BuildContext context, bool hasImage, {bool isOverlay = false}) {
+  Widget _buildBubbleContent(
+    BuildContext context,
+    bool hasImage, {
+    bool isOverlay = false,
+  }) {
     return Container(
       key: isOverlay ? null : _bubbleKey,
       clipBehavior: Clip.antiAlias,
@@ -189,12 +292,8 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(16),
           topRight: const Radius.circular(16),
-          bottomLeft: Radius.circular(
-            widget.message.isMe ? 16 : 4,
-          ),
-          bottomRight: Radius.circular(
-            widget.message.isMe ? 4 : 16,
-          ),
+          bottomLeft: Radius.circular(widget.message.isMe ? 16 : 4),
+          bottomRight: Radius.circular(widget.message.isMe ? 4 : 16),
         ),
         boxShadow: [
           BoxShadow(
@@ -206,34 +305,44 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
       ),
       padding: hasImage
           ? EdgeInsets.zero
-          : const EdgeInsets.symmetric(
-              horizontal: 14.0,
-              vertical: 10.0,
-            ),
+          : const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (widget.repliedMessage != null) ...[
             Padding(
               padding: hasImage
-                  ? const EdgeInsets.only(left: 14.0, right: 14.0, top: 10.0, bottom: 4.0)
+                  ? const EdgeInsets.only(
+                      left: 14.0,
+                      right: 14.0,
+                      top: 10.0,
+                      bottom: 4.0,
+                    )
                   : EdgeInsets.zero,
               child: Container(
                 margin: const EdgeInsets.only(bottom: 6.0),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border(left: BorderSide(color: widget.activeTheme.accentColor ?? Colors.green, width: 3)),
+                  border: Border(
+                    left: BorderSide(
+                      color: widget.activeTheme.accentColor ?? Colors.green,
+                      width: 3,
+                    ),
+                  ),
                 ),
                 child: Text(
                   widget.repliedMessage!.text,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: widget.message.isMe 
-                      ? Colors.white.withOpacity(0.9) 
-                      : Colors.black.withOpacity(0.7),
+                    color: widget.message.isMe
+                        ? Colors.white.withOpacity(0.9)
+                        : Colors.black.withOpacity(0.7),
                     fontSize: 13,
                   ),
                 ),
@@ -252,12 +361,16 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
                     Icons.block,
                     size: 15,
                     color: widget.message.isMe
-                        ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
-                            ? Colors.black54
-                            : Colors.white70)
-                        : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
-                            ? Colors.black54
-                            : Colors.white70),
+                        ? (widget.activeTheme.sentMessageColor
+                                      .computeLuminance() >
+                                  0.5
+                              ? Colors.black54
+                              : Colors.white70)
+                        : (widget.activeTheme.receivedMessageColor
+                                      .computeLuminance() >
+                                  0.5
+                              ? Colors.black54
+                              : Colors.white70),
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -266,12 +379,16 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
                         : 'This message was deleted',
                     style: TextStyle(
                       color: widget.message.isMe
-                          ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
-                              ? Colors.black54
-                              : Colors.white70)
-                          : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
-                              ? Colors.black54
-                              : Colors.white70),
+                          ? (widget.activeTheme.sentMessageColor
+                                        .computeLuminance() >
+                                    0.5
+                                ? Colors.black54
+                                : Colors.white70)
+                          : (widget.activeTheme.receivedMessageColor
+                                        .computeLuminance() >
+                                    0.5
+                                ? Colors.black54
+                                : Colors.white70),
                       fontSize: 14,
                       fontStyle: FontStyle.italic,
                     ),
@@ -285,10 +402,14 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
                 builder: (context) {
                   final rawUrl = widget.message.mediaUrl!;
                   final bool isLocalFile = File(rawUrl).existsSync();
-                  final String networkUrl = (rawUrl.startsWith('http://') || rawUrl.startsWith('https://'))
+                  final String networkUrl =
+                      (rawUrl.startsWith('http://') ||
+                          rawUrl.startsWith('https://'))
                       ? rawUrl
                       : 'https://xdtunnel.icu/$rawUrl';
-                  final String heroTag = isOverlay ? 'hero_img_overlay_${widget.message.id}' : 'hero_img_${widget.message.id}';
+                  final String heroTag = isOverlay
+                      ? 'hero_img_overlay_${widget.message.id}'
+                      : 'hero_img_${widget.message.id}';
 
                   return GestureDetector(
                     onTap: () {
@@ -312,27 +433,39 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
                                 width: 250.0,
                                 height: 190.0,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => Container(
-                                  color: Theme.of(context).brightness == Brightness.dark
-                                      ? Colors.grey[850]
-                                      : Colors.grey[200],
-                                  child: const Icon(Icons.broken_image, size: 40),
-                                ),
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Container(
+                                      color:
+                                          Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? Colors.grey[850]
+                                          : Colors.grey[200],
+                                      child: const Icon(
+                                        Icons.broken_image,
+                                        size: 40,
+                                      ),
+                                    ),
                               )
                             : CachedNetworkImage(
                                 imageUrl: networkUrl,
                                 width: 250.0,
                                 height: 190.0,
                                 fit: BoxFit.cover,
-                                placeholder: (context, url) => const _ShimmerPlaceholder(
-                                  width: 250.0,
-                                  height: 190.0,
-                                ),
+                                placeholder: (context, url) =>
+                                    const _ShimmerPlaceholder(
+                                      width: 250.0,
+                                      height: 190.0,
+                                    ),
                                 errorWidget: (context, url, error) => Container(
-                                  color: Theme.of(context).brightness == Brightness.dark
+                                  color:
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark
                                       ? Colors.grey[850]
                                       : Colors.grey[200],
-                                  child: const Icon(Icons.broken_image, size: 40),
+                                  child: const Icon(
+                                    Icons.broken_image,
+                                    size: 40,
+                                  ),
                                 ),
                               ),
                       ),
@@ -344,7 +477,12 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
             if (widget.message.text.isNotEmpty)
               Padding(
                 padding: hasImage
-                    ? const EdgeInsets.only(left: 14.0, right: 14.0, bottom: 10.0, top: 8.0)
+                    ? const EdgeInsets.only(
+                        left: 14.0,
+                        right: 14.0,
+                        bottom: 10.0,
+                        top: 8.0,
+                      )
                     : EdgeInsets.zero,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -354,10 +492,14 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
                         widget.message.text,
                         style: TextStyle(
                           color: widget.message.isMe
-                              ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5
+                              ? (widget.activeTheme.sentMessageColor
+                                            .computeLuminance() >
+                                        0.5
                                     ? Colors.black87
                                     : Colors.white)
-                              : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5
+                              : (widget.activeTheme.receivedMessageColor
+                                            .computeLuminance() >
+                                        0.5
                                     ? Colors.black87
                                     : Colors.white),
                           fontSize: 15,
@@ -365,21 +507,33 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
                         ),
                       ),
                     ),
-                    if (widget.message.isEdited == true && !widget.message.isDeleted)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 4.0),
-                      child: Text(
-                        '(Edited)',
-                        style: TextStyle(
-                          color: (widget.message.isMe
-                                  ? (widget.activeTheme.sentMessageColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white)
-                                  : (widget.activeTheme.receivedMessageColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white))
-                              .withValues(alpha: 0.7),
-                          fontSize: 10,
-                          fontStyle: FontStyle.italic,
+                    if (widget.message.isEdited == true &&
+                        !widget.message.isDeleted)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4.0),
+                        child: Text(
+                          '(Edited)',
+                          style: TextStyle(
+                            color:
+                                (widget.message.isMe
+                                        ? (widget.activeTheme.sentMessageColor
+                                                      .computeLuminance() >
+                                                  0.5
+                                              ? Colors.black87
+                                              : Colors.white)
+                                        : (widget
+                                                      .activeTheme
+                                                      .receivedMessageColor
+                                                      .computeLuminance() >
+                                                  0.5
+                                              ? Colors.black87
+                                              : Colors.white))
+                                    .withValues(alpha: 0.7),
+                            fontSize: 10,
+                            fontStyle: FontStyle.italic,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -428,11 +582,16 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
   }
 
   void _showMessageOptions(BuildContext context) {
-    final RenderBox? box = _bubbleKey.currentContext?.findRenderObject() as RenderBox?;
-    final overlayBox = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final RenderBox? box =
+        _bubbleKey.currentContext?.findRenderObject() as RenderBox?;
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
     if (box == null || overlayBox == null) return;
 
-    final Offset bubbleTopLeft = box.localToGlobal(Offset.zero, ancestor: overlayBox);
+    final Offset bubbleTopLeft = box.localToGlobal(
+      Offset.zero,
+      ancestor: overlayBox,
+    );
     final Size bubbleSize = box.size;
     final media = MediaQuery.of(context);
 
@@ -452,9 +611,7 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
     const double gap = 8;
 
     final double spaceBelow =
-        screenHeight -
-            bottomSafe -
-            (bubbleTopLeft.dy + bubbleSize.height);
+        screenHeight - bottomSafe - (bubbleTopLeft.dy + bubbleSize.height);
 
     final bool openBelow = spaceBelow > estimatedMenuHeight;
 
@@ -463,34 +620,47 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
 
     final top = openBelow
         ? adjustedBubbleTop + bubbleSize.height + gap
-        : (adjustedBubbleTop - estimatedMenuHeight - gap)
-        .clamp(topSafe + gap, screenHeight);
+        : (adjustedBubbleTop - estimatedMenuHeight - gap).clamp(
+            topSafe + gap,
+            screenHeight,
+          );
 
     final double left = widget.message.isMe
-        ? (bubbleTopLeft.dx + bubbleSize.width - menuWidth)
-        .clamp(12.0, screenWidth - menuWidth - 12.0)
-        : bubbleTopLeft.dx
-        .clamp(12.0, screenWidth - menuWidth - 12.0);
-
+        ? (bubbleTopLeft.dx + bubbleSize.width - menuWidth).clamp(
+            12.0,
+            screenWidth - menuWidth - 12.0,
+          )
+        : bubbleTopLeft.dx.clamp(12.0, screenWidth - menuWidth - 12.0);
 
     final anchorOffset = Offset(
       bubbleTopLeft.dx + bubbleSize.width / 2,
       openBelow ? bubbleTopLeft.dy + bubbleSize.height : bubbleTopLeft.dy,
     );
 
-    final hasImage = widget.message.mediaUrl != null &&
+    final hasImage =
+        widget.message.mediaUrl != null &&
         widget.message.mediaUrl!.isNotEmpty &&
         !widget.message.isDeleted;
-    final copiedBubble = _buildBubbleContent(context, hasImage, isOverlay: true);
+    final copiedBubble = _buildBubbleContent(
+      context,
+      hasImage,
+      isOverlay: true,
+    );
 
     _menuOverlay = OverlayEntry(
       builder: (_) => _MessageActionOverlay(
-        isMe: widget.message.isMe,   // <-- NEW
-        bubbleTop: adjustedBubbleTop, // <-- NEW
-        bubbleLeft: bubbleLeft,      // <-- NEW
-        bubbleRight: bubbleRight,    // <-- NEW
-        bubbleSize: bubbleSize,      // <-- NEW
-        copiedBubble: copiedBubble,  // <-- NEW
+        isMe: widget.message.isMe,
+        // <-- NEW
+        bubbleTop: adjustedBubbleTop,
+        // <-- NEW
+        bubbleLeft: bubbleLeft,
+        // <-- NEW
+        bubbleRight: bubbleRight,
+        // <-- NEW
+        bubbleSize: bubbleSize,
+        // <-- NEW
+        copiedBubble: copiedBubble,
+        // <-- NEW
         screenWidth: screenWidth,
         top: top,
         left: left,
@@ -505,16 +675,17 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
         onReply: widget.onReply == null
             ? null
             : () {
-          _removeOverlay();
-          widget.onReply!();
-        },
-        onEdit: (widget.message.isMe &&
-            widget.message.type == MessageType.text &&
-            widget.onEdit != null)
+                _removeOverlay();
+                widget.onReply!();
+              },
+        onEdit:
+            (widget.message.isMe &&
+                widget.message.type == MessageType.text &&
+                widget.onEdit != null)
             ? () {
-          _removeOverlay();
-          widget.onEdit!();
-        }
+                _removeOverlay();
+                widget.onEdit!();
+              }
             : null,
         onPin: () {
           _removeOverlay();
@@ -522,9 +693,9 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
         },
         onDelete: widget.message.isMe
             ? () {
-          _removeOverlay();
-          widget.onDelete();
-        }
+                _removeOverlay();
+                widget.onDelete();
+              }
             : null,
       ),
     );
@@ -536,17 +707,13 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
     _menuOverlay?.remove();
     _menuOverlay = null;
   }
-
 }
 
 class _ShimmerPlaceholder extends StatefulWidget {
   final double width;
   final double height;
 
-  const _ShimmerPlaceholder({
-    required this.width,
-    required this.height,
-  });
+  const _ShimmerPlaceholder({required this.width, required this.height});
 
   @override
   State<_ShimmerPlaceholder> createState() => _ShimmerPlaceholderState();
@@ -587,13 +754,11 @@ class _ShimmerPlaceholderState extends State<_ShimmerPlaceholder>
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                baseColor,
-                highlightColor,
-                baseColor,
-              ],
+              colors: [baseColor, highlightColor, baseColor],
               stops: const [0.3, 0.5, 0.7],
-              transform: _SlidingGradientTransform(slidePercent: _controller.value),
+              transform: _SlidingGradientTransform(
+                slidePercent: _controller.value,
+              ),
             ),
           ),
           child: const Center(
@@ -613,26 +778,28 @@ class _ShimmerPlaceholderState extends State<_ShimmerPlaceholder>
 }
 
 class _SlidingGradientTransform extends GradientTransform {
-  const _SlidingGradientTransform({
-    required this.slidePercent,
-  });
+  const _SlidingGradientTransform({required this.slidePercent});
 
   final double slidePercent;
 
   @override
   Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
-    return Matrix4.translationValues(bounds.width * (slidePercent - 0.5) * 2, 0.0, 0.0);
+    return Matrix4.translationValues(
+      bounds.width * (slidePercent - 0.5) * 2,
+      0.0,
+      0.0,
+    );
   }
 }
 
 class _MessageActionOverlay extends StatefulWidget {
   final double top;
-  final bool isMe;              // <-- NEW
-  final double bubbleTop;       // <-- NEW
-  final double bubbleLeft;      // <-- NEW
-  final double bubbleRight;     // <-- NEW
-  final Size bubbleSize;        // <-- NEW
-  final Widget copiedBubble;    // <-- NEW
+  final bool isMe; // <-- NEW
+  final double bubbleTop; // <-- NEW
+  final double bubbleLeft; // <-- NEW
+  final double bubbleRight; // <-- NEW
+  final Size bubbleSize; // <-- NEW
+  final Widget copiedBubble; // <-- NEW
   final double screenWidth;
   final double left;
   final double menuWidth;
@@ -698,7 +865,8 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     // origin near the bubble edge so scale grows from that point, Messenger-style
-    final alignmentX = (widget.anchorOffset.dx - widget.left) / widget.menuWidth;
+    final alignmentX =
+        (widget.anchorOffset.dx - widget.left) / widget.menuWidth;
     final alignment = Alignment(
       (alignmentX.clamp(0.0, 1.0) * 2) - 1,
       widget.openBelow ? -1.0 : 1.0,
@@ -714,10 +882,7 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
               opacity: _fade,
               child: ClipRect(
                 child: BackdropFilter(
-                  filter: ImageFilter.blur(
-                    sigmaX: 12,
-                    sigmaY: 12,
-                  ),
+                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                   child: Container(
                     color: theme.brightness == Brightness.dark
                         ? Colors.black.withValues(alpha: 0.35)
@@ -779,7 +944,11 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
         color: theme.scaffoldBackgroundColor,
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 10, offset: const Offset(0, 3)),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
         ],
       ),
       child: SingleChildScrollView(
@@ -804,9 +973,21 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
   Widget _buildActionsCard(ThemeData theme) {
     final items = <Widget>[];
 
-    void addTile(IconData icon, String label, VoidCallback onTap, {Color? color}) {
+    void addTile(
+      IconData icon,
+      String label,
+      VoidCallback onTap, {
+      Color? color,
+    }) {
       if (items.isNotEmpty) {
-        items.add(Divider(height: 1, indent: 14, endIndent: 14, color: Colors.grey.withOpacity(0.15)));
+        items.add(
+          Divider(
+            height: 1,
+            indent: 14,
+            endIndent: 14,
+            color: Colors.grey.withOpacity(0.15),
+          ),
+        );
       }
       items.add(
         InkWell(
@@ -815,9 +996,19 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             child: Row(
               children: [
-                Icon(icon, size: 18, color: color ?? theme.colorScheme.onSurface),
+                Icon(
+                  icon,
+                  size: 18,
+                  color: color ?? theme.colorScheme.onSurface,
+                ),
                 const SizedBox(width: 10),
-                Text(label, style: TextStyle(fontSize: 14, color: color ?? theme.colorScheme.onSurface)),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: color ?? theme.colorScheme.onSurface,
+                  ),
+                ),
               ],
             ),
           ),
@@ -829,7 +1020,12 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
     if (widget.onEdit != null) addTile(Icons.edit, 'Edit', widget.onEdit!);
     addTile(Icons.push_pin_outlined, 'Pin Message', widget.onPin);
     if (widget.onDelete != null) {
-      addTile(Icons.delete_outline, 'Delete Message', widget.onDelete!, color: Colors.redAccent);
+      addTile(
+        Icons.delete_outline,
+        'Delete Message',
+        widget.onDelete!,
+        color: Colors.redAccent,
+      );
     }
 
     return Container(
@@ -837,7 +1033,11 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
         color: theme.scaffoldBackgroundColor,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 10, offset: const Offset(0, 3)),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
         ],
       ),
       clipBehavior: Clip.antiAlias,
