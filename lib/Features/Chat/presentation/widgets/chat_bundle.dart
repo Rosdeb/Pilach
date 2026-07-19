@@ -597,10 +597,6 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
 
     final double screenHeight = media.size.height - media.viewInsets.bottom;
 
-    final keyboardHeight = media.viewInsets.bottom;
-
-    final adjustedBubbleTop = bubbleTopLeft.dy - (keyboardHeight * 0.15);
-
     final double screenWidth = media.size.width;
 
     final double topSafe = media.padding.top;
@@ -610,26 +606,17 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
     const double estimatedMenuHeight = 170;
     const double gap = 8;
 
-    final double spaceBelow =
-        screenHeight - bottomSafe - (bubbleTopLeft.dy + bubbleSize.height);
+    final double spaceBelow = screenHeight - bottomSafe - (bubbleTopLeft.dy + bubbleSize.height);
 
     final bool openBelow = spaceBelow > estimatedMenuHeight;
 
-    final double bubbleLeft = bubbleTopLeft.dx;
-    final double bubbleRight = bubbleTopLeft.dx + bubbleSize.width;
-
-    final top = openBelow
-        ? adjustedBubbleTop + bubbleSize.height + gap
-        : (adjustedBubbleTop - estimatedMenuHeight - gap).clamp(
-            topSafe + gap,
-            screenHeight,
-          );
+    final top = openBelow ? bubbleTopLeft.dy + bubbleSize.height + gap : (bubbleTopLeft.dy - estimatedMenuHeight - gap).clamp(
+      topSafe + gap,
+      screenHeight,
+    );
 
     final double left = widget.message.isMe
-        ? (bubbleTopLeft.dx + bubbleSize.width - menuWidth).clamp(
-            12.0,
-            screenWidth - menuWidth - 12.0,
-          )
+        ? (bubbleTopLeft.dx + bubbleSize.width - menuWidth).clamp(12.0, screenWidth - menuWidth - 12.0,)
         : bubbleTopLeft.dx.clamp(12.0, screenWidth - menuWidth - 12.0);
 
     final anchorOffset = Offset(
@@ -637,8 +624,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
       openBelow ? bubbleTopLeft.dy + bubbleSize.height : bubbleTopLeft.dy,
     );
 
-    final hasImage =
-        widget.message.mediaUrl != null &&
+    final hasImage = widget.message.mediaUrl != null &&
         widget.message.mediaUrl!.isNotEmpty &&
         !widget.message.isDeleted;
     final copiedBubble = _buildBubbleContent(
@@ -650,17 +636,8 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
     _menuOverlay = OverlayEntry(
       builder: (_) => _MessageActionOverlay(
         isMe: widget.message.isMe,
-        // <-- NEW
-        bubbleTop: adjustedBubbleTop,
-        // <-- NEW
-        bubbleLeft: bubbleLeft,
-        // <-- NEW
-        bubbleRight: bubbleRight,
-        // <-- NEW
-        bubbleSize: bubbleSize,
-        // <-- NEW
+        bubbleKey: _bubbleKey,
         copiedBubble: copiedBubble,
-        // <-- NEW
         screenWidth: screenWidth,
         top: top,
         left: left,
@@ -795,10 +772,7 @@ class _SlidingGradientTransform extends GradientTransform {
 class _MessageActionOverlay extends StatefulWidget {
   final double top;
   final bool isMe; // <-- NEW
-  final double bubbleTop; // <-- NEW
-  final double bubbleLeft; // <-- NEW
-  final double bubbleRight; // <-- NEW
-  final Size bubbleSize; // <-- NEW
+  final GlobalKey bubbleKey;
   final Widget copiedBubble; // <-- NEW
   final double screenWidth;
   final double left;
@@ -815,10 +789,7 @@ class _MessageActionOverlay extends StatefulWidget {
   const _MessageActionOverlay({
     required this.top,
     required this.isMe,
-    required this.bubbleTop,
-    required this.bubbleLeft,
-    required this.bubbleRight,
-    required this.bubbleSize,
+    required this.bubbleKey,
     required this.copiedBubble,
     required this.screenWidth,
     required this.left,
@@ -837,9 +808,12 @@ class _MessageActionOverlay extends StatefulWidget {
   State<_MessageActionOverlay> createState() => _MessageActionOverlayState();
 }
 
-class _MessageActionOverlayState extends State<_MessageActionOverlay>
-    with SingleTickerProviderStateMixin {
+class _MessageActionOverlayState extends State<_MessageActionOverlay> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
+  double _bubbleTop = 0;
+  double _bubbleLeft = 0;
+  Size _bubbleSize = Size.zero;
+
   late Animation<double> _scale;
   late Animation<double> _fade;
 
@@ -852,6 +826,9 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
     );
     _scale = CurvedAnimation(parent: _controller, curve: Curves.easeOutBack);
     _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateBubblePosition();
+    });
     _controller.forward();
   }
 
@@ -862,11 +839,45 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
   }
 
   @override
+  void didChangeMetrics() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _updateBubblePosition();
+      }
+    });
+  }
+
+
+  void _updateBubblePosition() {
+    final box =
+    widget.bubbleKey.currentContext?.findRenderObject() as RenderBox?;
+
+    if (box == null) {
+      debugPrint("BOX NULL");
+      return;
+    }
+
+    final overlay =
+    Overlay.of(context).context.findRenderObject() as RenderBox;
+
+    final offset = box.localToGlobal(Offset.zero, ancestor: overlay);
+
+    debugPrint("Top: ${offset.dy}");
+    debugPrint("Left: ${offset.dx}");
+    debugPrint("Size: ${box.size}");
+
+    setState(() {
+      _bubbleTop = offset.dy;
+      _bubbleLeft = offset.dx;
+      _bubbleSize = box.size;
+    });
+  }
+
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // origin near the bubble edge so scale grows from that point, Messenger-style
-    final alignmentX =
-        (widget.anchorOffset.dx - widget.left) / widget.menuWidth;
+    final alignmentX = (widget.anchorOffset.dx - widget.left) / widget.menuWidth;
     final alignment = Alignment(
       (alignmentX.clamp(0.0, 1.0) * 2) - 1,
       widget.openBelow ? -1.0 : 1.0,
@@ -893,12 +904,12 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
             ),
           ),
         ),
-        // Focused Bubble Duplicate
+
         Positioned(
-          top: widget.bubbleTop,
-          left: widget.bubbleLeft,
-          width: widget.bubbleSize.width,
-          height: widget.bubbleSize.height,
+          top: _bubbleTop,
+          left: _bubbleLeft,
+          width: _bubbleSize.width,
+          height: _bubbleSize.height,
           child: ScaleTransition(
             scale: Tween<double>(begin: 0.95, end: 1.0).animate(_controller),
             child: Material(

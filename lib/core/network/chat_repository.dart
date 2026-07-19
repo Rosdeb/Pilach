@@ -33,12 +33,10 @@ class ChatRepository {
     return response.data as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> sendMessage(String chatId, String text, String clientMsgId) async {
-    final response = await _apiService.post('/api/v1/messages/send', data: {
-      'conversationId': chatId,
-      'text': text,
-      'clientMsgId': clientMsgId,
-    });
+  Future<Map<String, dynamic>> sendMessage(String chatId, Map<String, Object?> payload, String clientMsgId) async {
+    final requestBody = Map<String, Object?>.from(payload);
+    requestBody['clientMsgId'] = clientMsgId;
+    final response = await _apiService.post('/api/v1/chats/$chatId/messages', data: requestBody);
     return response.data as Map<String, dynamic>;
   }
 
