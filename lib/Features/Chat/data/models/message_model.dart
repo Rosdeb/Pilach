@@ -174,7 +174,7 @@ class MessageModel {
       id: json['id'] as String,
       text: json['text'] as String? ?? '',
       time: json['time'] as String? ?? '',
-      timestamp: DateTime.parse(json['timestamp'] as String),
+      timestamp: DateTime.parse(json['timestamp'] as String).toLocal(),
       isMe: json['isMe'] as bool? ?? false,
       status: MessageStatus.values.firstWhere(
             (e) => e.name == json['status'],

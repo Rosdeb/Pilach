@@ -50,6 +50,37 @@ class ChatDto {
     );
   }
 
+  String? _resolveLastMessagePreview() {
+    if (lastMessage == null) return null;
+
+    final String? text = lastMessage?['text'] as String?;
+    final String type = (lastMessage?['type'] as String?)?.toUpperCase() ?? 'TEXT';
+    final attachments = lastMessage?['attachments'] as List<dynamic>?;
+
+    if (text != null && text.isNotEmpty) {
+      if (type == 'IMAGE') return '📷 $text';
+      if (type == 'VIDEO') return '🎥 $text';
+      if (type == 'AUDIO' || type == 'VOICE') return '🎵 $text';
+      if (type == 'FILE') return '📁 $text';
+      return text;
+    }
+
+    if (attachments != null && attachments.isNotEmpty) {
+      final attachmentType = (attachments.first['type'] as String?)?.toUpperCase();
+      if (attachmentType == 'IMAGE') return '📷 Photo';
+      if (attachmentType == 'VIDEO') return '🎥 Video';
+      if (attachmentType == 'AUDIO' || attachmentType == 'VOICE') return '🎵 Audio';
+      if (attachmentType == 'FILE') return '📁 File';
+    }
+
+    if (type == 'IMAGE') return '📷 Photo';
+    if (type == 'VIDEO') return '🎥 Video';
+    if (type == 'AUDIO' || type == 'VOICE') return '🎵 Audio';
+    if (type == 'FILE') return '📁 File';
+
+    return lastMessage?['text'] as String?;
+  }
+
   // To save to SQLite
   Map<String, dynamic> toSqliteMap([String? currentUserId]) {
     String? displayTitle = title;
@@ -106,6 +137,8 @@ class ChatDto {
       }
     }
 
+    final String? lastMessagePreview = _resolveLastMessagePreview();
+
     return {
       'id': id,
       'other_user_id': otherUserId,
@@ -114,7 +147,7 @@ class ChatDto {
       'avatar_url': displayAvatar,
       'unread_count': unreadCount,
       'last_message_seq': (lastMessageSeq is String) ? int.tryParse(lastMessageSeq) : lastMessageSeq,
-      'last_message_preview': lastMessage?['text'],
+      'last_message_preview': lastMessagePreview,
       'last_message_at': lastMessageAt,
       'created_at': createdAt,
       'updated_at': updatedAt,
@@ -159,11 +192,13 @@ extension ChatDtoMapper on ChatDto {
       }
     }
 
+    final String? previewMessage = _resolveLastMessagePreview();
+
     return ChatModel(
       id: id,
       userId: otherUserId,
       name: displayTitle ?? 'Unknown User', // Handle PRIVATE chats with null title
-      message: lastMessage?['text'] ?? 'New Chat',
+      message: previewMessage ?? 'New Chat',
       image: displayAvatar ?? 'https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp',
       time: formattedTime,
       unreadCount: unreadCount,

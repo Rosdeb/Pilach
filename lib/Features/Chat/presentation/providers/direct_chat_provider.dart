@@ -649,41 +649,54 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   Future<void> syncHistoryFromServer({bool forceRefresh = false}) async {
     if (chatId == null || !mounted) return;
 
-    final latestSeq = await _messageDao.getLastSeq(chatId!);
-    if (!forceRefresh && latestSeq > 0) {
-      try {
-        final response = await _chatRepository.getMessagesAfterSeq(chatId!, latestSeq);
-        if (response['success'] == true && response['data'] != null) {
-          final List<dynamic> data = response['data'];
-          if (data.isNotEmpty) {
-            final sqliteRows = await Isolate.run(() {
-              return data.map((item) {
-                final dto = MessageDto.fromJson(item as Map<String, dynamic>);
-                return dto.toSqliteMap();
-              }).toList();
-            });
+    final localLatestSeq = await _messageDao.getLastSeq(chatId!);
 
-            final hydratedRows = await _hydrateReplyReferences(sqliteRows);
-            final mergedRows = <Map<String, dynamic>>[];
-            for (final incomingRow in hydratedRows) {
-              mergedRows.add(await _mergeIncomingRow(incomingRow));
-            }
-            await _messageDao.insertOrUpdateMessages(mergedRows);
-            await loadFromDb(limitOverride: max(60, state.page * 60));
-            return;
-          }
-        }
-      } catch (e) {
-        Logger.log('Failed to sync new messages after seq: $e');
-      }
+    // Fresh install / no local data → full fetch
+    if (localLatestSeq == 0) {
+      await fetchMessagesFromServer(); // cursor-based, no cursor param = first page
+      return;
     }
 
-    await fetchMessagesFromServer(page: 1);
+    try {
+      // Step 2: server-এর latest seq কত জিজ্ঞেস করো (lightweight)
+      final serverLatestSeq = await _chatRepository.getLatestSeq(chatId!);
+
+      if (serverLatestSeq == localLatestSeq && !forceRefresh) {
+        Logger.log('Chat is up to date, seq: $localLatestSeq');
+        return; // মিসম্যাচ নেই, কিছু করার দরকার নাই
+      }
+
+      // Step 3: mismatch — gap থাকা মেসেজগুলো আনো
+      final response = await _chatRepository.getMessagesAfterSeq(chatId!, localLatestSeq);
+      if (response['success'] == true && response['data'] != null) {
+        final List<dynamic> data = response['data'];
+        if (data.isNotEmpty) {
+          final sqliteRows = await Isolate.run(() {
+            return data.map((item) {
+              final dto = MessageDto.fromJson(item as Map<String, dynamic>);
+              return dto.toSqliteMap();
+            }).toList();
+          });
+
+          final hydratedRows = await _hydrateReplyReferences(sqliteRows);
+          final mergedRows = <Map<String, dynamic>>[];
+          for (final incomingRow in hydratedRows) {
+            mergedRows.add(await _mergeIncomingRow(incomingRow));
+          }
+          await _messageDao.insertOrUpdateMessages(mergedRows);
+          await loadFromDb(limitOverride: max(60, state.page * 60)); // Step 4: state update
+          Logger.log('Synced ${mergedRows.length} missing messages (local: $localLatestSeq → server: $serverLatestSeq)');
+        }
+      }
+    } catch (e) {
+      Logger.log('Failed to check seq mismatch, falling back to full fetch: $e');
+      await fetchMessagesFromServer();
+    }
   }
 
   Future<void> fetchMessagesFromServer({int page = 1}) async {
     if (chatId == null || !mounted) return;
-    
+
     try {
       final response = await _chatRepository.getMessages(chatId!, page: page, limit: 30);
       if (!mounted) return;
@@ -691,7 +704,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         final List<dynamic> data = response['data'];
         final pagination = response['pagination'] as Map<String, dynamic>?;
         final bool hasNext = pagination?['hasNext'] ?? false;
-        
+
         final outboxItems = await _outboxDao.getPendingMessages(chatId!);
         if (!mounted) return;
 
@@ -821,6 +834,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
             seq: dto.seq,
             status: MessageStatus.sent,
             time: DateFormat('hh:mm a').format(DateTime.now().toLocal()),
+            timestamp: DateTime.parse(dto.createdAt).toLocal(), // ← fix
           )
         : sqliteMap.toMessageModel(currentUserId);
 
@@ -1134,6 +1148,125 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       Logger.log('Image attachment message sent successfully with key $publicUrl');
     } catch (e) {
       Logger.log('Failed to upload and send image attachment: $e');
+    }
+  }
+
+  Future<void> sendFileAttachment(String filePath, {String? caption, String? replyToId}) async {
+    if (chatId == null) return;
+    try {
+      final clientMsgId = const Uuid().v4();
+      final tempId = 'temp_$clientMsgId';
+      final formattedTime = DateFormat('hh:mm a').format(DateTime.now());
+
+      // 1. Optimistic insertion into UI
+      final optimisticMsg = MessageModel(
+        id: tempId,
+        text: caption ?? '',
+        time: formattedTime,
+        timestamp: DateTime.now(),
+        isMe: true,
+        type: MessageType.file,
+        mediaUrl: filePath,
+        status: MessageStatus.sending,
+        replyToMessageId: replyToId,
+      );
+
+      final newById = Map<String, MessageModel>.from(state.messagesById);
+      newById[tempId] = optimisticMsg;
+      final newIds = [tempId, ...state.messageIds];
+      state = state.copyWith(messageIds: newIds, messagesById: newById);
+
+      // Update chat list immediately
+      _ref.read(chatProvider.notifier).updateLastMessage(chatId!, '📁 Attachment', formattedTime);
+
+      // 2. Upload file via presigned S3 URL
+      final uploadResult = await _uploadService.uploadMediaFile(
+        filePath: filePath,
+        purpose: 'message',
+      );
+
+      final String objectKey = uploadResult['key'] ?? '';
+      final String publicUrl = uploadResult['publicUrl'] ?? objectKey;
+      final String contentType = uploadResult['contentType'] ?? 'application/octet-stream';
+      final String fileName = uploadResult['fileName'] ?? filePath.split('/').last.split('\\').last;
+
+      final String attachmentUrl = objectKey.isNotEmpty ? objectKey : publicUrl;
+      if (attachmentUrl.isEmpty) {
+        Logger.log('Attachment URL missing from upload result, aborting send', type: "error");
+        return;
+      }
+
+      // 3. Construct attachment payload
+      final Map<String, dynamic> attachmentObj = {
+        'type': 'FILE',
+        'url': attachmentUrl,
+        'mimeType': contentType,
+        'fileName': fileName,
+      };
+
+      final payload = {
+        'conversationId': chatId,
+        'type': 'FILE',
+        'text': caption ?? '',
+        'attachments': [attachmentObj],
+        if (replyToId != null) 'replyToId': replyToId,
+      };
+
+      // Save to outbox
+      await _outboxDao.insertOutboxItem({
+        'client_msg_id': clientMsgId,
+        'conversation_id': chatId!,
+        'action': 'SEND_MESSAGE',
+        'payload_json': jsonEncode(payload),
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      final response = await _socketService.emitWithAck('message:send', payload);
+      if (response['ok'] == true) {
+        await _outboxDao.deleteOutboxItem(clientMsgId);
+        if (!mounted) return;
+        final serverData = response['data'];
+        if (serverData != null) {
+          final tId = 'temp_$clientMsgId';
+          final existing = state.messagesById[tId];
+          if (existing != null) {
+            final newMsg = existing.copyWith(
+              id: serverData['id'],
+              seq: serverData['seq'],
+              status: MessageStatus.sent,
+              time: DateFormat('hh:mm a').format(DateTime.now()),
+            );
+            final newById = Map<String, MessageModel>.from(state.messagesById);
+            newById.remove(tId);
+            newById[newMsg.id!] = newMsg;
+            final newIds = state.messageIds.map((e) => e == tId ? newMsg.id! : e).toList();
+            state = state.copyWith(messageIds: newIds, messagesById: newById);
+
+            final sqliteMap = MessageDto(
+              id: newMsg.id!,
+              clientMsgId: clientMsgId,
+              conversationId: chatId!,
+              seq: newMsg.seq,
+              senderId: currentUserId,
+              type: 'FILE',
+              text: caption ?? '',
+              status: 'sent',
+              createdAt: DateTime.now().toIso8601String(),
+              mediaUrl: publicUrl,
+            ).toSqliteMap();
+            await _messageDao.insertOrUpdateMessages([sqliteMap]);
+          }
+        }
+      } else {
+        final errCode = (response['error'] as Map?)?['code'];
+        Logger.log('Server rejected file message: ${response['error']}');
+        if (errCode == 'VALIDATION_ERROR') {
+          await _outboxDao.deleteOutboxItem(clientMsgId);
+        }
+      }
+      Logger.log('File attachment message sent successfully with key $publicUrl');
+    } catch (e) {
+      Logger.log('Failed to upload and send file attachment: $e');
     }
   }
 

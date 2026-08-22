@@ -24,8 +24,16 @@ class ChatRepository {
   }
 
   Future<int> getLatestSeq(String chatId) async {
-    final response = await _apiService.get('/api/v1/conversations/$chatId/latest-seq');
-    return response.data['latestSeq'] ?? 0;
+    try {
+      final response = await getMessages(chatId, limit: 1);
+      final data = response['data'] as List<dynamic>?;
+      if (data != null && data.isNotEmpty) {
+        return (data.first['seq'] as num?)?.toInt() ?? 0;
+      }
+    } catch (e) {
+      // Fallback
+    }
+    return 0;
   }
 
   Future<Map<String, dynamic>> getMessagesAfterSeq(String chatId, int afterSeq) async {

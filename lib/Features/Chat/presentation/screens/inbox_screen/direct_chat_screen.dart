@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app/core/constants/app_constants.dart';
 import 'package:app/Features/Me/presentation/providers/chat_theme_provider.dart';
@@ -896,8 +897,13 @@ class _AttachmentDrawer extends ConsumerWidget {
         crossAxisCount: 3,
         physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
-        children: [
-          const _AttachmentIcon(icon: Icons.insert_drive_file, color: Colors.indigo, label: 'Document'),
+          children: [
+          _AttachmentIcon(
+            icon: Icons.insert_drive_file,
+            color: Colors.indigo,
+            label: 'Document',
+            onTap: () => _pickAndSendDocument(context, ref),
+          ),
           _AttachmentIcon(
             icon: Icons.camera_alt,
             color: Colors.pink,
@@ -916,6 +922,25 @@ class _AttachmentDrawer extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _pickAndSendDocument(BuildContext context, WidgetRef ref) async {
+    try {
+      final result = await FilePicker.pickFiles(type: FileType.any);
+      if (result != null && result.files.isNotEmpty) {
+        final path = result.files.single.path;
+        if (path != null) {
+
+          ref.read(showAttachmentMenuProvider.notifier).state = false;
+          final chatId = ref.read(currentChatIdProvider);
+          if (chatId != null) {
+            await ref.read(directChatProvider.notifier).sendFileAttachment(path);
+          }
+        }
+      }
+    } catch (e) {
+      print('Failed to pick document: $e');
+    }
   }
 }
 

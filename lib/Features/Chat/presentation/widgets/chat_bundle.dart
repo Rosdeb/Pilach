@@ -427,38 +427,40 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                       child: SizedBox(
                         width: 250.0,
                         height: 190.0,
-                        child: isLocalFile
-                            ? Image.file(
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (isLocalFile)
+                              Image.file(
                                 File(rawUrl),
                                 width: 250.0,
                                 height: 190.0,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) =>
                                     Container(
-                                      color:
-                                          Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? Colors.grey[850]
-                                          : Colors.grey[200],
-                                      child: const Icon(
-                                        Icons.broken_image,
-                                        size: 40,
-                                      ),
-                                    ),
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.grey[850]
+                                      : Colors.grey[200],
+                                  child: const Icon(
+                                    Icons.broken_image,
+                                    size: 40,
+                                  ),
+                                ),
                               )
-                            : CachedNetworkImage(
+                            else
+                              CachedNetworkImage(
                                 imageUrl: networkUrl,
                                 width: 250.0,
                                 height: 190.0,
                                 fit: BoxFit.cover,
                                 placeholder: (context, url) =>
                                     const _ShimmerPlaceholder(
-                                      width: 250.0,
-                                      height: 190.0,
-                                    ),
+                                  width: 250.0,
+                                  height: 190.0,
+                                ),
                                 errorWidget: (context, url, error) => Container(
-                                  color:
-                                      Theme.of(context).brightness ==
+                                  color: Theme.of(context).brightness ==
                                           Brightness.dark
                                       ? Colors.grey[850]
                                       : Colors.grey[200],
@@ -468,6 +470,24 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                                   ),
                                 ),
                               ),
+
+                            // Show an upload spinner overlay for local files that are still sending
+                            if (widget.message.status == MessageStatus.sending && isLocalFile)
+                              Container(
+                                color: Colors.black.withOpacity(0.35),
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 40,
+                                    height: 40,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 3,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   );
