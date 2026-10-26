@@ -58,7 +58,7 @@ class MessageDao {
           client_msg_id = COALESCE(excluded.client_msg_id, messages.client_msg_id),
           conversation_id = excluded.conversation_id,
           seq = COALESCE(excluded.seq, messages.seq),
-          sender_id = excluded.sender_id,
+          sender_id = CASE WHEN excluded.sender_id IS NOT NULL AND excluded.sender_id <> '' THEN excluded.sender_id ELSE messages.sender_id END,
           type = excluded.type,
           text = excluded.text,
           status = CASE 

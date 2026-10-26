@@ -1,5 +1,5 @@
 import '../../Features/Chat/data/models/chat_model.dart';
-import 'package:intl/intl.dart';
+import '../utils/date_formatter.dart';
 
 class ChatDto {
   final String id;
@@ -163,7 +163,7 @@ extension ChatDtoMapper on ChatDto {
     String formattedTime = '';
     if (lastMessageAt != null) {
       final dt = DateTime.tryParse(lastMessageAt!);
-      if (dt != null) formattedTime = DateFormat('hh:mm a').format(dt.toLocal());
+      if (dt != null) formattedTime = DateFormatter.formatConversationTime(dt.toLocal());
     }
 
     String? displayTitle = title;
@@ -217,7 +217,7 @@ extension ChatSqliteMapper on Map<String, dynamic> {
     final timeStr = this['last_message_at'] ?? this['created_at'];
     if (timeStr != null) {
       final dt = DateTime.tryParse(timeStr as String);
-      if (dt != null) formattedTime = DateFormat('hh:mm a').format(dt.toLocal());
+      if (dt != null) formattedTime = DateFormatter.formatConversationTime(dt.toLocal());
     }
 
     final sqliteAvatar = this['avatar_url'] as String?;

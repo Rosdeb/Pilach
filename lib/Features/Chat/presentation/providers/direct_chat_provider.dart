@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/services/upload_service.dart';
 import 'package:app/Features/Chat/data/models/message_model.dart';
+import '../../../../core/database/daos/chat_dao.dart';
 import '../../../../core/database/daos/message_dao.dart';
 import '../../../../core/database/daos/outbox_dao.dart';
 import '../../../../core/models/message_dto.dart';
@@ -17,6 +18,7 @@ import '../../../../core/providers/api_provider.dart';
 import '../../../../core/services/socket_service.dart';
 import '../../../../core/services/outbox_processor.dart';
 import '../../../../core/utils/message_merge_utils.dart';
+import 'package:app/core/utils/date_formatter.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -86,7 +88,9 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   final OutboxProcessor _outboxProcessor;
   final MessageDao _messageDao = MessageDao();
   final OutboxDao _outboxDao = OutboxDao();
+  final ChatDao _chatDao = ChatDao();
   String _currentUserId; // Made mutable
+  String? _otherUserId;
 
   StreamSubscription? _messageSubscription;
   StreamSubscription? _messageEditedSubscription;
@@ -129,17 +133,19 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   }
 
   Future<String> _ensureCurrentUserId() async {
-    if (_currentUserId.isNotEmpty) return _currentUserId;
+    if (_currentUserId.isNotEmpty && !_currentUserId.contains('@')) {
+      return _currentUserId;
+    }
 
     final authId = _ref.read(authProvider).id;
-    if (authId != null && authId.isNotEmpty) {
+    if (authId != null && authId.isNotEmpty && !authId.contains('@')) {
       _currentUserId = authId;
       return _currentUserId;
     }
 
     final prefs = await SharedPreferences.getInstance();
     final savedUserId = prefs.getString('user_id');
-    if (savedUserId != null && savedUserId.isNotEmpty) {
+    if (savedUserId != null && savedUserId.isNotEmpty && !savedUserId.contains('@')) {
       _currentUserId = savedUserId;
       return _currentUserId;
     }
@@ -151,8 +157,8 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         final normalized = base64Url.normalize(payloadStr);
         final decodedBytes = base64Url.decode(normalized);
         final payload = jsonDecode(utf8.decode(decodedBytes));
-        final rawId = payload['id'] ?? payload['_id'] ?? payload['userId'] ?? payload['sub'];
-        if (rawId != null) {
+        final rawId = payload['id'] ?? payload['_id'] ?? payload['userId'] ?? (payload['sub']?.toString().contains('@') == false ? payload['sub'] : null);
+        if (rawId != null && !rawId.toString().contains('@')) {
           _currentUserId = rawId.toString();
           await prefs.setString('user_id', _currentUserId);
           return _currentUserId;
@@ -160,11 +166,54 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       } catch (_) {}
     }
 
+    // Direct API fallback: Fetch from /api/v1/profile/me
+    try {
+      final res = await _ref.read(apiServiceProvider).get('/api/v1/profile/me');
+      final data = res.data;
+      if (data is Map && data['data'] is Map) {
+        final profile = data['data'] as Map;
+        final fetchedId = (profile['userId'] ?? profile['id'] ?? profile['_id'])?.toString();
+        if (fetchedId != null && fetchedId.isNotEmpty && !fetchedId.contains('@')) {
+          _currentUserId = fetchedId;
+          await prefs.setString('user_id', _currentUserId);
+          return _currentUserId;
+        }
+      }
+    } catch (_) {}
+
     return _currentUserId;
+  }
+
+  Future<String?> _resolveOtherUserId() async {
+    if (_otherUserId != null && _otherUserId!.isNotEmpty) {
+      return _otherUserId;
+    }
+
+    try {
+      final chats = _ref.read(chatProvider);
+      final chat = chats.where((c) => c.id == chatId).firstOrNull;
+      if (chat?.userId != null && chat!.userId!.isNotEmpty) {
+        _otherUserId = chat.userId;
+        return _otherUserId;
+      }
+    } catch (_) {}
+
+    if (chatId != null) {
+      try {
+        final chatRow = await _chatDao.getChatById(chatId!);
+        final storedOtherId = chatRow?['other_user_id']?.toString();
+        if (storedOtherId != null && storedOtherId.isNotEmpty) {
+          _otherUserId = storedOtherId;
+          return _otherUserId;
+        }
+      } catch (_) {}
+    }
+    return _otherUserId;
   }
 
   Future<void> _init() async {
     await _ensureCurrentUserId();
+    await _resolveOtherUserId();
 
     _messageSubscription = _socketService.onNewMessage.listen((data) async {
       try {
@@ -267,21 +316,21 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
           await _messageDao.insertOrUpdateMessages([sqliteMap]);
           
           // Directly insert/update in state without rebuilding all message objects from DB
-          final newMsg = sqliteMap.toMessageModel(currentUserId);
+          final newMsg = sqliteMap.toMessageModel(currentUserId, _otherUserId);
           final newById = Map<String, MessageModel>.from(state.messagesById);
           List<String> newIds;
           
           if (matchedTempId != null) {
             newById.remove(matchedTempId);
-            newById[newMsg.id!] = newMsg;
-            newIds = state.messageIds.map((id) => id == matchedTempId ? newMsg.id! : id).toList();
+            newById[newMsg.id] = newMsg;
+            newIds = state.messageIds.map((id) => id == matchedTempId ? newMsg.id : id).toList();
           } else if (!state.messagesById.containsKey(newMsg.id)) {
-            newById[newMsg.id!] = newMsg;
-            newIds = [newMsg.id!, ...state.messageIds];
+            newById[newMsg.id] = newMsg;
+            newIds = [newMsg.id, ...state.messageIds];
           } else {
-            final existing = state.messagesById[newMsg.id!];
+            final existing = state.messagesById[newMsg.id];
             if (existing != null) {
-              newById[newMsg.id!] = existing.copyWith(
+              newById[newMsg.id] = existing.copyWith(
                 seq: newMsg.seq ?? existing.seq,
                 status: newMsg.status,
                 text: (newMsg.text.isNotEmpty) ? newMsg.text : existing.text,
@@ -289,7 +338,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
                 replyToMessage: newMsg.replyToMessage ?? existing.replyToMessage,
               );
             } else {
-              newById[newMsg.id!] = newMsg;
+              newById[newMsg.id] = newMsg;
             }
             newIds = state.messageIds;
           }
@@ -328,10 +377,10 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         final dto = MessageDto.fromJson(messageData);
         final sqliteMap = await _mergeIncomingRow(dto.toSqliteMap());
         await _messageDao.insertOrUpdateMessages([sqliteMap]);
-        final updatedMsg = sqliteMap.toMessageModel(currentUserId);
+        final updatedMsg = sqliteMap.toMessageModel(currentUserId, _otherUserId);
         if (state.messagesById.containsKey(updatedMsg.id)) {
           final newById = Map<String, MessageModel>.from(state.messagesById);
-          newById[updatedMsg.id!] = updatedMsg;
+          newById[updatedMsg.id] = updatedMsg;
           state = state.copyWith(messagesById: newById);
         }
       }
@@ -585,6 +634,9 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   Future<void> loadFromDb({int? limitOverride}) async {
     if (chatId == null) return;
     
+    await _ensureCurrentUserId();
+    await _resolveOtherUserId();
+
     final limit = limitOverride ?? ((state.messageIds.length > state.page * 30)
         ? state.messageIds.length
         : state.page * 30);
@@ -593,10 +645,11 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     final outboxRows = await _outboxDao.getPendingMessages(chatId!);
     if (!mounted) return;
     final userId = currentUserId;
+    final otherId = _otherUserId;
 
     // Heavy mapping and sorting offloaded to background Isolate
     final List<MessageModel> models = await Isolate.run(() {
-      final List<MessageModel> list = msgRows.map((row) => row.toMessageModel(userId)).toList();
+      final List<MessageModel> list = msgRows.map((row) => row.toMessageModel(userId, otherId)).toList();
       final persistedClientIds = msgRows
           .map((row) => row['client_msg_id']?.toString())
           .whereType<String>()
@@ -909,14 +962,27 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     final msgId = serverData['id']?.toString();
     if (msgId == null || msgId.isEmpty) return;
 
+    await _ensureCurrentUserId();
+    await _resolveOtherUserId();
+
     final normalizedData = Map<String, dynamic>.from(serverData);
     normalizedData['conversationId'] ??= chatId;
     normalizedData['clientMsgId'] ??= clientMsgId;
     normalizedData['id'] ??= msgId;
+    normalizedData['text'] ??= existing?.text;
+    normalizedData['type'] ??= existing?.type.name.toUpperCase();
+    normalizedData['senderId'] ??= (existing?.senderId != null && existing!.senderId!.isNotEmpty)
+        ? existing.senderId
+        : (_currentUserId.isNotEmpty ? _currentUserId : null);
+
+    if (normalizedData['senderId'] == null || normalizedData['senderId'] == '') {
+      normalizedData['senderId'] = _currentUserId;
+    }
 
     final dto = MessageDto.fromJson(normalizedData);
     final sqliteMap = await _mergeIncomingRow(dto.toSqliteMap());
     await _messageDao.insertOrUpdateMessages([sqliteMap]);
+    await _messageDao.deleteMessage(tempId);
 
     final newMsg = (existing != null)
         ? existing.copyWith(
@@ -924,10 +990,12 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
             text: (normalizedData['text'] as String?) ?? existing.text,
             seq: dto.seq,
             status: MessageStatus.sent,
+            senderId: normalizedData['senderId']?.toString() ?? existing.senderId,
+            isMe: true,
             time: DateFormat('hh:mm a').format(DateTime.now().toLocal()),
             timestamp: DateTime.parse(dto.createdAt).toLocal(), // ← fix
           )
-        : sqliteMap.toMessageModel(currentUserId);
+        : sqliteMap.toMessageModel(currentUserId, _otherUserId);
 
     final newById = Map<String, MessageModel>.from(state.messagesById);
     newById.remove(tempId);
@@ -990,7 +1058,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     unawaited(_ref.read(chatProvider.notifier).updateLastMessage(
       chatId!,
       text,
-      DateFormat('hh:mm a').format(now),
+      DateFormatter.formatConversationTime(now),
     ));
 
     bool fallbackToRest = !_socketService.isConnected;

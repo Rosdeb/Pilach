@@ -1,4 +1,5 @@
 import 'package:app/core/utils/app_logger.dart';
+import 'package:app/core/utils/date_formatter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -141,7 +142,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         final isCurrentlyOpen = currentChatId == conversationId;
 
         final dt = DateTime.tryParse(createdAtStr)?.toLocal() ?? DateTime.now();
-        final formattedTime = DateFormat('hh:mm a').format(dt);
+        final formattedTime = DateFormatter.formatConversationTime(dt);
 
         bool chatFound = false;
         final isIncoming = senderId != null && senderId.isNotEmpty && senderId != _currentUserId;

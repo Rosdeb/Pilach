@@ -94,10 +94,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
           final normalized = base64Url.normalize(payloadStr);
           final decodedBytes = base64Url.decode(normalized);
           final payload = jsonDecode(utf8.decode(decodedBytes));
-          final rawId = payload['id'] ?? payload['_id'] ?? payload['userId'] ?? payload['sub'];
+          final rawId = payload['id'] ?? payload['_id'] ?? payload['userId'] ?? (payload['sub']?.toString().contains('@') == false ? payload['sub'] : null);
           id = rawId?.toString();
-          if (id != null) {
+          if (id != null && !id.contains('@')) {
              _storage.setUserId(id);
+          } else {
+             id = null;
           }
         } catch (_) {}
       }
@@ -108,8 +110,29 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState.authenticated(email, id: id, name: name, profileImage: profileImage);
       _notificationService.registerFcmToken();
       _socketService.connect(token);
+
+      if (id == null || id.isEmpty || id.contains('@')) {
+        unawaited(_fetchProfileAndSetUserId());
+      }
     } else {
       state = AuthState.unauthenticated();
+    }
+  }
+
+  Future<void> _fetchProfileAndSetUserId() async {
+    try {
+      final res = await _authRepository.getProfileMe();
+      if (res != null && res['data'] is Map) {
+        final profileData = res['data'] as Map;
+        final resolvedId = (profileData['userId'] ?? profileData['id'] ?? profileData['_id'])?.toString();
+        if (resolvedId != null && resolvedId.isNotEmpty && !resolvedId.contains('@')) {
+          await _storage.setUserId(resolvedId);
+          state = state.copyWith(id: resolvedId);
+          Logger.log('✅ Resolved and cached user ID from profile/me: $resolvedId', type: 'auth');
+        }
+      }
+    } catch (e) {
+      Logger.log('Failed to fetch profile in checkAuth: $e');
     }
   }
 

@@ -16,6 +16,7 @@ import '../../providers/direct_chat_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../widgets/chatAppbar.dart';
 import '../../widgets/chat_bundle.dart';
+import 'package:app/core/utils/date_formatter.dart';
 
 
 final _chatReadyProvider = StateProvider.autoDispose<bool>((_) => false);
@@ -336,15 +337,12 @@ class _MessageListView extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       childrenDelegate: SliverChildBuilderDelegate(
         (context, index) {
-          if (index == messageIds.length) {
+          if (index >= messageIds.length) {
             if (hasMore) {
               Future.microtask(() {
                 ref.read(directChatProvider.notifier).loadMore();
               });
             }
-            return const _DateChip(label: 'Today');
-          }
-          if (index == messageIds.length + 1) {
             if (isLoadingMore) {
               return const Padding(
                 padding: EdgeInsets.all(16.0),
@@ -359,18 +357,73 @@ class _MessageListView extends ConsumerWidget {
             }
             return const SizedBox.shrink();
           }
+
           final id = messageIds[index];
-          return _BubbleById(key: ValueKey(id), id: id);
+          final olderId = (index + 1 < messageIds.length) ? messageIds[index + 1] : null;
+          final isOldest = index == messageIds.length - 1;
+
+          return _MessageItem(
+            key: ValueKey(id),
+            id: id,
+            olderId: olderId,
+            isOldest: isOldest,
+          );
         },
-        childCount: messageIds.length + (hasMore ? 2 : 1),
+        childCount: messageIds.length + (hasMore ? 1 : 0),
         addAutomaticKeepAlives: true,
         addRepaintBoundaries: true,
         findChildIndexCallback: (Key key) {
-          final valueKey = key as ValueKey<String>;
-          final index = messageIds.indexOf(valueKey.value);
-          return index == -1 ? null : index;
+          if (key is ValueKey<String>) {
+            final index = messageIds.indexOf(key.value);
+            return index == -1 ? null : index;
+          }
+          return null;
         },
       ),
+    );
+  }
+}
+
+class _MessageItem extends ConsumerWidget {
+  const _MessageItem({
+    super.key,
+    required this.id,
+    this.olderId,
+    required this.isOldest,
+  });
+
+  final String id;
+  final String? olderId;
+  final bool isOldest;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentTimestamp = ref.watch(
+      directChatProvider.select((state) => state.messagesById[id]?.timestamp),
+    );
+    final olderTimestamp = olderId != null
+        ? ref.watch(
+            directChatProvider.select((state) => state.messagesById[olderId]?.timestamp),
+          )
+        : null;
+
+    final bool showDateChip;
+    if (currentTimestamp == null) {
+      showDateChip = false;
+    } else if (isOldest || olderTimestamp == null) {
+      showDateChip = true;
+    } else {
+      showDateChip = !DateFormatter.isSameDay(currentTimestamp, olderTimestamp);
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (showDateChip && currentTimestamp != null)
+          _DateChip(label: DateFormatter.formatChatDate(currentTimestamp)),
+        _BubbleById(key: ValueKey(id), id: id),
+      ],
     );
   }
 }

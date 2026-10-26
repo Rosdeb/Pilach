@@ -119,13 +119,16 @@ class MessageDto {
 }
 
 extension MessageSqliteMapper on Map<String, dynamic> {
-  MessageModel toMessageModel(String currentUserId) {
+  MessageModel toMessageModel(String currentUserId, [String? otherUserId]) {
     final timeStr = this['created_at']?.toString();
     final dt = DateTime.tryParse(timeStr ?? '')?.toLocal() ?? DateTime.now();
     final formattedTime = DateFormat('hh:mm a').format(dt);
     
     final senderId = (this['sender_id'] as String?) ?? '';
-    final isMe = currentUserId.isNotEmpty && senderId == currentUserId;
+    final clientMsgId = this['client_msg_id']?.toString();
+    final isMe = (currentUserId.isNotEmpty && senderId == currentUserId) ||
+        (otherUserId != null && otherUserId.isNotEmpty && senderId.isNotEmpty && senderId != otherUserId) ||
+        (clientMsgId != null && clientMsgId.isNotEmpty && (senderId.isEmpty || (currentUserId.isNotEmpty && senderId == currentUserId)));
 
     MessageStatus msgStatus;
     final statusStr = (this['status'] as String?)?.toLowerCase() ?? 'sent';

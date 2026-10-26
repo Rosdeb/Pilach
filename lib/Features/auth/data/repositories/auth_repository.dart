@@ -62,8 +62,10 @@ class AuthRepository {
         }
       }
       
-      final userId = data['data']?['id'];
-      if (userId != null) {
+      final dynamic rawUser = data['user'] ?? data['data']?['user'] ?? data['data'];
+      final userId = (rawUser is Map ? (rawUser['id'] ?? rawUser['_id'] ?? rawUser['userId']) : null)?.toString()
+          ?? data['userId']?.toString();
+      if (userId != null && !userId.contains('@')) {
         await prefs.setString('user_id', userId);
       }
 
@@ -296,12 +298,24 @@ class AuthRepository {
           await prefs.setString('refresh_token', refreshToken);
         }
       }
-      final userId = data['data']?['id'];
-      if (userId != null) {
+      final dynamic rawUser = data['user'] ?? data['data']?['user'] ?? data['data'];
+      final userId = (rawUser is Map ? (rawUser['id'] ?? rawUser['_id'] ?? rawUser['userId']) : null)?.toString()
+          ?? data['userId']?.toString();
+      if (userId != null && !userId.contains('@')) {
         await prefs.setString('user_id', userId);
       }
       return data;
     }
     throw ApiException(data['message'] ?? '2FA Verification failed');
+  }
+
+  Future<Map<String, dynamic>?> getProfileMe() async {
+    try {
+      final res = await _apiService.get(ApiConstants.getProfile);
+      if (res.data is Map<String, dynamic>) {
+        return res.data as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return null;
   }
 }

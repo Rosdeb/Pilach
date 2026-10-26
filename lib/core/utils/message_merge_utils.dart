@@ -25,6 +25,10 @@ Map<String, dynamic> mergeMessageRows(
       return;
     }
 
+    if (key == 'sender_id' && (value is String) && value.isEmpty) {
+      return;
+    }
+
     merged[key] = value;
   });
 
