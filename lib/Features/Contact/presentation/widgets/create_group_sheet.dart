@@ -1,6 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/app_toast.dart';
+import 'package:app/Features/Chat/presentation/providers/chat_provider.dart';
+import 'package:app/Features/Chat/presentation/providers/direct_chat_provider.dart';
 
 import '../providers/contact_providers.dart';
 import '../providers/create_group_providers.dart';
@@ -14,6 +19,7 @@ class CreateGroupBottomSheet extends ConsumerStatefulWidget {
 
 class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet> {
   final _groupNameController = TextEditingController();
+  bool _isCreating = false;
 
   @override
   void dispose() {
@@ -82,23 +88,50 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                     ],
                   ),
                   GestureDetector(
-                    onTap: selectedMembers.isEmpty || _groupNameController.text.trim().isEmpty
+                    onTap: _isCreating || selectedMembers.isEmpty || _groupNameController.text.trim().isEmpty
                         ? null
-                        : () {
-                      // Finalize group creation logic here
-                      ref.read(selectedMembersProvider.notifier).clear();
-                      Navigator.of(context).pop();
-                    },
-                    child: Text(
-                      'Create',
-                      style: TextStyle(
-                        color: selectedMembers.isEmpty || _groupNameController.text.trim().isEmpty
-                            ? theme.colorScheme.onSurface.withOpacity(0.3)
-                            : const Color(0xFF34C759),
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                        : () async {
+                            final groupTitle = _groupNameController.text.trim();
+                            final memberIds = selectedMembers.toList();
+                            setState(() => _isCreating = true);
+
+                            try {
+                              final newChatId = await ref.read(chatProvider.notifier).createGroupConversation(
+                                title: groupTitle,
+                                userIds: memberIds,
+                              );
+                              ref.read(selectedMembersProvider.notifier).clear();
+                              if (context.mounted) {
+                                Navigator.of(context).pop();
+                              }
+                              if (newChatId != null && context.mounted) {
+                                ref.read(currentChatIdProvider.notifier).state = newChatId;
+                                context.push(AppPaths.chat);
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                setState(() => _isCreating = false);
+                                final msg = e.toString().replaceAll('Exception: ', '');
+                                AppToast.show(context, msg.isNotEmpty ? msg : 'Failed to create group', type: ToastType.error);
+                              }
+                            }
+                          },
+                    child: _isCreating
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CupertinoActivityIndicator(),
+                          )
+                        : Text(
+                            'Create',
+                            style: TextStyle(
+                              color: selectedMembers.isEmpty || _groupNameController.text.trim().isEmpty
+                                  ? theme.colorScheme.onSurface.withOpacity(0.3)
+                                  : const Color(0xFF34C759),
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ],
               ),

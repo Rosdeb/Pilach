@@ -778,8 +778,8 @@ class _LinkPreviewCard extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Container(
-            width: double.infinity,
-            height: 92,
+            width: 250,
+            height: 72,
             decoration: BoxDecoration(
               color: Theme.of(
                 context,
@@ -799,18 +799,17 @@ class _LinkPreviewCard extends StatelessWidget {
         if (preview == null) return const SizedBox.shrink();
         final colors = Theme.of(context).colorScheme;
         final hasImage = preview.imageUrl?.isNotEmpty == true;
-        final isFavicon =
-            preview.imageUrl?.toLowerCase().contains('favicon') == true;
         return Material(
           color: colors.surface.withValues(alpha: 0.72),
           borderRadius: BorderRadius.circular(10),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: () => UrlLauncherUtils.openUrl(context, preview.url),
-            onLongPress: () => UrlLauncherUtils.showLinkOptions(context, preview.url),
+            onLongPress: () =>
+                UrlLauncherUtils.showLinkOptions(context, preview.url),
             borderRadius: BorderRadius.circular(10),
             child: Container(
-              width: double.infinity,
+              width: 250,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
@@ -821,24 +820,15 @@ class _LinkPreviewCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (hasImage && !isFavicon)
+                  if (hasImage)
                     CachedNetworkImage(
                       imageUrl: preview.imageUrl!,
-                      width: double.infinity,
-                      height: 135,
+                      width: 250,
+                      height: 125,
                       fit: BoxFit.cover,
                       placeholder: (_, __) =>
-                          const _ShimmerPlaceholder(width: 280, height: 135),
-                      errorWidget: (_, __, ___) => Container(
-                        height: 110,
-                        color: colors.surfaceContainerHighest,
-                        alignment: Alignment.center,
-                        child: Icon(
-                          Icons.public,
-                          size: 40,
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
+                          const _ShimmerPlaceholder(width: 250, height: 125),
+                      errorWidget: (_, __, ___) => const SizedBox.shrink(),
                     ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
@@ -871,30 +861,12 @@ class _LinkPreviewCard extends StatelessWidget {
                         const SizedBox(height: 5),
                         Row(
                           children: [
-                            if (isFavicon) ...[
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(3),
-                                child: CachedNetworkImage(
-                                  imageUrl: preview.imageUrl!,
-                                  width: 14,
-                                  height: 14,
-                                  fit: BoxFit.cover,
-                                  errorWidget: (_, __, ___) => Icon(
-                                    Icons.link,
-                                    size: 12,
-                                    color: colors.onSurfaceVariant,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                            ] else ...[
-                              Icon(
-                                Icons.link,
-                                size: 12,
-                                color: colors.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 4),
-                            ],
+                            Icon(
+                              Icons.link,
+                              size: 12,
+                              color: colors.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 4),
                             Expanded(
                               child: Text(
                                 preview.siteName?.isNotEmpty == true
@@ -912,7 +884,9 @@ class _LinkPreviewCard extends StatelessWidget {
                             Icon(
                               Icons.open_in_new_rounded,
                               size: 12,
-                              color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+                              color: colors.onSurfaceVariant.withValues(
+                                alpha: 0.7,
+                              ),
                             ),
                           ],
                         ),
@@ -1060,7 +1034,6 @@ class _ReplyPreviewBlock extends StatelessWidget {
         url: url,
         rawText: repliedMessage.text,
         accentColor: accentColor,
-        isMe: isMe,
         textColor: textColor,
         subColor: subColor,
       );
@@ -1226,11 +1199,10 @@ class _ReplyPreviewBlock extends StatelessWidget {
   }
 }
 
-class _UrlReplyPreviewBlock extends StatelessWidget {
+class _UrlReplyPreviewBlock extends StatefulWidget {
   final String url;
   final String rawText;
   final Color accentColor;
-  final bool isMe;
   final Color textColor;
   final Color subColor;
 
@@ -1238,18 +1210,42 @@ class _UrlReplyPreviewBlock extends StatelessWidget {
     required this.url,
     required this.rawText,
     required this.accentColor,
-    required this.isMe,
     required this.textColor,
     required this.subColor,
   });
 
   @override
+  State<_UrlReplyPreviewBlock> createState() => _UrlReplyPreviewBlockState();
+}
+
+class _UrlReplyPreviewBlockState extends State<_UrlReplyPreviewBlock> {
+  late Future<LinkPreview?> _previewFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _previewFuture = LinkPreviewService.instance.previewForText(widget.rawText);
+  }
+
+  @override
+  void didUpdateWidget(covariant _UrlReplyPreviewBlock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.rawText != widget.rawText) {
+      _previewFuture = LinkPreviewService.instance.previewForText(
+        widget.rawText,
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final parsedUri = Uri.tryParse(url);
-    final fallbackHost = parsedUri?.host.isNotEmpty == true ? parsedUri!.host : url;
+    final parsedUri = Uri.tryParse(widget.url);
+    final fallbackHost = parsedUri?.host.isNotEmpty == true
+        ? parsedUri!.host
+        : widget.url;
 
     return FutureBuilder<LinkPreview?>(
-      future: LinkPreviewService.instance.previewForText(rawText),
+      future: _previewFuture,
       builder: (context, snapshot) {
         final preview = snapshot.data;
         final title = (preview != null && preview.title.isNotEmpty)
@@ -1258,13 +1254,15 @@ class _UrlReplyPreviewBlock extends StatelessWidget {
         final domain = (preview != null && preview.host.isNotEmpty)
             ? preview.host
             : fallbackHost;
-        final hasImage = preview?.imageUrl != null && preview!.imageUrl!.isNotEmpty;
+        final hasImage =
+            preview?.imageUrl != null && preview!.imageUrl!.isNotEmpty;
 
         return Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () => UrlLauncherUtils.openUrl(context, url),
-            onLongPress: () => UrlLauncherUtils.showLinkOptions(context, url),
+            onTap: () => UrlLauncherUtils.openUrl(context, widget.url),
+            onLongPress: () =>
+                UrlLauncherUtils.showLinkOptions(context, widget.url),
             borderRadius: BorderRadius.circular(8),
             child: IntrinsicWidth(
               child: Container(
@@ -1272,7 +1270,9 @@ class _UrlReplyPreviewBlock extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.black.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border(left: BorderSide(color: accentColor, width: 3)),
+                  border: Border(
+                    left: BorderSide(color: widget.accentColor, width: 3),
+                  ),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: Row(
@@ -1295,7 +1295,7 @@ class _UrlReplyPreviewBlock extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: textColor,
+                                color: widget.textColor,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -1307,7 +1307,7 @@ class _UrlReplyPreviewBlock extends StatelessWidget {
                                 Icon(
                                   Icons.link_rounded,
                                   size: 12,
-                                  color: subColor,
+                                  color: widget.subColor,
                                 ),
                                 const SizedBox(width: 3),
                                 Flexible(
@@ -1316,7 +1316,7 @@ class _UrlReplyPreviewBlock extends StatelessWidget {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      color: subColor,
+                                      color: widget.subColor,
                                       fontSize: 11,
                                     ),
                                   ),
@@ -1325,7 +1325,7 @@ class _UrlReplyPreviewBlock extends StatelessWidget {
                                 Icon(
                                   Icons.open_in_new_rounded,
                                   size: 11,
-                                  color: subColor,
+                                  color: widget.subColor,
                                 ),
                               ],
                             ),
@@ -1353,7 +1353,7 @@ class _UrlReplyPreviewBlock extends StatelessWidget {
                                 child: Icon(
                                   Icons.public,
                                   size: 20,
-                                  color: accentColor.withOpacity(0.7),
+                                  color: widget.accentColor.withOpacity(0.7),
                                 ),
                               ),
                               errorWidget: (_, __, ___) => Container(
@@ -1364,7 +1364,7 @@ class _UrlReplyPreviewBlock extends StatelessWidget {
                                 child: Icon(
                                   Icons.public,
                                   size: 20,
-                                  color: accentColor.withOpacity(0.7),
+                                  color: widget.accentColor.withOpacity(0.7),
                                 ),
                               ),
                             )
@@ -1376,7 +1376,7 @@ class _UrlReplyPreviewBlock extends StatelessWidget {
                               child: Icon(
                                 Icons.public,
                                 size: 22,
-                                color: accentColor.withOpacity(0.7),
+                                color: widget.accentColor.withOpacity(0.7),
                               ),
                             ),
                     ),

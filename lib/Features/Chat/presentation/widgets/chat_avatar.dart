@@ -2,45 +2,88 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-/// Stateless avatar with online indicator.
+/// Stateless avatar with image loading, Cupertino icon fallback, and online indicator.
 ///
-/// Wrapped in [RepaintBoundary] by the caller only once — not re-wrapped here,
-/// so the caller controls layer budget.
+/// Displays [imageUrl] via [CachedNetworkImage] if present; otherwise falls back
+/// to a native Cupertino icon (e.g. person or group) on a themed circular background.
 class ChatAvatar extends StatelessWidget {
   const ChatAvatar({
     super.key,
-    required this.imageUrl,
+    this.imageUrl,
+    this.isGroup = false,
+    this.icon,
+    this.backgroundColor,
+    this.iconColor,
     required this.isOnline,
     required this.onlineColor,
     required this.borderColor,
+    this.radius = 24,
   });
 
-  final String imageUrl;
+  final String? imageUrl;
+  final bool isGroup;
+  final IconData? icon;
+  final Color? backgroundColor;
+  final Color? iconColor;
   final bool isOnline;
   final Color onlineColor;
   final Color borderColor;
+  final double radius;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final size = radius * 2;
+    final isDark = theme.brightness == Brightness.dark;
+
+    final IconData effectiveIcon = icon ??
+        (isGroup ? CupertinoIcons.person_2_fill : CupertinoIcons.person_fill);
+
+    final Color effectiveBgColor = backgroundColor ??
+        (isDark
+            ? theme.colorScheme.primary.withValues(alpha: 0.18)
+            : theme.colorScheme.primary.withValues(alpha: 0.10));
+
+    final Color effectiveIconColor = iconColor ?? theme.colorScheme.primary;
+
+    final hasValidImage = imageUrl != null && imageUrl!.trim().isNotEmpty;
+
+    Widget buildFallback() => Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: effectiveBgColor,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Icon(
+            effectiveIcon,
+            color: effectiveIconColor,
+            size: radius * 1.05,
+          ),
+        );
+
     return SizedBox(
-      width: 48,
-      height: 48,
+      width: size,
+      height: size,
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
           CircleAvatar(
-            radius: 24,
+            radius: radius,
+            backgroundColor: effectiveBgColor,
             child: ClipOval(
-              child: CachedNetworkImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.cover,
-                width: 48,
-                height: 48,
-                fadeInDuration: const Duration(milliseconds: 150),
-                placeholder: (_, __) =>
-                    const CupertinoActivityIndicator(radius: 10),
-                errorWidget: (_, __, ___) =>
-                    const Icon(Icons.person, size: 24),
-              ),
+              child: hasValidImage
+                  ? CachedNetworkImage(
+                      imageUrl: imageUrl!.trim(),
+                      fit: BoxFit.cover,
+                      width: size,
+                      height: size,
+                      fadeInDuration: const Duration(milliseconds: 150),
+                      placeholder: (_, _) => buildFallback(),
+                      errorWidget: (_, _, _) => buildFallback(),
+                    )
+                  : buildFallback(),
             ),
           ),
           if (isOnline)

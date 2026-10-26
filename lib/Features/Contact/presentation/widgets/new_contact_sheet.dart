@@ -1,6 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/app_toast.dart';
+import 'package:app/Features/Chat/presentation/providers/chat_provider.dart';
+import 'package:app/Features/Chat/presentation/providers/direct_chat_provider.dart';
 
 class NewContactBottomSheet extends ConsumerStatefulWidget {
   const NewContactBottomSheet({Key? key}) : super(key: key);
@@ -80,10 +85,27 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
                       ),
                     ),
                     GestureDetector(
-                      onTap: () {
-                        // Access your Riverpod network providers here using 'ref'
-                        // e.g., ref.read(chatProvider.notifier).connectWithId(_appIdController.text);
-                        Navigator.of(context).pop();
+                      onTap: () async {
+                        final appId = _appIdController.text.trim();
+                        if (appId.isNotEmpty) {
+                          try {
+                            final newChatId = await ref.read(chatProvider.notifier).findOrCreatePrivateConversation(appId);
+                            if (context.mounted) {
+                              Navigator.of(context).pop();
+                            }
+                            if (newChatId != null && context.mounted) {
+                              ref.read(currentChatIdProvider.notifier).state = newChatId;
+                              context.push(AppPaths.chat);
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              final msg = e.toString().replaceAll('Exception: ', '');
+                              AppToast.show(context, msg.isNotEmpty ? msg : 'Failed to connect', type: ToastType.error);
+                            }
+                          }
+                        } else {
+                          Navigator.of(context).pop();
+                        }
                       },
                       child: const Text(
                         'Done',
@@ -170,7 +192,8 @@ class _NewContactBottomSheetState extends ConsumerState<NewContactBottomSheet> {
                                   size: 22,
                                 ),
                                 onPressed: () {
-                                  // Hook up your camera scanning package routine layer here
+                                  Navigator.of(context).pop();
+                                  context.push(AppPaths.qr_screen);
                                 },
                               ),
                             ),

@@ -165,6 +165,28 @@ class SocketService extends WidgetsBindingObserver {
     _openSocket(isReconnect: _reconnectAttempt > 0);
   }
 
+  final Set<String> _activeRooms = {};
+
+  void joinConversation(String conversationId) {
+    if (conversationId.isEmpty) return;
+    _activeRooms.add(conversationId);
+    Logger.log('Joining conversation room: $conversationId', type: 'socket');
+    emit('conversation:join', {'conversationId': conversationId});
+  }
+
+  void leaveConversation(String conversationId) {
+    _activeRooms.remove(conversationId);
+    emit('conversation:leave', {'conversationId': conversationId});
+  }
+
+  void forceReconnect() {
+    if (_disposed || _token == null || _token!.isEmpty) return;
+    Logger.log('forceReconnect() called — cycling socket to sync all rooms', type: 'socket');
+    _disposeCurrentSocket();
+    _reconnectAttempt = 0;
+    _openSocket(isReconnect: true);
+  }
+
   void disconnect() {
     Logger.log(
       'disconnect() called — tearing down socket intentionally',
@@ -326,6 +348,12 @@ class SocketService extends WidgetsBindingObserver {
         type: 'socket',
       );
       _startHealthCheck();
+
+      // Re-emit room join events for active rooms
+      for (final roomId in _activeRooms) {
+        socket.emit('conversation:join', {'conversationId': roomId});
+      }
+
       // Only fire onReconnected for genuine reconnects, not the first login.
       if (wasReconnect && !_reconnectedController.isClosed) {
         _reconnectedController.add(null);

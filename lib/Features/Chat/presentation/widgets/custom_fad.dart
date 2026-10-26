@@ -11,7 +11,7 @@ class GlassFab extends StatefulWidget {
   const GlassFab({
     super.key,
     required this.onPressed,
-    this.icon = Icons.add,
+    this.icon = CupertinoIcons.chat_bubble_2_fill,
     this.size = 56,
   });
 
@@ -51,7 +51,7 @@ class _GlassFabState extends State<GlassFab> {
           child: _buildFabBody(
             context: context,
             // iOS: frosted glass tint instead of flat green
-            backgroundColor: primaryColor.withOpacity(0.92),
+            backgroundColor: primaryColor.withValues(alpha: 0.92),
             iconColor: theme.colorScheme.onPrimary,
             withBlur: true,
           ),
@@ -69,7 +69,7 @@ class _GlassFabState extends State<GlassFab> {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -110,12 +110,12 @@ class _GlassFabState extends State<GlassFab> {
         shape: BoxShape.circle,
         color: backgroundColor,
         border: Border.all(
-          color: Colors.white.withOpacity(0.25), // subtle rim for glass effect
+          color: Colors.white.withValues(alpha: 0.25), // subtle rim for glass effect
           width: 1.0,
         ),
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withOpacity(0.35),
+            color: primaryColor.withValues(alpha: 0.35),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),

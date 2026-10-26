@@ -1,8 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../providers/find_chat_bottom_sheet.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/constants/app_constants.dart';
+import 'package:app/Features/Chat/presentation/providers/chat_provider.dart';
+import 'package:app/Features/Chat/presentation/providers/direct_chat_provider.dart';
 // Import your findAndConnectChatProvider and ChatRoomScreen page here
 
 class FindChatBottomSheet extends ConsumerStatefulWidget {
@@ -32,23 +34,27 @@ class FindChatBottomSheetState extends ConsumerState<FindChatBottomSheet> {
       _errorMessage = null;
     });
 
-    // Run the lookup through your Riverpod layout layer channel
-    final chatRoomId = ref.read(findAndConnectChatProvider).searchAndCreateChatThread(enteredId);
-
-    setState(() {
-      _isSearching = false;
-    });
-
-    if (chatRoomId != null) {
-      // 1. Pop out of the current bottom sheet overlay layer context safely
-      Navigator.of(context).pop();
-
-      // 2. Instantly route the viewport screen straight to the freshly created chat room thread
-      // Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(roomId: chatRoomId)));
-    } else {
-      setState(() {
-        _errorMessage = "No active user profile matched this App ID.";
-      });
+    try {
+      final newChatId = await ref.read(chatProvider.notifier).findOrCreatePrivateConversation(enteredId);
+      if (mounted) {
+        setState(() => _isSearching = false);
+      }
+      if (newChatId != null && mounted) {
+        Navigator.of(context).pop();
+        ref.read(currentChatIdProvider.notifier).state = newChatId;
+        context.push(AppPaths.chat);
+      } else if (mounted) {
+        setState(() {
+          _errorMessage = "Could not connect to user.";
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
     }
   }
 
@@ -209,7 +215,8 @@ class FindChatBottomSheetState extends ConsumerState<FindChatBottomSheet> {
                                 size: 22,
                               ),
                               onPressed: () {
-                                // Fire up your scanner pipeline layout routing step here
+                                Navigator.of(context).pop();
+                                context.push(AppPaths.qr_screen);
                               },
                             ),
                           ],

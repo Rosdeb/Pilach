@@ -1,6 +1,59 @@
 import '../../Features/Chat/data/models/chat_model.dart';
 import '../utils/date_formatter.dart';
 
+dynamic _selectOtherMember(List<dynamic> members, String? currentUserId) {
+  if (currentUserId == null || currentUserId.isEmpty) return members.first;
+  for (final member in members) {
+    if (_memberUserId(member) != currentUserId) return member;
+  }
+  return members.first;
+}
+
+String? _memberUserId(dynamic member) {
+  if (member is! Map) return null;
+  final user = member['user'];
+  final id = member['userId'] ?? (user is Map ? user['id'] : null);
+  return id?.toString();
+}
+
+Map<dynamic, dynamic>? _presenceForMember(dynamic member) {
+  if (member is! Map) return null;
+  final user = member['user'];
+  return user is Map ? user : member;
+}
+
+bool _memberIsOnline(dynamic member) {
+  final presence = _presenceForMember(member);
+  if (presence == null) return false;
+  final rawOnline =
+      presence['isOnline'] ?? presence['online'] ?? presence['is_online'];
+  final status = (presence['status'] ?? presence['presenceStatus'])
+      ?.toString()
+      .toUpperCase();
+  return rawOnline == true ||
+      rawOnline == 1 ||
+      rawOnline?.toString().toLowerCase() == 'true' ||
+      status == 'ONLINE';
+}
+
+bool _memberHasPresence(dynamic member) {
+  final presence = _presenceForMember(member);
+  return presence != null &&
+      (presence.containsKey('isOnline') ||
+          presence.containsKey('online') ||
+          presence.containsKey('is_online') ||
+          presence.containsKey('status') ||
+          presence.containsKey('presenceStatus'));
+}
+
+String? _memberLastActive(dynamic member) {
+  final presence = _presenceForMember(member);
+  return (presence?['lastActive'] ??
+          presence?['lastSeen'] ??
+          presence?['last_active_at'])
+      ?.toString();
+}
+
 class ChatDto {
   final String id;
   final String type;
@@ -8,13 +61,13 @@ class ChatDto {
   final String? avatarUrl;
   final int unreadCount;
   final String createdAt;
-  final dynamic lastMessageSeq; 
+  final dynamic lastMessageSeq;
   final String? lastMessageAt;
   final String? updatedAt;
   final Map<String, dynamic>? lastMessage;
   final List<dynamic>? members;
-  final String? dmKey;       // "userId1:userId2" format
-  final String? creatorId;   // conversation creator
+  final String? dmKey; // "userId1:userId2" format
+  final String? creatorId; // conversation creator
 
   ChatDto({
     required this.id,
@@ -34,19 +87,22 @@ class ChatDto {
 
   factory ChatDto.fromJson(Map<String, dynamic> json) {
     return ChatDto(
-      id: json['id'] as String,
-      type: json['type'] as String,
-      title: json['title'] as String?,
-      avatarUrl: json['avatarUrl'] as String?,
+      id: (json['id'] ?? json['_id'])?.toString() ?? '',
+      type: json['type']?.toString() ?? 'PRIVATE',
+      title: json['title']?.toString(),
+      avatarUrl: json['avatarUrl']?.toString(),
       unreadCount: (json['unreadCount'] as num?)?.toInt() ?? 0,
-      createdAt: json['createdAt'] as String,
+      createdAt:
+          json['createdAt']?.toString() ?? DateTime.now().toIso8601String(),
       lastMessageSeq: json['lastMessageSeq'],
-      lastMessageAt: json['lastMessageAt'] as String?,
-      updatedAt: json['updatedAt'] as String?,
-      lastMessage: json['lastMessage'] as Map<String, dynamic>?,
+      lastMessageAt: json['lastMessageAt']?.toString(),
+      updatedAt: json['updatedAt']?.toString(),
+      lastMessage: json['lastMessage'] is Map
+          ? Map<String, dynamic>.from(json['lastMessage'] as Map)
+          : null,
       members: json['members'] as List<dynamic>?,
-      dmKey: json['dmKey'] as String?,
-      creatorId: json['creatorId'] as String?,
+      dmKey: json['dmKey']?.toString(),
+      creatorId: json['creatorId']?.toString(),
     );
   }
 
@@ -54,7 +110,8 @@ class ChatDto {
     if (lastMessage == null) return null;
 
     final String? text = lastMessage?['text'] as String?;
-    final String type = (lastMessage?['type'] as String?)?.toUpperCase() ?? 'TEXT';
+    final String type =
+        (lastMessage?['type'] as String?)?.toUpperCase() ?? 'TEXT';
     final attachments = lastMessage?['attachments'] as List<dynamic>?;
 
     if (text != null && text.isNotEmpty) {
@@ -66,10 +123,12 @@ class ChatDto {
     }
 
     if (attachments != null && attachments.isNotEmpty) {
-      final attachmentType = (attachments.first['type'] as String?)?.toUpperCase();
+      final attachmentType = (attachments.first['type'] as String?)
+          ?.toUpperCase();
       if (attachmentType == 'IMAGE') return '📷 Photo';
       if (attachmentType == 'VIDEO') return '🎥 Video';
-      if (attachmentType == 'AUDIO' || attachmentType == 'VOICE') return '🎵 Audio';
+      if (attachmentType == 'AUDIO' || attachmentType == 'VOICE')
+        return '🎵 Audio';
       if (attachmentType == 'FILE') return '📁 File';
     }
 
@@ -86,54 +145,64 @@ class ChatDto {
     String? displayTitle = title;
     String? displayAvatar = avatarUrl;
     String? otherUserId;
-    bool isOnline = false;
+    bool? isOnline;
     String? lastActive;
-    
+
     // PRIVATE chat: other member-এর info নাও
     if (type == 'PRIVATE' && members != null && members!.isNotEmpty) {
-      // Find the other user if currentUserId is provided
-      var otherMember = members!.first;
-      if (currentUserId != null) {
-        otherMember = members!.firstWhere(
-          (m) => (m is Map) && (m['userId'] == currentUserId || (m['user'] as Map?)?['id'] == currentUserId) ? false : true,
-          orElse: () => members!.first,
-        );
-      }
-      
+      final otherMember = _selectOtherMember(members!, currentUserId);
+
       if (otherMember is Map) {
-        // API তে member-এ 'userId' নেই — 'user.id' বা অন্য field চেক করো
-        otherUserId = otherMember['userId'] as String?         // ভবিষ্যতে যদি আসে
-                   ?? (otherMember['user'] as Map?)?['id'] as String?; // user.id
+        otherUserId = _memberUserId(otherMember);
 
-        final profile = (otherMember['user'] as Map?)?['profile'] as Map?;
+        final userMap = otherMember['user'] as Map?;
+        final profile =
+            (userMap?['profile'] as Map?) ?? (otherMember['profile'] as Map?);
         if (profile != null) {
-          // Other member-এর name ও avatar দিয়ে override করো
-          displayTitle = profile['name']?.toString() ?? displayTitle;
-          displayAvatar = profile['avatarUrl']?.toString() ?? displayAvatar;
+          displayTitle =
+              profile['name']?.toString() ??
+              profile['displayName']?.toString() ??
+              displayTitle;
+          displayAvatar =
+              profile['avatarUrl']?.toString() ??
+              profile['avatar']?.toString() ??
+              displayAvatar;
+        } else if (userMap != null) {
+          displayTitle =
+              userMap['name']?.toString() ??
+              userMap['username']?.toString() ??
+              displayTitle;
+          displayAvatar =
+              userMap['avatarUrl']?.toString() ??
+              userMap['avatar']?.toString() ??
+              displayAvatar;
+        } else {
+          displayTitle = otherMember['name']?.toString() ?? displayTitle;
+          displayAvatar = otherMember['avatarUrl']?.toString() ?? displayAvatar;
         }
 
-        final userObj = otherMember['user'] as Map?;
-        if (userObj != null) {
-          final status = userObj['status'];
-          final isOnlineBool = userObj['isOnline'];
-          if (isOnlineBool == true || status == 'ONLINE') {
-            isOnline = true;
-          }
-          lastActive = userObj['lastActive']?.toString();
+        if (_memberHasPresence(otherMember)) {
+          isOnline = _memberIsOnline(otherMember);
         }
+        lastActive = _memberLastActive(otherMember);
       }
     }
 
-    // otherUserId এখনো null? dmKey থেকে বের করার চেষ্টা করো
-    // dmKey format: "userId1:userId2" — creatorId বাদ দিলে other user পাওয়া যাবে
-    if (otherUserId == null && dmKey != null && creatorId != null) {
+    // otherUserId dmKey থেকে বের করো (format: "userId1:userId2")
+    if (otherUserId == null && dmKey != null) {
       final parts = dmKey!.split(':');
       if (parts.length == 2) {
-        // যেটা creatorId না সেটাই other user
-        otherUserId = parts.firstWhere(
-          (p) => p != creatorId,
-          orElse: () => parts.first,
-        );
+        if (currentUserId != null && currentUserId.isNotEmpty) {
+          otherUserId = parts.firstWhere(
+            (p) => p != currentUserId,
+            orElse: () => parts.first,
+          );
+        } else if (creatorId != null) {
+          otherUserId = parts.firstWhere(
+            (p) => p != creatorId,
+            orElse: () => parts.first,
+          );
+        }
       }
     }
 
@@ -146,12 +215,14 @@ class ChatDto {
       'title': displayTitle,
       'avatar_url': displayAvatar,
       'unread_count': unreadCount,
-      'last_message_seq': (lastMessageSeq is String) ? int.tryParse(lastMessageSeq) : lastMessageSeq,
+      'last_message_seq': (lastMessageSeq is String)
+          ? int.tryParse(lastMessageSeq)
+          : lastMessageSeq,
       'last_message_preview': lastMessagePreview,
       'last_message_at': lastMessageAt,
       'created_at': createdAt,
       'updated_at': updatedAt,
-      'is_online': isOnline ? 1 : 0,
+      'is_online': isOnline == null ? null : (isOnline ? 1 : 0),
       'last_active_at': lastActive,
     };
   }
@@ -163,32 +234,30 @@ extension ChatDtoMapper on ChatDto {
     String formattedTime = '';
     if (lastMessageAt != null) {
       final dt = DateTime.tryParse(lastMessageAt!);
-      if (dt != null) formattedTime = DateFormatter.formatConversationTime(dt.toLocal());
+      if (dt != null)
+        formattedTime = DateFormatter.formatConversationTime(dt.toLocal());
     }
 
     String? displayTitle = title;
     String? displayAvatar = avatarUrl;
     String? otherUserId;
-    
+    bool isOnline = false;
+    String? lastActive;
+
     // Fallback for PRIVATE chats
     if (type == 'PRIVATE' && members != null && members!.isNotEmpty) {
-      var otherMember = members!.first;
-      if (currentUserId != null) {
-        otherMember = members!.firstWhere(
-          (m) => (m is Map) && (m['userId'] == currentUserId || (m['user'] as Map?)?['id'] == currentUserId) ? false : true,
-          orElse: () => members!.first,
-        );
-      }
+      final otherMember = _selectOtherMember(members!, currentUserId);
 
       if (otherMember is Map) {
-        otherUserId = otherMember['userId'] as String?
-                   ?? (otherMember['user'] as Map?)?['id'] as String?;
+        otherUserId = _memberUserId(otherMember);
         final profile = (otherMember['user'] as Map?)?['profile'] as Map?;
         if (profile != null) {
           // Force override title and avatar from the member's profile for private chats
           displayTitle = profile['name']?.toString() ?? displayTitle;
           displayAvatar = profile['avatarUrl']?.toString() ?? displayAvatar;
         }
+        isOnline = _memberIsOnline(otherMember);
+        lastActive = _memberLastActive(otherMember);
       }
     }
 
@@ -197,15 +266,20 @@ extension ChatDtoMapper on ChatDto {
     return ChatModel(
       id: id,
       userId: otherUserId,
-      name: displayTitle ?? 'Unknown User', // Handle PRIVATE chats with null title
+      name:
+          displayTitle ??
+          'Unknown User', // Handle PRIVATE chats with null title
       message: previewMessage ?? 'New Chat',
-      image: displayAvatar ?? 'https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp',
+      image:
+          displayAvatar ??
+          'https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp',
       time: formattedTime,
       unreadCount: unreadCount,
-      isOnline: false, // Provide true via a separate presence service if needed
+      isOnline: isOnline,
       isMuted: false,
       isRead: unreadCount == 0,
       isPinned: false,
+      lastActive: lastActive,
     );
   }
 }
@@ -217,11 +291,13 @@ extension ChatSqliteMapper on Map<String, dynamic> {
     final timeStr = this['last_message_at'] ?? this['created_at'];
     if (timeStr != null) {
       final dt = DateTime.tryParse(timeStr as String);
-      if (dt != null) formattedTime = DateFormatter.formatConversationTime(dt.toLocal());
+      if (dt != null)
+        formattedTime = DateFormatter.formatConversationTime(dt.toLocal());
     }
 
     final sqliteAvatar = this['avatar_url'] as String?;
-    String resolvedAvatar = (sqliteAvatar == null || sqliteAvatar == 'assets/images/default.png')
+    String resolvedAvatar =
+        (sqliteAvatar == null || sqliteAvatar == 'assets/images/default.png')
         ? 'https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp'
         : sqliteAvatar;
 
@@ -230,10 +306,21 @@ extension ChatSqliteMapper on Map<String, dynamic> {
     //       তাই ?v=updated_at দিলে প্রতি মেসেজে avatar re-download হয়!
     // Server নতুন avatar দিলে URL নিজেই পরিবর্তন হবে → CachedNetworkImage তন নতুন দিয়ে load করবে
 
+    final rawTitle = this['title'] as String?;
+    final otherUid = this['other_user_id'] as String?;
+    final String resolvedName =
+        (rawTitle != null && rawTitle.trim().isNotEmpty && rawTitle != 'null')
+        ? rawTitle.trim()
+        : (otherUid != null && otherUid.isNotEmpty
+              ? (otherUid.length > 8
+                    ? 'User ${otherUid.substring(0, 8)}'
+                    : 'User $otherUid')
+              : 'Chat');
+
     return ChatModel(
       id: this['id'] as String,
-      userId: this['other_user_id'] as String?,
-      name: this['title'] ?? 'Unknown User',
+      userId: otherUid,
+      name: resolvedName,
       message: this['last_message_preview'] ?? 'New Chat',
       image: resolvedAvatar,
       time: formattedTime,

@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 
 import '../database/daos/link_preview_dao.dart';
 import '../models/link_preview.dart';
+import '../utils/url_launcher_utils.dart';
 
 class LinkPreviewService {
   LinkPreviewService._()
@@ -25,10 +26,6 @@ class LinkPreviewService {
 
   static final LinkPreviewService instance = LinkPreviewService._();
 
-  static final RegExp _urlPattern = RegExp(
-    r'https?:\/\/[^\s<>"{}|\\^`\[\]]+',
-    caseSensitive: false,
-  );
   static const int _maxHtmlBytes = 512 * 1024;
   static const Duration _cacheLifetime = Duration(days: 7);
   static const Duration _fallbackCacheLifetime = Duration(hours: 1);
@@ -38,9 +35,7 @@ class LinkPreviewService {
   final Map<String, Future<LinkPreview?>> _inFlight = {};
 
   static String? firstUrl(String text) {
-    final raw = _urlPattern.firstMatch(text)?.group(0);
-    if (raw == null) return null;
-    return raw.replaceFirst(RegExp(r'[.,!?;:]+$'), '');
+    return UrlLauncherUtils.extractFirstUrl(text);
   }
 
   Future<LinkPreview?> previewForText(String text) {
@@ -69,22 +64,7 @@ class LinkPreviewService {
               (cached['is_fallback'] == 1
                   ? _fallbackCacheLifetime
                   : _cacheLifetime)) {
-        final preview = LinkPreview.fromSqlite(cached);
-        if (preview.imageUrl == null) {
-          final fallback = _fallback(uri);
-          final enriched = LinkPreview(
-            url: preview.url,
-            host: preview.host,
-            title: preview.title,
-            description: preview.description,
-            imageUrl: fallback.imageUrl,
-            siteName: preview.siteName,
-            isFallback: preview.isFallback,
-          );
-          await _dao.save(enriched.toSqlite());
-          return enriched;
-        }
-        return preview;
+        return LinkPreview.fromSqlite(cached);
       }
     }
 
@@ -152,9 +132,7 @@ class LinkPreviewService {
           _namedMeta(html, 'description');
       final rawImage = _meta(html, 'og:image') ?? _meta(html, 'twitter:image');
       final image = rawImage == null
-          ? _youtubeThumbnail(resolvedUri) ??
-                _favicon(html, resolvedUri) ??
-                _defaultFavicon(resolvedUri)
+          ? _youtubeThumbnail(resolvedUri)
           : resolvedUri.resolve(_decodeEntities(rawImage)).toString();
       final siteName =
           _meta(html, 'og:site_name') ?? _providerName(resolvedUri.host);
@@ -186,7 +164,7 @@ class LinkPreviewService {
         _ => provider,
       },
       description: 'Open link to view content',
-      imageUrl: _youtubeThumbnail(uri) ?? _defaultFavicon(uri),
+      imageUrl: _youtubeThumbnail(uri),
       siteName: provider,
       isFallback: true,
     );
@@ -247,25 +225,6 @@ class LinkPreviewService {
     ).firstMatch(html)?.group(1);
     return _clean(value);
   }
-
-  static String? _favicon(String html, Uri pageUri) {
-    for (final match in RegExp(
-      r'<link\s+[^>]*>',
-      caseSensitive: false,
-    ).allMatches(html)) {
-      final tag = match.group(0)!;
-      final rel = _attribute(tag, 'rel')?.toLowerCase();
-      if (rel == null || !rel.contains('icon')) continue;
-      final href = _attribute(tag, 'href');
-      if (href != null && href.trim().isNotEmpty) {
-        return pageUri.resolve(_decodeEntities(href.trim())).toString();
-      }
-    }
-    return null;
-  }
-
-  static String _defaultFavicon(Uri uri) =>
-      Uri(scheme: uri.scheme, host: uri.host, path: '/favicon.ico').toString();
 
   static String? _clean(String? value) {
     if (value == null) return null;

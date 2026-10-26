@@ -215,6 +215,10 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     await _ensureCurrentUserId();
     await _resolveOtherUserId();
 
+    if (chatId != null && chatId!.isNotEmpty) {
+      _socketService.joinConversation(chatId!);
+    }
+
     _messageSubscription = _socketService.onNewMessage.listen((data) async {
       try {
         await _ensureCurrentUserId();
@@ -629,6 +633,9 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
   @override
   void dispose() {
+    if (chatId != null && chatId!.isNotEmpty) {
+      _socketService.leaveConversation(chatId!);
+    }
     _messageSubscription?.cancel();
     _messageEditedSubscription?.cancel();
     _messageDeletedSubscription?.cancel();
@@ -1044,6 +1051,14 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     newById[newMsg.id] = newMsg;
     final newIds = state.messageIds.map((e) => e == tempId ? newMsg.id : e).toList();
     state = state.copyWith(messageIds: newIds, messagesById: newById);
+
+    if (chatId != null && newMsg.text.isNotEmpty) {
+      unawaited(_ref.read(chatProvider.notifier).updateLastMessage(
+        chatId!,
+        newMsg.text,
+        DateFormatter.formatConversationTime(newMsg.timestamp),
+      ));
+    }
   }
 
   Future<void> sendMessage(String text, {String? replyToId}) async {

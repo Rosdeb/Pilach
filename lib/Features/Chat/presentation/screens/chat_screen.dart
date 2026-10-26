@@ -222,7 +222,7 @@ class ChatScreen extends ConsumerWidget {
 
           Positioned(
             bottom: 130,
-            right: 16,
+            right: 25,
             child: GlassFab(
               onPressed: () => _showActionMenu(context),
             ),

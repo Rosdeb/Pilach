@@ -237,6 +237,7 @@ class _ChatTileContent extends ConsumerWidget {
             RepaintBoundary(
               child: ChatAvatar(
                 imageUrl: chat.image,
+                isGroup: chat.userId == null || chat.userId!.isEmpty,
                 isOnline: chat.isOnline,
                 onlineColor: _kActiveBlue,
                 borderColor: bgColor,
@@ -281,7 +282,7 @@ class _ChatTileContent extends ConsumerWidget {
                                     ? _kMutedGrey
                                     : _kWaGreen)
                                     : theme.colorScheme.onSurface
-                                    .withOpacity(0.45),
+                                        .withValues(alpha: 0.45),
                               ),
                             ),
                           ],
@@ -306,9 +307,9 @@ class _ChatTileContent extends ConsumerWidget {
                                   fontSize: 13.5,
                                   color: chat.draft != null
                                       ? theme.colorScheme.onSurface
-                                      .withOpacity(0.85)
+                                          .withValues(alpha: 0.85)
                                       : theme.colorScheme.onSurface
-                                      .withOpacity(0.55),
+                                          .withValues(alpha: 0.55),
                                   fontStyle: chat.draft != null
                                       ? FontStyle.italic
                                       : FontStyle.normal,

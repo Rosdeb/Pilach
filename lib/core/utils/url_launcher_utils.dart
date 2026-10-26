@@ -8,9 +8,11 @@ class UrlLauncherUtils {
   UrlLauncherUtils._();
 
   static final RegExp urlRegex = RegExp(
-    r'((https?:\/\/)|(www\.))[^\s<>"{}|\\^`\[\]]+',
+    r'(?:(?:https?:\/\/|www\.)[^\s<>"{}|\\^`\[\]]+|\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?::\d{2,5})?(?:\/[^\s<>"{}|\\^`\[\]]*)?)',
     caseSensitive: false,
   );
+
+  static final RegExp phoneRegex = RegExp(r'\+?\d[\d\s().-]{5,}\d');
 
   /// Cleans and formats the raw URL string ensuring proper scheme.
   static String formatUrl(String rawUrl) {
@@ -29,9 +31,112 @@ class UrlLauncherUtils {
 
   /// Extracts the first URL from text if present.
   static String? extractFirstUrl(String text) {
-    final match = urlRegex.firstMatch(text);
-    if (match == null) return null;
-    return formatUrl(match.group(0)!);
+    final matches = _urlCandidates(text);
+    return matches.isEmpty ? null : formatUrl(matches.first.text);
+  }
+
+  static List<String> extractPhoneNumbers(String text) => _phoneCandidates(
+    text,
+    occupied: _urlCandidates(text),
+  ).map((candidate) => candidate.text).toList(growable: false);
+
+  static String normalizePhoneNumber(String rawNumber) {
+    final trimmed = rawNumber.trim();
+    final hasInternationalPrefix = trimmed.startsWith('+');
+    final digits = trimmed.replaceAll(RegExp(r'\D'), '');
+    return hasInternationalPrefix ? '+$digits' : digits;
+  }
+
+  static Future<bool> openPhoneDialer(
+    BuildContext context,
+    String rawNumber,
+  ) async {
+    final number = normalizePhoneNumber(rawNumber);
+    if (number.replaceAll('+', '').length < 7) {
+      AppToast.show(context, 'Invalid phone number', type: ToastType.error);
+      return false;
+    }
+
+    try {
+      final launched = await launchUrl(
+        Uri(scheme: 'tel', path: number),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && context.mounted) {
+        AppToast.show(
+          context,
+          'Could not open phone dialer',
+          type: ToastType.error,
+        );
+      }
+      return launched;
+    } catch (_) {
+      if (context.mounted) {
+        AppToast.show(
+          context,
+          'Could not open phone dialer',
+          type: ToastType.error,
+        );
+      }
+      return false;
+    }
+  }
+
+  static List<_DetectedEntity> _urlCandidates(String text) {
+    final candidates = <_DetectedEntity>[];
+    for (final match in urlRegex.allMatches(text)) {
+      if (match.start > 0 && text[match.start - 1] == '@') continue;
+      final raw = match.group(0)!;
+      final cleaned = raw.replaceFirst(RegExp(r'[.,!?;:]+$'), '');
+      if (cleaned.isEmpty) continue;
+      candidates.add(
+        _DetectedEntity(
+          start: match.start,
+          end: match.start + cleaned.length,
+          text: cleaned,
+          type: _DetectedEntityType.url,
+        ),
+      );
+    }
+    return candidates;
+  }
+
+  static List<_DetectedEntity> _phoneCandidates(
+    String text, {
+    required List<_DetectedEntity> occupied,
+  }) {
+    final candidates = <_DetectedEntity>[];
+    for (final match in phoneRegex.allMatches(text)) {
+      final raw = match.group(0)!.trim();
+      final leadingWhitespace = match.group(0)!.lengthLeftTrimmed;
+      final start = match.start + leadingWhitespace;
+      final end = start + raw.length;
+      final digitCount = raw.replaceAll(RegExp(r'\D'), '').length;
+      final looksLikeDate = RegExp(
+        r'^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}',
+      ).hasMatch(raw);
+      final overlapsUrl = occupied.any(
+        (item) => start < item.end && end > item.start,
+      );
+      if (digitCount < 7 || digitCount > 15 || looksLikeDate || overlapsUrl) {
+        continue;
+      }
+      candidates.add(
+        _DetectedEntity(
+          start: start,
+          end: end,
+          text: raw,
+          type: _DetectedEntityType.phone,
+        ),
+      );
+    }
+    return candidates;
+  }
+
+  static List<_DetectedEntity> _detectEntities(String text) {
+    final urls = _urlCandidates(text);
+    return <_DetectedEntity>[...urls, ..._phoneCandidates(text, occupied: urls)]
+      ..sort((a, b) => a.start.compareTo(b.start));
   }
 
   /// Opens the URL using the best available method:
@@ -54,10 +159,7 @@ class UrlLauncherUtils {
     }
 
     try {
-      final launched = await launchUrl(
-        uri,
-        mode: mode,
-      );
+      final launched = await launchUrl(uri, mode: mode);
 
       if (!launched) {
         // Fallback to external application (e.g. Safari / Google browser app)
@@ -74,7 +176,10 @@ class UrlLauncherUtils {
     } catch (_) {
       // Fallback try with external browser
       try {
-        final fallback = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        final fallback = await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
         if (!fallback && context.mounted) {
           AppToast.show(context, 'Could not open link', type: ToastType.error);
         }
@@ -101,7 +206,11 @@ class UrlLauncherUtils {
     final formatted = formatUrl(rawUrl);
     await Clipboard.setData(ClipboardData(text: formatted));
     if (context.mounted) {
-      AppToast.show(context, 'Link copied to clipboard', type: ToastType.success);
+      AppToast.show(
+        context,
+        'Link copied to clipboard',
+        type: ToastType.success,
+      );
     }
   }
 
@@ -134,10 +243,17 @@ class UrlLauncherUtils {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 4,
+                  ),
                   child: Row(
                     children: [
-                      Icon(Icons.link_rounded, size: 22, color: colorScheme.primary),
+                      Icon(
+                        Icons.link_rounded,
+                        size: 22,
+                        color: colorScheme.primary,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -157,16 +273,26 @@ class UrlLauncherUtils {
                 const SizedBox(height: 8),
                 const Divider(height: 1),
                 ListTile(
-                  leading: Icon(Icons.open_in_browser_rounded, color: colorScheme.primary),
+                  leading: Icon(
+                    Icons.open_in_browser_rounded,
+                    color: colorScheme.primary,
+                  ),
                   title: const Text('Open in App Browser'),
                   subtitle: const Text('View inside the app'),
                   onTap: () {
                     Navigator.pop(sheetContext);
-                    openUrl(context, formatted, mode: LaunchMode.platformDefault);
+                    openUrl(
+                      context,
+                      formatted,
+                      mode: LaunchMode.platformDefault,
+                    );
                   },
                 ),
                 ListTile(
-                  leading: Icon(Icons.public_rounded, color: colorScheme.primary),
+                  leading: Icon(
+                    Icons.public_rounded,
+                    color: colorScheme.primary,
+                  ),
                   title: const Text('Open in Safari / Chrome'),
                   subtitle: const Text('Launch default browser application'),
                   onTap: () {
@@ -231,53 +357,52 @@ class _RichLinkTextState extends State<RichLinkText> {
   Widget build(BuildContext context) {
     _clearRecognizers();
 
-    final matches = UrlLauncherUtils.urlRegex.allMatches(widget.text).toList();
-    if (matches.isEmpty) {
+    final entities = UrlLauncherUtils._detectEntities(widget.text);
+    if (entities.isEmpty) {
       return Text(widget.text, style: widget.style);
     }
 
     final spans = <InlineSpan>[];
     int lastMatchEnd = 0;
 
-    final defaultLinkStyle = widget.linkStyle ??
+    final defaultLinkStyle =
+        widget.linkStyle ??
         widget.style.copyWith(
           color: Theme.of(context).colorScheme.primary,
           decoration: TextDecoration.underline,
           fontWeight: FontWeight.w500,
         );
 
-    for (final match in matches) {
-      if (match.start > lastMatchEnd) {
+    for (final entity in entities) {
+      if (entity.start > lastMatchEnd) {
         spans.add(
           TextSpan(
-            text: widget.text.substring(lastMatchEnd, match.start),
+            text: widget.text.substring(lastMatchEnd, entity.start),
             style: widget.style,
           ),
         );
       }
 
-      final rawUrl = match.group(0)!;
       final tapRecognizer = TapGestureRecognizer()
         ..onTap = () {
-          UrlLauncherUtils.openUrl(context, rawUrl);
-        };
-      final longPressRecognizer = LongPressGestureRecognizer()
-        ..onLongPress = () {
-          UrlLauncherUtils.showLinkOptions(context, rawUrl);
+          if (entity.type == _DetectedEntityType.phone) {
+            UrlLauncherUtils.openPhoneDialer(context, entity.text);
+          } else {
+            UrlLauncherUtils.openUrl(context, entity.text);
+          }
         };
 
       _recognizers.add(tapRecognizer);
-      _recognizers.add(longPressRecognizer);
 
       spans.add(
         TextSpan(
-          text: rawUrl,
+          text: entity.text,
           style: defaultLinkStyle,
           recognizer: tapRecognizer,
         ),
       );
 
-      lastMatchEnd = match.end;
+      lastMatchEnd = entity.end;
     }
 
     if (lastMatchEnd < widget.text.length) {
@@ -289,8 +414,26 @@ class _RichLinkTextState extends State<RichLinkText> {
       );
     }
 
-    return Text.rich(
-      TextSpan(children: spans),
-    );
+    return Text.rich(TextSpan(children: spans));
   }
+}
+
+enum _DetectedEntityType { url, phone }
+
+class _DetectedEntity {
+  const _DetectedEntity({
+    required this.start,
+    required this.end,
+    required this.text,
+    required this.type,
+  });
+
+  final int start;
+  final int end;
+  final String text;
+  final _DetectedEntityType type;
+}
+
+extension on String {
+  int get lengthLeftTrimmed => length - trimLeft().length;
 }

@@ -14,8 +14,54 @@ class ChatRepository {
 
   Future<Map<String, dynamic>> getConversations() async {
     final response = await _apiService.get('/api/v1/conversations');
-    // Since Dio handles JSON, response.data should be a Map<String, dynamic>
-    return response.data as Map<String, dynamic>;
+    if (response.data is Map) {
+      return Map<String, dynamic>.from(response.data as Map);
+    }
+    return {'data': response.data};
+  }
+
+  /// Get details of a specific conversation (members, profile, etc.)
+  /// GET /api/v1/conversations/{id}
+  Future<Map<String, dynamic>> getConversation(String conversationId) async {
+    final response = await _apiService.get('/api/v1/conversations/$conversationId');
+    if (response.data is Map) {
+      return Map<String, dynamic>.from(response.data as Map);
+    }
+    return {'data': response.data};
+  }
+
+  /// Creates a new conversation (DM or Group)
+  /// POST /api/v1/conversations
+  /// Body: { "type": "PRIVATE" | "GROUP", "title": "string", "userIds": ["string"] }
+  Future<Map<String, dynamic>> createConversation({
+    required String type, // 'PRIVATE' or 'GROUP'
+    String? title,
+    required List<String> userIds,
+  }) async {
+    final payload = <String, dynamic>{
+      'type': type,
+      if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
+      'userIds': userIds,
+    };
+    final response = await _apiService.post('/api/v1/conversations', data: payload);
+    if (response.data is Map) {
+      return Map<String, dynamic>.from(response.data as Map);
+    }
+    return {'data': response.data};
+  }
+
+  /// Adds members to an existing conversation
+  /// POST /api/v1/conversations/{id}/members
+  /// Body: { "userIds": ["string"] }
+  Future<Map<String, dynamic>> addMembers(String conversationId, List<String> userIds) async {
+    final response = await _apiService.post(
+      '/api/v1/conversations/$conversationId/members',
+      data: {'userIds': userIds},
+    );
+    if (response.data is Map) {
+      return Map<String, dynamic>.from(response.data as Map);
+    }
+    return {'data': response.data};
   }
 
   Future<Map<String, dynamic>> getMessages(String chatId, {int page = 1, int limit = 30}) async {

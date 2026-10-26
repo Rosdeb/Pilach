@@ -19,8 +19,8 @@ class ChatDao {
     for (var chat in chats) {
       batch.rawInsert(
         '''
-        INSERT INTO chats (id, other_user_id, type, title, avatar_url, unread_count, last_message_seq, last_message_preview, last_message_at, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO chats (id, other_user_id, type, title, avatar_url, unread_count, last_message_seq, last_message_preview, last_message_at, created_at, updated_at, is_online, last_active_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           other_user_id = COALESCE(excluded.other_user_id, chats.other_user_id),
           type = excluded.type,
@@ -34,7 +34,9 @@ class ChatDao {
           last_message_preview = COALESCE(excluded.last_message_preview, chats.last_message_preview),
           last_message_at = COALESCE(excluded.last_message_at, chats.last_message_at),
           created_at = excluded.created_at,
-          updated_at = excluded.updated_at
+          updated_at = excluded.updated_at,
+          is_online = COALESCE(excluded.is_online, chats.is_online),
+          last_active_at = COALESCE(excluded.last_active_at, chats.last_active_at)
         ''',
         [
           chat['id'],
@@ -48,6 +50,8 @@ class ChatDao {
           chat['last_message_at'],
           chat['created_at'],
           chat['updated_at'],
+          chat['is_online'],
+          chat['last_active_at'],
         ],
       );
     }
@@ -77,16 +81,31 @@ class ChatDao {
     return null;
   }
 
-  Future<void> deleteChat(String id) async {
+  Future<Map<String, dynamic>?> getChatByOtherUserId(String otherUserId) async {
     final database = await db;
-    await database.delete(
+    final results = await database.query(
       'chats',
-      where: 'id = ?',
-      whereArgs: [id],
+      where: 'other_user_id = ? AND type = ?',
+      whereArgs: [otherUserId, 'PRIVATE'],
+      limit: 1,
     );
+    if (results.isNotEmpty) {
+      return results.first;
+    }
+    return null;
   }
 
-  Future<void> updateChatLastMessage(String id, String preview, String lastMessageAt, int unreadCount) async {
+  Future<void> deleteChat(String id) async {
+    final database = await db;
+    await database.delete('chats', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> updateChatLastMessage(
+    String id,
+    String preview,
+    String lastMessageAt,
+    int unreadCount,
+  ) async {
     final database = await db;
     await database.update(
       'chats',
@@ -108,6 +127,24 @@ class ChatDao {
       {'unread_count': 0},
       where: 'id = ?',
       whereArgs: [id],
+    );
+  }
+
+  Future<void> updatePresenceByUserId(
+    String userId, {
+    required bool isOnline,
+    String? lastActive,
+  }) async {
+    final database = await db;
+    final values = <String, Object?>{'is_online': isOnline ? 1 : 0};
+    if (lastActive != null && lastActive.isNotEmpty) {
+      values['last_active_at'] = lastActive;
+    }
+    await database.update(
+      'chats',
+      values,
+      where: 'other_user_id = ? AND type = ?',
+      whereArgs: [userId, 'PRIVATE'],
     );
   }
 

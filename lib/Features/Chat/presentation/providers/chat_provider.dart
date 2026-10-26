@@ -18,8 +18,11 @@ import 'dart:isolate';
 import 'package:app/core/database/daos/outbox_dao.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/Features/Chat/presentation/providers/direct_chat_provider.dart';
+import 'package:app/Features/auth/presentation/providers/auth_provider.dart';
 
-final chatProvider = StateNotifierProvider<ChatNotifier, List<ChatModel>>((ref) {
+final chatProvider = StateNotifierProvider<ChatNotifier, List<ChatModel>>((
+  ref,
+) {
   final chatRepo = ref.watch(chatRepositoryProvider);
   final socketService = ref.watch(socketServiceProvider);
   return ChatNotifier(ref, chatRepo, socketService);
@@ -36,11 +39,13 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
   StreamSubscription? _newMessageSub;
   StreamSubscription<void>? _reconnectSub;
   StreamSubscription? _reactionSub;
-  final List<StreamSubscription<Map<String, dynamic>>> _metadataSubscriptions = [];
+  final List<StreamSubscription<Map<String, dynamic>>> _metadataSubscriptions =
+      [];
   Timer? _metadataRefreshDebounce;
   String _currentUserId = '';
 
-  ChatNotifier(this._ref, this._chatRepository, this._socketService) : super([]) {
+  ChatNotifier(this._ref, this._chatRepository, this._socketService)
+    : super([]) {
     _init();
     _listenToPresence();
     _listenToNewMessages();
@@ -57,16 +62,19 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         final rawMessageData = data['message'] ?? data;
         if (rawMessageData is! Map) return;
         final messageData = Map<String, dynamic>.from(rawMessageData);
-        final conversationId = (data['conversationId'] ??
-                data['chatId'] ??
-                messageData['conversationId'] ??
-                messageData['chatId'])
-            ?.toString();
+        final conversationId =
+            (data['conversationId'] ??
+                    data['chatId'] ??
+                    messageData['conversationId'] ??
+                    messageData['chatId'])
+                ?.toString();
         if (conversationId == null || conversationId.isEmpty) return;
 
         // If the broadcast is minimal, try to fill it from SQLite or Outbox
-        final String? msgId = (messageData['id'] ?? messageData['messageId'])?.toString();
-        if (msgId != null && (messageData['senderId'] == null || messageData['text'] == null)) {
+        final String? msgId = (messageData['id'] ?? messageData['messageId'])
+            ?.toString();
+        if (msgId != null &&
+            (messageData['senderId'] == null || messageData['text'] == null)) {
           final localMsg = await _messageDao.getMessageById(msgId);
           if (localMsg != null) {
             messageData['senderId'] ??= localMsg['sender_id'];
@@ -76,24 +84,27 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
           }
         }
         final clientMsgId = messageData['clientMsgId']?.toString();
-        if (messageData['text'] == null && (clientMsgId != null || messageData['senderId'] == null || messageData['senderId'] == _currentUserId)) {
-           final outboxDao = OutboxDao();
-           final pending = await outboxDao.getPendingMessages(conversationId);
-           if (pending.isNotEmpty) {
-             for (var item in pending) {
-               if (clientMsgId != null && item['client_msg_id'] == clientMsgId) {
-                 final payload = jsonDecode(item['payload_json']);
-                 messageData['text'] ??= payload['text'];
-                 messageData['type'] ??= payload['type'];
-                 break;
-               } else if (clientMsgId == null) {
-                 final payload = jsonDecode(item['payload_json']);
-                 messageData['text'] ??= payload['text'];
-                 messageData['type'] ??= payload['type'];
-                 break;
-               }
-             }
-           }
+        if (messageData['text'] == null &&
+            (clientMsgId != null ||
+                messageData['senderId'] == null ||
+                messageData['senderId'] == _currentUserId)) {
+          final outboxDao = OutboxDao();
+          final pending = await outboxDao.getPendingMessages(conversationId);
+          if (pending.isNotEmpty) {
+            for (var item in pending) {
+              if (clientMsgId != null && item['client_msg_id'] == clientMsgId) {
+                final payload = jsonDecode(item['payload_json']);
+                messageData['text'] ??= payload['text'];
+                messageData['type'] ??= payload['type'];
+                break;
+              } else if (clientMsgId == null) {
+                final payload = jsonDecode(item['payload_json']);
+                messageData['text'] ??= payload['text'];
+                messageData['type'] ??= payload['type'];
+                break;
+              }
+            }
+          }
         }
 
         final existingMessage = msgId == null
@@ -103,7 +114,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         // Persist before changing Riverpod/UI state.
         try {
           if (messageData['text'] != null) {
-             final dto = MessageDto.fromJson(messageData);
+            final dto = MessageDto.fromJson(messageData);
             await _messageDao.insertOrUpdateMessages([dto.toSqliteMap()]);
           }
         } catch (e) {
@@ -113,10 +124,12 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         final senderId = messageData['senderId']?.toString();
         String? rawText = messageData['text']?.toString();
         final type = messageData['type']?.toString() ?? 'TEXT';
-        final createdAtStr = messageData['createdAt']?.toString() ?? DateTime.now().toIso8601String();
+        final createdAtStr =
+            messageData['createdAt']?.toString() ??
+            DateTime.now().toIso8601String();
         final rawAttachments = messageData['attachments'];
         final attachments = rawAttachments is List ? rawAttachments : null;
-        
+
         String? attachmentType;
         if (attachments != null && attachments.isNotEmpty) {
           final first = attachments.first;
@@ -128,15 +141,23 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         String? previewText;
         if (rawText != null && rawText.isNotEmpty) {
           previewText = rawText;
-          if (actualType == 'IMAGE') previewText = '📷 $rawText';
-          else if (actualType == 'VIDEO') previewText = '🎥 $rawText';
-          else if (actualType == 'AUDIO') previewText = '🎵 $rawText';
-          else if (actualType == 'FILE') previewText = '📁 $rawText';
+          if (actualType == 'IMAGE')
+            previewText = '📷 $rawText';
+          else if (actualType == 'VIDEO')
+            previewText = '🎥 $rawText';
+          else if (actualType == 'AUDIO')
+            previewText = '🎵 $rawText';
+          else if (actualType == 'FILE')
+            previewText = '📁 $rawText';
         } else {
-          if (actualType == 'IMAGE') previewText = '📷 Photo';
-          else if (actualType == 'VIDEO') previewText = '🎥 Video';
-          else if (actualType == 'AUDIO') previewText = '🎵 Audio';
-          else if (actualType == 'FILE') previewText = '📁 File';
+          if (actualType == 'IMAGE')
+            previewText = '📷 Photo';
+          else if (actualType == 'VIDEO')
+            previewText = '🎥 Video';
+          else if (actualType == 'AUDIO')
+            previewText = '🎵 Audio';
+          else if (actualType == 'FILE')
+            previewText = '📁 File';
         }
 
         final currentChatId = _ref.read(currentChatIdProvider);
@@ -146,7 +167,10 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         final formattedTime = DateFormatter.formatConversationTime(dt);
 
         bool chatFound = false;
-        final isIncoming = senderId != null && senderId.isNotEmpty && senderId != _currentUserId;
+        final isIncoming =
+            senderId != null &&
+            senderId.isNotEmpty &&
+            senderId != _currentUserId;
 
         if (previewText == null && isIncoming) {
           // If we couldn't resolve text for an incoming message, force fetch from server to get accurate preview
@@ -157,7 +181,8 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         final updatedList = state.map((chat) {
           if (chat.id == conversationId) {
             chatFound = true;
-            final newUnreadCount = (isIncoming && !isCurrentlyOpen && existingMessage == null)
+            final newUnreadCount =
+                (isIncoming && !isCurrentlyOpen && existingMessage == null)
                 ? chat.unreadCount + 1
                 : (isCurrentlyOpen ? 0 : chat.unreadCount);
 
@@ -173,8 +198,10 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
 
         if (chatFound) {
           final target = updatedList.firstWhere((c) => c.id == conversationId);
-          final rest = updatedList.where((c) => c.id != conversationId).toList();
-          
+          final rest = updatedList
+              .where((c) => c.id != conversationId)
+              .toList();
+
           final pinned = [target, ...rest].where((c) => c.isPinned).toList();
           final unpinned = [target, ...rest].where((c) => !c.isPinned).toList();
           state = [...pinned, ...unpinned];
@@ -186,19 +213,48 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
             target.unreadCount,
           );
         } else {
-          await fetchFromServer();
+          // Chat not found in current state - update SQLite and insert to state
+          Logger.log(
+            'New message received for unlisted chat $conversationId - inserting to DB & state',
+          );
+          await _chatDao.updateChatLastMessage(
+            conversationId,
+            previewText ?? 'Message',
+            createdAtStr,
+            isIncoming ? 1 : 0,
+          );
+          final localRow = await _chatDao.getChatById(conversationId);
+          if (localRow != null) {
+            final model = localRow.toChatModel().copyWith(
+              message: previewText,
+              time: formattedTime,
+              unreadCount: isIncoming ? 1 : 0,
+            );
+            final rest = state.where((c) => c.id != conversationId).toList();
+            state = [model, ...rest];
+          }
+          await fetchFromServer(forceUpdate: true);
         }
       } catch (e, st) {
-        Logger.log('Error updating chat list on new message: $e\n$st', type: "error");
+        Logger.log(
+          'Error updating chat list on new message: $e\n$st',
+          type: "error",
+        );
       }
     });
   }
 
   void _listenToChatChanges() {
-    void refresh(Map<String, dynamic> _) {
+    void refresh(Map<String, dynamic> data) {
       _metadataRefreshDebounce?.cancel();
       _metadataRefreshDebounce = Timer(const Duration(milliseconds: 250), () {
-        unawaited(fetchFromServer());
+        unawaited(fetchFromServer(forceUpdate: true));
+        final convId = (data['conversationId'] ?? data['chatId'] ?? data['id'])
+            ?.toString();
+        if (convId != null && convId.isNotEmpty) {
+          _socketService.joinConversation(convId);
+        }
+        _socketService.forceReconnect();
       });
     }
 
@@ -261,20 +317,33 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
             } catch (_) {}
           }
           parsed = existingReactions;
-          final emoji = (data['emoji'] ?? data['reaction'] ?? data['code'])?.toString();
+          final emoji = (data['emoji'] ?? data['reaction'] ?? data['code'])
+              ?.toString();
           final userId = data['userId']?.toString();
-          if (emoji != null && emoji.isNotEmpty && userId != null && userId.isNotEmpty) {
-            parsed.removeWhere((item) =>
-                item['emoji']?.toString() == emoji &&
-                item['userId']?.toString() == userId);
+          if (emoji != null &&
+              emoji.isNotEmpty &&
+              userId != null &&
+              userId.isNotEmpty) {
+            parsed.removeWhere(
+              (item) =>
+                  item['emoji']?.toString() == emoji &&
+                  item['userId']?.toString() == userId,
+            );
             if (data['isAdded'] != false) {
-              parsed.add({'emoji': emoji, 'userId': userId, 'messageId': msgId});
+              parsed.add({
+                'emoji': emoji,
+                'userId': userId,
+                'messageId': msgId,
+              });
             }
           }
         }
         await _messageDao.updateMessageReactions(msgId, jsonEncode(parsed));
       } catch (e, st) {
-        Logger.log('Error updating reaction in ChatNotifier: $e\n$st', type: "error");
+        Logger.log(
+          'Error updating reaction in ChatNotifier: $e\n$st',
+          type: "error",
+        );
       }
     });
   }
@@ -285,7 +354,10 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       try {
         // The server has no afterSeq filter — fetch newest 50 messages and
         // let insertOrUpdate deduplicate against what is already in local DB.
-        final response = await _chatRepository.getRecentMessages(chat.id, limit: 50);
+        final response = await _chatRepository.getRecentMessages(
+          chat.id,
+          limit: 50,
+        );
         final rawMessages = response['data'];
         if (rawMessages is! List || rawMessages.isEmpty) continue;
         final rows = <Map<String, dynamic>>[];
@@ -305,32 +377,67 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
 
   void _listenToPresence() {
     _onlineSub = _socketService.onPresenceOnline.listen((data) {
-      final userId = data['userId']?.toString();
+      final userId = _presenceUserId(data);
       Logger.log('PRESENCE ONLINE received: userId=$userId');
       if (userId != null) _updatePresence(userId, true);
     });
-    
+
     _offlineSub = _socketService.onPresenceOffline.listen((data) {
-      final userId = data['userId']?.toString();
-      final lastSeen = data['lastSeen'];
+      final userId = _presenceUserId(data);
+      final payload = data['data'] is Map
+          ? Map<String, dynamic>.from(data['data'] as Map)
+          : data;
+      final nestedUser = payload['user'] is Map
+          ? Map<String, dynamic>.from(payload['user'] as Map)
+          : const <String, dynamic>{};
+      final lastSeen =
+          payload['lastSeen'] ??
+          payload['lastActive'] ??
+          nestedUser['lastSeen'] ??
+          nestedUser['lastActive'];
       String? lastActiveIso;
-      
+
       if (lastSeen != null) {
         if (lastSeen is int) {
-          lastActiveIso = DateTime.fromMillisecondsSinceEpoch(lastSeen).toIso8601String();
+          lastActiveIso = DateTime.fromMillisecondsSinceEpoch(
+            lastSeen,
+          ).toIso8601String();
         } else if (lastSeen is String) {
           final parsed = int.tryParse(lastSeen);
           if (parsed != null) {
-            lastActiveIso = DateTime.fromMillisecondsSinceEpoch(parsed).toIso8601String();
+            lastActiveIso = DateTime.fromMillisecondsSinceEpoch(
+              parsed,
+            ).toIso8601String();
           } else {
-            lastActiveIso = lastSeen; // Fallback in case backend sends iso string
+            lastActiveIso =
+                lastSeen; // Fallback in case backend sends iso string
           }
         }
       }
-      
-      Logger.log('PRESENCE OFFLINE received: userId=$userId, lastActive=$lastActiveIso');
-      if (userId != null) _updatePresence(userId, false, lastActive: lastActiveIso);
+
+      Logger.log(
+        'PRESENCE OFFLINE received: userId=$userId, lastActive=$lastActiveIso',
+      );
+      if (userId != null)
+        _updatePresence(userId, false, lastActive: lastActiveIso);
     });
+  }
+
+  String? _presenceUserId(Map<String, dynamic> event) {
+    final payload = event['data'] is Map
+        ? Map<String, dynamic>.from(event['data'] as Map)
+        : event;
+    final user = payload['user'] is Map
+        ? Map<String, dynamic>.from(payload['user'] as Map)
+        : const <String, dynamic>{};
+    final id =
+        payload['userId'] ??
+        payload['user_id'] ??
+        payload['id'] ??
+        user['id'] ??
+        user['_id'];
+    final value = id?.toString().trim();
+    return value == null || value.isEmpty ? null : value;
   }
 
   void _updatePresence(String userId, bool isOnline, {String? lastActive}) {
@@ -346,15 +453,31 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       }
       return chat;
     }).toList();
-    Logger.log(' PRESENCE UPDATE: userId=$userId, isOnline=$isOnline, matched=$matched');
+    unawaited(
+      _chatDao.updatePresenceByUserId(
+        userId,
+        isOnline: isOnline,
+        lastActive: lastActive,
+      ),
+    );
+    Logger.log(
+      ' PRESENCE UPDATE: userId=$userId, isOnline=$isOnline, matched=$matched',
+    );
   }
 
   Future<void> clearUnreadCount(String id) async {
-    state = state.map((c) => c.id == id ? c.copyWith(unreadCount: 0, isRead: true) : c).toList();
+    state = state
+        .map((c) => c.id == id ? c.copyWith(unreadCount: 0, isRead: true) : c)
+        .toList();
     await _chatDao.clearUnreadCount(id);
   }
 
-  Future<void> updateLastMessage(String chatId, String message, String time, {bool bumpToTop = true}) async {
+  Future<void> updateLastMessage(
+    String chatId,
+    String message,
+    String time, {
+    bool bumpToTop = true,
+  }) async {
     if (!mounted) return;
 
     bool found = false;
@@ -383,7 +506,62 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         DateTime.now().toIso8601String(),
         updatedList.firstWhere((c) => c.id == chatId).unreadCount,
       );
+    } else {
+      // Chat is not yet in state (e.g. newly created conversation, first message sent)
+      Logger.log(
+        'updateLastMessage: Chat $chatId not in state, updating DB and syncing',
+      );
+      await _chatDao.updateChatLastMessage(
+        chatId,
+        message,
+        DateTime.now().toIso8601String(),
+        0,
+      );
+
+      Map<String, dynamic>? localRow = await _chatDao.getChatById(chatId);
+      if (localRow == null) {
+        final nowStr = DateTime.now().toIso8601String();
+        await _chatDao.insertOrUpdateChat({
+          'id': chatId,
+          'type': 'PRIVATE',
+          'title': 'Chat',
+          'avatar_url': null,
+          'unread_count': 0,
+          'last_message_preview': message,
+          'last_message_at': nowStr,
+          'created_at': nowStr,
+          'updated_at': nowStr,
+          'is_online': 0,
+        });
+        localRow = await _chatDao.getChatById(chatId);
+      }
+
+      if (localRow != null) {
+        final newChat = localRow.toChatModel().copyWith(
+          message: message,
+          time: time,
+        );
+        final rest = state.where((c) => c.id != chatId).toList();
+        final pinned = [newChat, ...rest].where((c) => c.isPinned).toList();
+        final unpinned = [newChat, ...rest].where((c) => !c.isPinned).toList();
+        state = [...pinned, ...unpinned];
+      }
+      unawaited(_fetchAndSaveConversationMetadata(chatId));
     }
+  }
+
+  Future<void> _fetchAndSaveConversationMetadata(String conversationId) async {
+    try {
+      final res = await _chatRepository.getConversation(conversationId);
+      final data = res['data'] is Map
+          ? res['data']
+          : (res['id'] != null ? res : null);
+      if (data != null && data is Map) {
+        final dto = ChatDto.fromJson(Map<String, dynamic>.from(data));
+        await _chatDao.insertOrUpdateChat(dto.toSqliteMap(_currentUserId));
+        await loadFromDb();
+      }
+    } catch (_) {}
   }
 
   @override
@@ -407,7 +585,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     // 1. Instantly load from local SQLite (Offline-first)
     await loadFromDb();
 
-    // 2. Real API fetch from server 
+    // 2. Real API fetch from server
     await fetchFromServer();
   }
 
@@ -419,11 +597,14 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       final unpinned = list.where((chat) => !chat.isPinned).toList();
       return [...pinned, ...unpinned];
     });
-    
+
     state = models;
   }
 
-  Future<void> fetchFromServer({bool isManualRefresh = false}) async {
+  Future<void> fetchFromServer({
+    bool isManualRefresh = false,
+    bool forceUpdate = false,
+  }) async {
     try {
       if (isManualRefresh) {
         await DefaultCacheManager().emptyCache();
@@ -432,8 +613,17 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       final responseData = await _chatRepository.getConversations();
       Logger.log('API RESPONSE (/api/v1/conversations): $responseData');
 
-      if (responseData['success'] == true && responseData['data'] != null) {
-        final List<dynamic> data = responseData['data'];
+      List<dynamic>? dataList;
+      if (responseData['data'] is List) {
+        dataList = responseData['data'] as List<dynamic>;
+      } else if (responseData['conversations'] is List) {
+        dataList = responseData['conversations'] as List<dynamic>;
+      } else if (responseData is List) {
+        dataList = responseData as List<dynamic>;
+      }
+
+      if (dataList != null) {
+        final List<dynamic> data = dataList;
         Logger.log('Total conversations from API: ${data.length}');
 
         final currentUserId = _currentUserId;
@@ -441,8 +631,11 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
           final rows = <Map<String, dynamic>>[];
           for (final item in data) {
             try {
-              final dto = ChatDto.fromJson(item as Map<String, dynamic>);
-              rows.add(dto.toSqliteMap(currentUserId));
+              if (item is Map) {
+                final map = Map<String, dynamic>.from(item);
+                final dto = ChatDto.fromJson(map);
+                rows.add(dto.toSqliteMap(currentUserId));
+              }
             } catch (e) {
               // Ignore unparseable item
             }
@@ -451,7 +644,11 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         });
 
         final localRows = await _chatDao.getAllChats();
-        bool hasChanges = sqliteRows.length != localRows.length;
+        bool hasChanges =
+            forceUpdate ||
+            sqliteRows.length != localRows.length ||
+            sqliteRows.length != state.length;
+
         if (!hasChanges) {
           final localMap = {for (var row in localRows) row['id']: row};
           for (final serverRow in sqliteRows) {
@@ -460,11 +657,22 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
               hasChanges = true;
               break;
             }
-            if (serverRow['last_message_at']?.toString() != localRow['last_message_at']?.toString() ||
-                serverRow['last_message_preview']?.toString() != localRow['last_message_preview']?.toString() ||
-                serverRow['unread_count']?.toString() != localRow['unread_count']?.toString() ||
-                serverRow['title']?.toString() != localRow['title']?.toString() ||
-                serverRow['avatar_url']?.toString() != localRow['avatar_url']?.toString()) {
+            if (serverRow['last_message_at']?.toString() !=
+                    localRow['last_message_at']?.toString() ||
+                serverRow['last_message_preview']?.toString() !=
+                    localRow['last_message_preview']?.toString() ||
+                serverRow['unread_count']?.toString() !=
+                    localRow['unread_count']?.toString() ||
+                serverRow['title']?.toString() !=
+                    localRow['title']?.toString() ||
+                serverRow['avatar_url']?.toString() !=
+                    localRow['avatar_url']?.toString() ||
+                (serverRow['is_online'] != null &&
+                    serverRow['is_online']?.toString() !=
+                        localRow['is_online']?.toString()) ||
+                (serverRow['last_active_at'] != null &&
+                    serverRow['last_active_at']?.toString() !=
+                        localRow['last_active_at']?.toString())) {
               hasChanges = true;
               break;
             }
@@ -477,6 +685,8 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
 
           await loadFromDb();
           Logger.log('Loaded ${state.length} chats from DB → UI');
+        } else if (state.length != localRows.length) {
+          await loadFromDb();
         } else {
           Logger.log('Local DB is up-to-date. Skipping UI update.');
         }
@@ -485,6 +695,278 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       }
     } catch (e, st) {
       Logger.log('Failed to fetch chats from server: $e\n$st');
+    }
+  }
+
+  Future<String?> findOrCreatePrivateConversation(String otherUserId) async {
+    final cleanUserId = otherUserId.trim();
+    if (cleanUserId.isEmpty) return null;
+
+    if (_currentUserId.isEmpty) {
+      final authId = _ref.read(authProvider).id;
+      if (authId != null && authId.isNotEmpty && authId != '***') {
+        _currentUserId = authId;
+      } else {
+        final prefs = await SharedPreferences.getInstance();
+        _currentUserId = prefs.getString('user_id') ?? '';
+      }
+    }
+
+    if (_currentUserId.isNotEmpty && cleanUserId == _currentUserId) {
+      Logger.log('Cannot create conversation with self');
+      return null;
+    }
+
+    // 1. Check in-memory state
+    final existingChat = state.cast<ChatModel?>().firstWhere(
+      (c) => c != null && (c.userId == cleanUserId || c.id == cleanUserId),
+      orElse: () => null,
+    );
+    if (existingChat != null) {
+      Logger.log('Found existing in-memory conversation: ${existingChat.id}');
+      return existingChat.id;
+    }
+
+    // 2. Check local database
+    final localRow = await _chatDao.getChatByOtherUserId(cleanUserId);
+    if (localRow != null && localRow['id'] != null) {
+      final existingId = localRow['id'] as String;
+      Logger.log('Found existing local DB conversation: $existingId');
+      await loadFromDb();
+      return existingId;
+    }
+
+    // 3. Create or fetch via API (POST /api/v1/conversations)
+    String? conversationId;
+    Map<String, dynamic>? conversationData;
+
+    try {
+      final res = await _chatRepository.createConversation(
+        type: 'PRIVATE',
+        userIds: [cleanUserId],
+      );
+
+      Logger.log('Create conversation API response: $res');
+
+      if (res['data'] is Map) {
+        conversationData = Map<String, dynamic>.from(res['data'] as Map);
+      } else if (res['id'] != null || res['_id'] != null) {
+        conversationData = Map<String, dynamic>.from(res);
+      }
+
+      conversationId =
+          conversationData?['id']?.toString() ??
+          conversationData?['_id']?.toString() ??
+          res['id']?.toString() ??
+          res['conversationId']?.toString();
+    } catch (e, st) {
+      Logger.log(
+        'createConversation API call encountered: $e\n$st',
+        type: 'error',
+      );
+    }
+
+    // 4. If conversationId is still not found (or if backend had conflict/existing conversation):
+    // Search the user's active conversations on the server for cleanUserId
+    if (conversationId == null || conversationId.isEmpty) {
+      try {
+        Logger.log(
+          'Searching existing conversations on server for $cleanUserId...',
+        );
+        final serverRes = await _chatRepository.getConversations();
+        final rawData = serverRes['data'] is List
+            ? serverRes['data']
+            : (serverRes['conversations'] is List
+                  ? serverRes['conversations']
+                  : (serverRes is List ? serverRes : null));
+        if (rawData is List) {
+          for (final item in rawData) {
+            if (item is Map) {
+              final type = item['type']?.toString();
+              if (type == 'PRIVATE') {
+                bool isMatch = false;
+                final members = item['members'];
+                if (members is List) {
+                  for (final m in members) {
+                    if (m is Map) {
+                      final uid =
+                          m['userId']?.toString() ??
+                          (m['user'] as Map?)?['id']?.toString();
+                      if (uid != null && uid == cleanUserId) {
+                        isMatch = true;
+                        break;
+                      }
+                    }
+                  }
+                }
+                final dmKey = item['dmKey']?.toString();
+                if (dmKey != null && dmKey.contains(cleanUserId)) {
+                  isMatch = true;
+                }
+
+                if (isMatch) {
+                  conversationId =
+                      item['id']?.toString() ?? item['_id']?.toString();
+                  conversationData = Map<String, dynamic>.from(item);
+                  Logger.log(
+                    'Found matching conversation on server: $conversationId',
+                  );
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        Logger.log('Error querying server conversations: $e', type: 'error');
+      }
+    }
+
+    // 5. Persist the conversation if we have conversationId
+    if (conversationId != null && conversationId.isNotEmpty) {
+      if (conversationData == null || conversationData['members'] == null) {
+        try {
+          final detailRes = await _chatRepository.getConversation(
+            conversationId,
+          );
+          if (detailRes['data'] is Map) {
+            conversationData = Map<String, dynamic>.from(
+              detailRes['data'] as Map,
+            );
+          } else if (detailRes['id'] != null || detailRes['_id'] != null) {
+            conversationData = Map<String, dynamic>.from(detailRes);
+          }
+        } catch (_) {}
+      }
+
+      try {
+        final Map<String, dynamic> sqliteMap;
+        if (conversationData != null) {
+          final dto = ChatDto.fromJson(conversationData);
+          sqliteMap = dto.toSqliteMap(_currentUserId);
+        } else {
+          sqliteMap = {
+            'id': conversationId,
+            'other_user_id': cleanUserId,
+            'type': 'PRIVATE',
+            'title': 'Chat',
+            'avatar_url': null,
+            'unread_count': 0,
+            'last_message_preview': 'New Chat',
+            'last_message_at': DateTime.now().toIso8601String(),
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+            'is_online': 0,
+            'last_active_at': null,
+          };
+        }
+        sqliteMap['other_user_id'] ??= cleanUserId;
+        await _chatDao.insertOrUpdateChat(sqliteMap);
+        await loadFromDb();
+      } catch (e) {
+        Logger.log('Could not persist conversation dto: $e');
+      }
+
+      // 6. Refresh all conversations from server to sync UI state
+      try {
+        await fetchFromServer(forceUpdate: true);
+      } catch (_) {}
+
+      // Ensure newly created chat is in state immediately
+      if (!state.any((c) => c.id == conversationId)) {
+        final localRow = await _chatDao.getChatById(conversationId);
+        if (localRow != null) {
+          state = [localRow.toChatModel(), ...state];
+        }
+      }
+
+      // Sync socket room for real-time events immediately
+      _socketService.joinConversation(conversationId);
+      _socketService.forceReconnect();
+
+      return conversationId;
+    }
+
+    // Final fallback check in synced state
+    final syncedChat = state.cast<ChatModel?>().firstWhere(
+      (c) => c != null && (c.userId == cleanUserId || c.id == cleanUserId),
+      orElse: () => null,
+    );
+    if (syncedChat != null) {
+      return syncedChat.id;
+    }
+
+    return null;
+  }
+
+  Future<String?> createGroupConversation({
+    required String title,
+    required List<String> userIds,
+  }) async {
+    try {
+      final res = await _chatRepository.createConversation(
+        type: 'GROUP',
+        title: title,
+        userIds: userIds,
+      );
+
+      Logger.log('Create group API response: $res');
+
+      String? conversationId;
+      Map<String, dynamic>? conversationData;
+
+      if (res['data'] is Map) {
+        conversationData = Map<String, dynamic>.from(res['data'] as Map);
+        conversationId =
+            conversationData['id']?.toString() ??
+            conversationData['_id']?.toString();
+      } else if (res['id'] != null || res['_id'] != null) {
+        conversationData = Map<String, dynamic>.from(res);
+        conversationId = res['id']?.toString() ?? res['_id']?.toString();
+      }
+
+      if (conversationData != null && _currentUserId.isNotEmpty) {
+        try {
+          final dto = ChatDto.fromJson(conversationData);
+          await _chatDao.insertOrUpdateChat(dto.toSqliteMap(_currentUserId));
+          await loadFromDb();
+        } catch (e) {
+          Logger.log('Could not persist created group dto: $e');
+        }
+      }
+
+      await fetchFromServer(forceUpdate: true);
+
+      if (conversationId != null) {
+        if (!state.any((c) => c.id == conversationId)) {
+          final localRow = await _chatDao.getChatById(conversationId);
+          if (localRow != null) {
+            state = [localRow.toChatModel(), ...state];
+          }
+        }
+        _socketService.joinConversation(conversationId);
+        _socketService.forceReconnect();
+      }
+
+      return conversationId;
+    } catch (e, st) {
+      Logger.log('Failed to create group conversation: $e\n$st', type: 'error');
+      rethrow;
+    }
+  }
+
+  Future<bool> addMembersToConversation(
+    String conversationId,
+    List<String> userIds,
+  ) async {
+    try {
+      final res = await _chatRepository.addMembers(conversationId, userIds);
+      Logger.log('Add members API response: $res');
+      await fetchFromServer();
+      return true;
+    } catch (e, st) {
+      Logger.log('Failed to add members: $e\n$st', type: 'error');
+      return false;
     }
   }
 
@@ -508,7 +990,10 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     try {
       await _chatRepository.muteConversation(conversationId, isMuted);
     } catch (e, st) {
-      Logger.log('Failed to mute conversation on server: $e\n$st', type: "error");
+      Logger.log(
+        'Failed to mute conversation on server: $e\n$st',
+        type: "error",
+      );
     }
   }
 
@@ -524,7 +1009,9 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     if (_currentUserId.isNotEmpty) {
       try {
         await _chatRepository.removeMember(id, _currentUserId);
-        Logger.log('Successfully removed myself ($_currentUserId) from chat $id on server');
+        Logger.log(
+          'Successfully removed myself ($_currentUserId) from chat $id on server',
+        );
       } catch (e) {
         Logger.log('Failed to remove member on server: $e');
       }
@@ -532,9 +1019,14 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
   }
 
   void toggleUnreadChat(String id) {
-    state = state.map((c) => c.id == id ? c.copyWith(unreadCount: c.unreadCount > 0 ? 0 : 1) : c,).toList();
+    state = state
+        .map(
+          (c) => c.id == id
+              ? c.copyWith(unreadCount: c.unreadCount > 0 ? 0 : 1)
+              : c,
+        )
+        .toList();
   }
-
 
   void togglePinChat(String id) {
     state = state.map((chat) {
