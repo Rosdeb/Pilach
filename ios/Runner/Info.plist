@@ -39,6 +39,11 @@
 	<string>877037378701-mh94qd8hqhdi72sl3eot9n881blqjcja.apps.googleusercontent.com</string>
 	<key>GIDServerClientID</key>
 	<string>877037378701-6s81l0858ss4etf94sg05dloba6i4rr1.apps.googleusercontent.com</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+		<string>http</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

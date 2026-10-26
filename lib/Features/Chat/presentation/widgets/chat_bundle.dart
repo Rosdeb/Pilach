@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/theme/chat_theme_model.dart';
 import '../../../../core/models/link_preview.dart';
 import '../../../../core/services/link_preview_service.dart';
+import '../../../../core/utils/url_launcher_utils.dart';
 import '../../data/models/message_model.dart';
 import 'image_preview_viewer.dart';
 
@@ -509,8 +510,8 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Flexible(
-                      child: Text(
-                        widget.message.text,
+                      child: RichLinkText(
+                        text: widget.message.text,
                         style: TextStyle(
                           color: widget.message.isMe
                               ? (widget.activeTheme.sentMessageColor
@@ -525,6 +526,34 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                                     : Colors.white),
                           fontSize: 15,
                           height: 1.25,
+                        ),
+                        linkStyle: TextStyle(
+                          color: widget.message.isMe
+                              ? (widget.activeTheme.sentMessageColor
+                                            .computeLuminance() >
+                                        0.5
+                                    ? const Color(0xFF1565C0)
+                                    : const Color(0xFF90CAF9))
+                              : (widget.activeTheme.receivedMessageColor
+                                            .computeLuminance() >
+                                        0.5
+                                    ? const Color(0xFF1565C0)
+                                    : const Color(0xFF90CAF9)),
+                          decoration: TextDecoration.underline,
+                          decorationColor: widget.message.isMe
+                              ? (widget.activeTheme.sentMessageColor
+                                            .computeLuminance() >
+                                        0.5
+                                    ? const Color(0xFF1565C0)
+                                    : const Color(0xFF90CAF9))
+                              : (widget.activeTheme.receivedMessageColor
+                                            .computeLuminance() >
+                                        0.5
+                                    ? const Color(0xFF1565C0)
+                                    : const Color(0xFF90CAF9)),
+                          fontSize: 15,
+                          height: 1.25,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -772,113 +801,127 @@ class _LinkPreviewCard extends StatelessWidget {
         final hasImage = preview.imageUrl?.isNotEmpty == true;
         final isFavicon =
             preview.imageUrl?.toLowerCase().contains('favicon') == true;
-        return Container(
-          width: double.infinity,
+        return Material(
+          color: colors.surface.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(10),
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: colors.surface.withValues(alpha: 0.72),
+          child: InkWell(
+            onTap: () => UrlLauncherUtils.openUrl(context, preview.url),
+            onLongPress: () => UrlLauncherUtils.showLinkOptions(context, preview.url),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: colors.outlineVariant.withValues(alpha: 0.45),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (hasImage && !isFavicon)
-                CachedNetworkImage(
-                  imageUrl: preview.imageUrl!,
-                  width: double.infinity,
-                  height: 135,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) =>
-                      const _ShimmerPlaceholder(width: 280, height: 135),
-                  errorWidget: (_, __, ___) => Container(
-                    height: 110,
-                    color: colors.surfaceContainerHighest,
-                    alignment: Alignment.center,
-                    child: Icon(
-                      Icons.public,
-                      size: 40,
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: colors.outlineVariant.withValues(alpha: 0.45),
                 ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      preview.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.onSurface,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (preview.description?.isNotEmpty == true) ...[
-                      const SizedBox(height: 3),
-                      Text(
-                        preview.description!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (hasImage && !isFavicon)
+                    CachedNetworkImage(
+                      imageUrl: preview.imageUrl!,
+                      width: double.infinity,
+                      height: 135,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) =>
+                          const _ShimmerPlaceholder(width: 280, height: 135),
+                      errorWidget: (_, __, ___) => Container(
+                        height: 110,
+                        color: colors.surfaceContainerHighest,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.public,
+                          size: 40,
                           color: colors.onSurfaceVariant,
-                          fontSize: 11,
                         ),
                       ),
-                    ],
-                    const SizedBox(height: 5),
-                    Row(
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (isFavicon) ...[
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(3),
-                            child: CachedNetworkImage(
-                              imageUrl: preview.imageUrl!,
-                              width: 14,
-                              height: 14,
-                              fit: BoxFit.cover,
-                              errorWidget: (_, __, ___) => Icon(
+                        Text(
+                          preview.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors.onSurface,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (preview.description?.isNotEmpty == true) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            preview.description!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 5),
+                        Row(
+                          children: [
+                            if (isFavicon) ...[
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(3),
+                                child: CachedNetworkImage(
+                                  imageUrl: preview.imageUrl!,
+                                  width: 14,
+                                  height: 14,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, __, ___) => Icon(
+                                    Icons.link,
+                                    size: 12,
+                                    color: colors.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                            ] else ...[
+                              Icon(
                                 Icons.link,
                                 size: 12,
                                 color: colors.onSurfaceVariant,
                               ),
+                              const SizedBox(width: 4),
+                            ],
+                            Expanded(
+                              child: Text(
+                                preview.siteName?.isNotEmpty == true
+                                    ? preview.siteName!
+                                    : preview.host,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: colors.onSurfaceVariant,
+                                  fontSize: 10,
+                                ),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                        ] else ...[
-                          Icon(
-                            Icons.link,
-                            size: 12,
-                            color: colors.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Expanded(
-                          child: Text(
-                            preview.siteName?.isNotEmpty == true
-                                ? preview.siteName!
-                                : preview.host,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.onSurfaceVariant,
-                              fontSize: 10,
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.open_in_new_rounded,
+                              size: 12,
+                              color: colors.onSurfaceVariant.withValues(alpha: 0.7),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },
@@ -1217,115 +1260,129 @@ class _UrlReplyPreviewBlock extends StatelessWidget {
             : fallbackHost;
         final hasImage = preview?.imageUrl != null && preview!.imageUrl!.isNotEmpty;
 
-        return IntrinsicWidth(
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 6.0),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border(left: BorderSide(color: accentColor, width: 3)),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Text section: title and domain
-                Flexible(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: textColor,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => UrlLauncherUtils.openUrl(context, url),
+            onLongPress: () => UrlLauncherUtils.showLinkOptions(context, url),
+            borderRadius: BorderRadius.circular(8),
+            child: IntrinsicWidth(
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 6.0),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border(left: BorderSide(color: accentColor, width: 3)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Text section: title and domain
+                    Flexible(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
                         ),
-                        const SizedBox(height: 2),
-                        Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              Icons.link_rounded,
-                              size: 12,
-                              color: subColor,
-                            ),
-                            const SizedBox(width: 3),
-                            Flexible(
-                              child: Text(
-                                domain,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: subColor,
-                                  fontSize: 11,
-                                ),
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: textColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
                               ),
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.link_rounded,
+                                  size: 12,
+                                  color: subColor,
+                                ),
+                                const SizedBox(width: 3),
+                                Flexible(
+                                  child: Text(
+                                    domain,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: subColor,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.open_in_new_rounded,
+                                  size: 11,
+                                  color: subColor,
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-                // Small thumbnail
-                ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topRight: Radius.circular(8),
-                    bottomRight: Radius.circular(8),
-                  ),
-                  child: hasImage
-                      ? CachedNetworkImage(
-                          imageUrl: preview.imageUrl!,
-                          width: 52,
-                          height: 52,
-                          fit: BoxFit.cover,
-                          placeholder: (_, __) => Container(
-                            width: 52,
-                            height: 52,
-                            color: Colors.black12,
-                            alignment: Alignment.center,
-                            child: Icon(
-                              Icons.public,
-                              size: 20,
-                              color: accentColor.withOpacity(0.7),
+                    // Small thumbnail
+                    ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topRight: Radius.circular(8),
+                        bottomRight: Radius.circular(8),
+                      ),
+                      child: hasImage
+                          ? CachedNetworkImage(
+                              imageUrl: preview.imageUrl!,
+                              width: 52,
+                              height: 52,
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) => Container(
+                                width: 52,
+                                height: 52,
+                                color: Colors.black12,
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  Icons.public,
+                                  size: 20,
+                                  color: accentColor.withOpacity(0.7),
+                                ),
+                              ),
+                              errorWidget: (_, __, ___) => Container(
+                                width: 52,
+                                height: 52,
+                                color: Colors.black12,
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  Icons.public,
+                                  size: 20,
+                                  color: accentColor.withOpacity(0.7),
+                                ),
+                              ),
+                            )
+                          : Container(
+                              width: 52,
+                              height: 52,
+                              color: Colors.black12,
+                              alignment: Alignment.center,
+                              child: Icon(
+                                Icons.public,
+                                size: 22,
+                                color: accentColor.withOpacity(0.7),
+                              ),
                             ),
-                          ),
-                          errorWidget: (_, __, ___) => Container(
-                            width: 52,
-                            height: 52,
-                            color: Colors.black12,
-                            alignment: Alignment.center,
-                            child: Icon(
-                              Icons.public,
-                              size: 20,
-                              color: accentColor.withOpacity(0.7),
-                            ),
-                          ),
-                        )
-                      : Container(
-                          width: 52,
-                          height: 52,
-                          color: Colors.black12,
-                          alignment: Alignment.center,
-                          child: Icon(
-                            Icons.public,
-                            size: 22,
-                            color: accentColor.withOpacity(0.7),
-                          ),
-                        ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         );

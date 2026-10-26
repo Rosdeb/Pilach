@@ -19,6 +19,7 @@ import '../../widgets/chat_bundle.dart';
 import 'package:app/core/utils/date_formatter.dart';
 import 'package:app/core/models/link_preview.dart';
 import 'package:app/core/services/link_preview_service.dart';
+import 'package:app/core/utils/url_launcher_utils.dart';
 
 
 final _chatReadyProvider = StateProvider.autoDispose<bool>((_) => false);
@@ -768,79 +769,90 @@ class _ReplyPreviewBar extends ConsumerWidget {
                       final hasImage =
                           preview?.imageUrl != null && preview!.imageUrl!.isNotEmpty;
 
-                      return Row(
-                        children: [
-                          // Small thumbnail for URL reply
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: hasImage
-                                ? CachedNetworkImage(
-                                    imageUrl: preview!.imageUrl!,
-                                    width: 40,
-                                    height: 40,
-                                    fit: BoxFit.cover,
-                                    placeholder: (_, __) => Container(
+                      return InkWell(
+                        onTap: () => UrlLauncherUtils.openUrl(context, url),
+                        onLongPress: () => UrlLauncherUtils.showLinkOptions(context, url),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Row(
+                          children: [
+                            // Small thumbnail for URL reply
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: hasImage
+                                  ? CachedNetworkImage(
+                                      imageUrl: preview!.imageUrl!,
+                                      width: 40,
+                                      height: 40,
+                                      fit: BoxFit.cover,
+                                      placeholder: (_, __) => Container(
+                                        width: 40,
+                                        height: 40,
+                                        color: theme.dividerColor.withValues(alpha: 0.15),
+                                        alignment: Alignment.center,
+                                        child: Icon(Icons.public, size: 18, color: accentColor),
+                                      ),
+                                      errorWidget: (_, __, ___) => Container(
+                                        width: 40,
+                                        height: 40,
+                                        color: theme.dividerColor.withValues(alpha: 0.15),
+                                        alignment: Alignment.center,
+                                        child: Icon(Icons.public, size: 18, color: accentColor),
+                                      ),
+                                    )
+                                  : Container(
                                       width: 40,
                                       height: 40,
                                       color: theme.dividerColor.withValues(alpha: 0.15),
                                       alignment: Alignment.center,
-                                      child: Icon(Icons.public, size: 18, color: accentColor),
+                                      child: Icon(Icons.public, size: 20, color: accentColor),
                                     ),
-                                    errorWidget: (_, __, ___) => Container(
-                                      width: 40,
-                                      height: 40,
-                                      color: theme.dividerColor.withValues(alpha: 0.15),
-                                      alignment: Alignment.center,
-                                      child: Icon(Icons.public, size: 18, color: accentColor),
+                            ),
+                            const SizedBox(width: 10),
+                            // Title and domain
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: theme.colorScheme.onSurface,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
                                     ),
-                                  )
-                                : Container(
-                                    width: 40,
-                                    height: 40,
-                                    color: theme.dividerColor.withValues(alpha: 0.15),
-                                    alignment: Alignment.center,
-                                    child: Icon(Icons.public, size: 20, color: accentColor),
                                   ),
-                          ),
-                          const SizedBox(width: 10),
-                          // Title and domain
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: theme.colorScheme.onSurface,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Row(
-                                  children: [
-                                    Icon(Icons.link_rounded, size: 12, color: accentColor),
-                                    const SizedBox(width: 3),
-                                    Expanded(
-                                      child: Text(
-                                        domain,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
-                                          fontSize: 11,
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.link_rounded, size: 12, color: accentColor),
+                                      const SizedBox(width: 3),
+                                      Expanded(
+                                        child: Text(
+                                          domain,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                                            fontSize: 11,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        Icons.open_in_new_rounded,
+                                        size: 11,
+                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       );
                     },
                   )
