@@ -44,6 +44,11 @@ class SocketService extends WidgetsBindingObserver {
   Stream<Map<String, dynamic>> get onPresenceOffline =>
       _presenceOfflineController.stream;
 
+  final Map<String, Map<String, dynamic>> _presenceSnapshot = {};
+  List<Map<String, dynamic>> get presenceSnapshot => _presenceSnapshot.values
+      .map((item) => Map<String, dynamic>.from(item))
+      .toList(growable: false);
+
   final _userTypingController =
       StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get onUserTyping => _userTypingController.stream;
@@ -110,6 +115,7 @@ class SocketService extends WidgetsBindingObserver {
   Timer? _healthTimer;
   Timer? _reconnectTimer;
   Timer? _connectionTimeoutTimer;
+  Timer? _presenceHeartbeatTimer;
   String? _token;
   bool _isRefreshing = false;
   bool _isConnecting = false;
@@ -165,23 +171,51 @@ class SocketService extends WidgetsBindingObserver {
     _openSocket(isReconnect: _reconnectAttempt > 0);
   }
 
-  final Set<String> _activeRooms = {};
+  final Set<String> _foregroundRooms = {};
+  final Set<String> _subscribedRooms = {};
+
+  Set<String> get _activeRooms => {..._subscribedRooms, ..._foregroundRooms};
 
   void joinConversation(String conversationId) {
     if (conversationId.isEmpty) return;
-    _activeRooms.add(conversationId);
+    _foregroundRooms.add(conversationId);
     Logger.log('Joining conversation room: $conversationId', type: 'socket');
     emit('conversation:join', {'conversationId': conversationId});
   }
 
   void leaveConversation(String conversationId) {
-    _activeRooms.remove(conversationId);
-    emit('conversation:leave', {'conversationId': conversationId});
+    _foregroundRooms.remove(conversationId);
+    if (!_subscribedRooms.contains(conversationId)) {
+      emit('conversation:leave', {'conversationId': conversationId});
+    }
+  }
+
+  void syncConversationSubscriptions(Iterable<String> conversationIds) {
+    final next = conversationIds.where((id) => id.isNotEmpty).toSet();
+    final added = next.difference(_subscribedRooms);
+    final removed = _subscribedRooms.difference(next);
+    _subscribedRooms
+      ..clear()
+      ..addAll(next);
+
+    if (!isConnected) return;
+    for (final roomId in added) {
+      _socket?.emit('conversation:join', {'conversationId': roomId});
+    }
+    for (final roomId in removed) {
+      if (!_foregroundRooms.contains(roomId)) {
+        _socket?.emit('conversation:leave', {'conversationId': roomId});
+      }
+    }
+    _emitPresenceHeartbeat();
   }
 
   void forceReconnect() {
     if (_disposed || _token == null || _token!.isEmpty) return;
-    Logger.log('forceReconnect() called — cycling socket to sync all rooms', type: 'socket');
+    Logger.log(
+      'forceReconnect() called — cycling socket to sync all rooms',
+      type: 'socket',
+    );
     _disposeCurrentSocket();
     _reconnectAttempt = 0;
     _openSocket(isReconnect: true);
@@ -348,6 +382,7 @@ class SocketService extends WidgetsBindingObserver {
         type: 'socket',
       );
       _startHealthCheck();
+      _startPresenceHeartbeat();
 
       // Re-emit room join events for active rooms
       for (final roomId in _activeRooms) {
@@ -406,8 +441,22 @@ class SocketService extends WidgetsBindingObserver {
       socket.on(event, (data) => _addEvent(controller, data, event));
     }
 
-    listen('presence:online', _presenceOnlineController);
-    listen('presence:offline', _presenceOfflineController);
+    socket.on(
+      'presence:online',
+      (data) => _handlePresenceEvent(
+        data,
+        isOnline: true,
+        controller: _presenceOnlineController,
+      ),
+    );
+    socket.on(
+      'presence:offline',
+      (data) => _handlePresenceEvent(
+        data,
+        isOnline: false,
+        controller: _presenceOfflineController,
+      ),
+    );
 
     listen('user:action', _userTypingController);
     listen('user:typing', _userTypingController);
@@ -450,6 +499,48 @@ class SocketService extends WidgetsBindingObserver {
     }
   }
 
+  void _handlePresenceEvent(
+    dynamic data, {
+    required bool isOnline,
+    required StreamController<Map<String, dynamic>> controller,
+  }) {
+    if (data is! Map) {
+      Logger.log(
+        'Ignoring malformed presence event: ${data.runtimeType}',
+        type: 'warning',
+      );
+      return;
+    }
+    final event = Map<String, dynamic>.from(data);
+    final payload = event['data'] is Map
+        ? Map<String, dynamic>.from(event['data'] as Map)
+        : event;
+    final user = payload['user'] is Map
+        ? Map<String, dynamic>.from(payload['user'] as Map)
+        : const <String, dynamic>{};
+    final rawUserId =
+        payload['userId'] ??
+        payload['user_id'] ??
+        payload['id'] ??
+        user['id'] ??
+        user['_id'];
+    final userId = rawUserId?.toString().trim();
+    if (userId != null && userId.isNotEmpty) {
+      final lastSeen =
+          payload['lastSeen'] ??
+          payload['lastActive'] ??
+          user['lastSeen'] ??
+          user['lastActive'];
+      final snapshot = <String, dynamic>{
+        'userId': userId,
+        'isOnline': isOnline,
+      };
+      if (lastSeen != null) snapshot['lastSeen'] = lastSeen;
+      _presenceSnapshot[userId] = snapshot;
+    }
+    if (!controller.isClosed) controller.add(event);
+  }
+
   // ─── Health check & reconnect backoff ──────────────────────────────────────
 
   void _startHealthCheck() {
@@ -463,6 +554,20 @@ class SocketService extends WidgetsBindingObserver {
         _scheduleReconnect(immediate: true);
       }
     });
+  }
+
+  void _startPresenceHeartbeat() {
+    _presenceHeartbeatTimer?.cancel();
+    _emitPresenceHeartbeat();
+    _presenceHeartbeatTimer = Timer.periodic(
+      const Duration(seconds: 25),
+      (_) => _emitPresenceHeartbeat(),
+    );
+  }
+
+  void _emitPresenceHeartbeat() {
+    if (!isConnected) return;
+    _socket?.emit('presence:heartbeat', <String, dynamic>{});
   }
 
   void _scheduleReconnect({bool immediate = false}) {
@@ -578,6 +683,7 @@ class SocketService extends WidgetsBindingObserver {
   void _stopConnection() {
     _reconnectTimer?.cancel();
     _healthTimer?.cancel();
+    _presenceHeartbeatTimer?.cancel();
     _isConnecting = false;
     _isRefreshing = false;
     _disposeCurrentSocket();
@@ -587,6 +693,7 @@ class SocketService extends WidgetsBindingObserver {
   void _disposeCurrentSocket() {
     _connectionTimeoutTimer?.cancel();
     _connectionTimeoutTimer = null;
+    _presenceHeartbeatTimer?.cancel();
     _isConnecting = false;
     final socket = _socket;
     _socket = null;

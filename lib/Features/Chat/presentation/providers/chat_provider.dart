@@ -376,13 +376,13 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
   }
 
   void _listenToPresence() {
-    _onlineSub = _socketService.onPresenceOnline.listen((data) {
+    _onlineSub = _socketService.onPresenceOnline.listen((data) async {
       final userId = _presenceUserId(data);
       Logger.log('PRESENCE ONLINE received: userId=$userId');
-      if (userId != null) _updatePresence(userId, true);
+      if (userId != null) await _updatePresence(userId, true);
     });
 
-    _offlineSub = _socketService.onPresenceOffline.listen((data) {
+    _offlineSub = _socketService.onPresenceOffline.listen((data) async {
       final userId = _presenceUserId(data);
       final payload = data['data'] is Map
           ? Map<String, dynamic>.from(data['data'] as Map)
@@ -418,8 +418,9 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       Logger.log(
         'PRESENCE OFFLINE received: userId=$userId, lastActive=$lastActiveIso',
       );
-      if (userId != null)
-        _updatePresence(userId, false, lastActive: lastActiveIso);
+      if (userId != null) {
+        await _updatePresence(userId, false, lastActive: lastActiveIso);
+      }
     });
   }
 
@@ -440,7 +441,17 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     return value == null || value.isEmpty ? null : value;
   }
 
-  void _updatePresence(String userId, bool isOnline, {String? lastActive}) {
+  Future<void> _updatePresence(
+    String userId,
+    bool isOnline, {
+    String? lastActive,
+  }) async {
+    if (!mounted) return;
+    await _chatDao.updatePresenceByUserId(
+      userId,
+      isOnline: isOnline,
+      lastActive: lastActive,
+    );
     if (!mounted) return;
     bool matched = false;
     state = state.map((chat) {
@@ -453,13 +464,6 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       }
       return chat;
     }).toList();
-    unawaited(
-      _chatDao.updatePresenceByUserId(
-        userId,
-        isOnline: isOnline,
-        lastActive: lastActive,
-      ),
-    );
     Logger.log(
       ' PRESENCE UPDATE: userId=$userId, isOnline=$isOnline, matched=$matched',
     );
@@ -585,6 +589,17 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     // 1. Instantly load from local SQLite (Offline-first)
     await loadFromDb();
 
+    for (final presence in _socketService.presenceSnapshot) {
+      final userId = _presenceUserId(presence);
+      if (userId != null) {
+        await _updatePresence(
+          userId,
+          presence['isOnline'] == true,
+          lastActive: presence['lastSeen']?.toString(),
+        );
+      }
+    }
+
     // 2. Real API fetch from server
     await fetchFromServer();
   }
@@ -599,6 +614,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     });
 
     state = models;
+    _socketService.syncConversationSubscriptions(models.map((chat) => chat.id));
   }
 
   Future<void> fetchFromServer({

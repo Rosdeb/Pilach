@@ -12,7 +12,313 @@ class UrlLauncherUtils {
     caseSensitive: false,
   );
 
+  static final RegExp explicitUrlRegex = RegExp(
+    r'https?:\/\/[^\s<>"{}|\\^`\[\]]+',
+    caseSensitive: false,
+  );
+
   static final RegExp phoneRegex = RegExp(r'\+?\d[\d\s().-]{5,}\d');
+
+  static const Set<String> _genericTlds = {
+    'app',
+    'art',
+    'biz',
+    'blog',
+    'chat',
+    'cloud',
+    'club',
+    'com',
+    'company',
+    'dev',
+    'digital',
+    'edu',
+    'email',
+    'finance',
+    'fun',
+    'gov',
+    'info',
+    'int',
+    'live',
+    'media',
+    'me',
+    'mil',
+    'mobi',
+    'name',
+    'net',
+    'network',
+    'news',
+    'online',
+    'org',
+    'pro',
+    'shop',
+    'site',
+    'social',
+    'space',
+    'store',
+    'tech',
+    'today',
+    'travel',
+    'tv',
+    'website',
+    'wiki',
+    'world',
+    'xyz',
+    'icu',
+  };
+
+  static const Set<String> _countryCodeTlds = {
+    'ac',
+    'ad',
+    'ae',
+    'af',
+    'ag',
+    'ai',
+    'al',
+    'am',
+    'ao',
+    'aq',
+    'ar',
+    'as',
+    'at',
+    'au',
+    'aw',
+    'ax',
+    'az',
+    'ba',
+    'bb',
+    'bd',
+    'be',
+    'bf',
+    'bg',
+    'bh',
+    'bi',
+    'bj',
+    'bl',
+    'bm',
+    'bn',
+    'bo',
+    'bq',
+    'br',
+    'bs',
+    'bt',
+    'bv',
+    'bw',
+    'by',
+    'bz',
+    'ca',
+    'cc',
+    'cd',
+    'cf',
+    'cg',
+    'ch',
+    'ci',
+    'ck',
+    'cl',
+    'cm',
+    'cn',
+    'co',
+    'cr',
+    'cu',
+    'cv',
+    'cw',
+    'cx',
+    'cy',
+    'cz',
+    'de',
+    'dj',
+    'dk',
+    'dm',
+    'do',
+    'dz',
+    'ec',
+    'ee',
+    'eg',
+    'eh',
+    'er',
+    'es',
+    'et',
+    'eu',
+    'fi',
+    'fj',
+    'fk',
+    'fm',
+    'fo',
+    'fr',
+    'ga',
+    'gb',
+    'gd',
+    'ge',
+    'gf',
+    'gg',
+    'gh',
+    'gi',
+    'gl',
+    'gm',
+    'gn',
+    'gp',
+    'gq',
+    'gr',
+    'gs',
+    'gt',
+    'gu',
+    'gw',
+    'gy',
+    'hk',
+    'hm',
+    'hn',
+    'hr',
+    'ht',
+    'hu',
+    'id',
+    'ie',
+    'il',
+    'im',
+    'in',
+    'io',
+    'iq',
+    'ir',
+    'is',
+    'it',
+    'je',
+    'jm',
+    'jo',
+    'jp',
+    'ke',
+    'kg',
+    'kh',
+    'ki',
+    'km',
+    'kn',
+    'kp',
+    'kr',
+    'kw',
+    'ky',
+    'kz',
+    'la',
+    'lb',
+    'lc',
+    'li',
+    'lk',
+    'lr',
+    'ls',
+    'lt',
+    'lu',
+    'lv',
+    'ly',
+    'ma',
+    'mc',
+    'md',
+    'me',
+    'mf',
+    'mg',
+    'mh',
+    'mk',
+    'ml',
+    'mm',
+    'mn',
+    'mo',
+    'mp',
+    'mq',
+    'mr',
+    'ms',
+    'mt',
+    'mu',
+    'mv',
+    'mw',
+    'mx',
+    'my',
+    'mz',
+    'na',
+    'nc',
+    'ne',
+    'nf',
+    'ng',
+    'ni',
+    'nl',
+    'no',
+    'np',
+    'nr',
+    'nu',
+    'nz',
+    'om',
+    'pa',
+    'pe',
+    'pf',
+    'pg',
+    'ph',
+    'pk',
+    'pl',
+    'pm',
+    'pn',
+    'pr',
+    'ps',
+    'pt',
+    'pw',
+    'py',
+    'qa',
+    're',
+    'ro',
+    'rs',
+    'ru',
+    'rw',
+    'sa',
+    'sb',
+    'sc',
+    'sd',
+    'se',
+    'sg',
+    'sh',
+    'si',
+    'sj',
+    'sk',
+    'sl',
+    'sm',
+    'sn',
+    'so',
+    'sr',
+    'ss',
+    'st',
+    'sv',
+    'sx',
+    'sy',
+    'sz',
+    'tc',
+    'td',
+    'tf',
+    'tg',
+    'th',
+    'tj',
+    'tk',
+    'tl',
+    'tm',
+    'tn',
+    'to',
+    'tr',
+    'tt',
+    'tw',
+    'tz',
+    'ua',
+    'ug',
+    'uk',
+    'um',
+    'us',
+    'uy',
+    'uz',
+    'va',
+    'vc',
+    've',
+    'vg',
+    'vi',
+    'vn',
+    'vu',
+    'wf',
+    'ws',
+    'ye',
+    'yt',
+    'za',
+    'zm',
+    'zw',
+  };
 
   /// Cleans and formats the raw URL string ensuring proper scheme.
   static String formatUrl(String rawUrl) {
@@ -33,6 +339,43 @@ class UrlLauncherUtils {
   static String? extractFirstUrl(String text) {
     final matches = _urlCandidates(text);
     return matches.isEmpty ? null : formatUrl(matches.first.text);
+  }
+
+  static String? extractFirstExplicitUrl(String text) {
+    for (final match in explicitUrlRegex.allMatches(text)) {
+      final cleaned = match.group(0)!.replaceFirst(RegExp(r'[.,!?;:]+$'), '');
+      if (isValidWebUrl(cleaned)) return formatUrl(cleaned);
+    }
+    return null;
+  }
+
+  static bool isValidWebUrl(String rawUrl) {
+    final uri = Uri.tryParse(formatUrl(rawUrl));
+    if (uri == null ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty ||
+        uri.host.length > 253) {
+      return false;
+    }
+
+    final host = uri.host.toLowerCase();
+    if (host == 'localhost' || host.endsWith('.local')) return false;
+    final labels = host.split('.');
+    if (labels.length < 2 ||
+        labels.any((label) => !_isValidDomainLabel(label))) {
+      return false;
+    }
+
+    final tld = labels.last;
+    return tld.startsWith('xn--') ||
+        _genericTlds.contains(tld) ||
+        _countryCodeTlds.contains(tld);
+  }
+
+  static bool _isValidDomainLabel(String label) {
+    if (label.isEmpty || label.length > 63) return false;
+    if (label.startsWith('-') || label.endsWith('-')) return false;
+    return RegExp(r'^[a-z0-9-]+$', caseSensitive: false).hasMatch(label);
   }
 
   static List<String> extractPhoneNumbers(String text) => _phoneCandidates(
@@ -85,10 +428,16 @@ class UrlLauncherUtils {
   static List<_DetectedEntity> _urlCandidates(String text) {
     final candidates = <_DetectedEntity>[];
     for (final match in urlRegex.allMatches(text)) {
-      if (match.start > 0 && text[match.start - 1] == '@') continue;
+      if (match.start > 0 &&
+          RegExp(
+            r'[a-z0-9@._-]',
+            caseSensitive: false,
+          ).hasMatch(text[match.start - 1])) {
+        continue;
+      }
       final raw = match.group(0)!;
       final cleaned = raw.replaceFirst(RegExp(r'[.,!?;:]+$'), '');
-      if (cleaned.isEmpty) continue;
+      if (cleaned.isEmpty || !isValidWebUrl(cleaned)) continue;
       candidates.add(
         _DetectedEntity(
           start: match.start,
@@ -151,7 +500,7 @@ class UrlLauncherUtils {
     final formatted = formatUrl(rawUrl);
     final uri = Uri.tryParse(formatted);
 
-    if (uri == null || uri.host.isEmpty) {
+    if (uri == null || !isValidWebUrl(formatted)) {
       if (context.mounted) {
         AppToast.show(context, 'Invalid link: $rawUrl', type: ToastType.error);
       }

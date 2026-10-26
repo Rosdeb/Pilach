@@ -16,9 +16,13 @@ void main() {
     expect(LinkPreviewService.firstUrl('Normal chat message'), isNull);
   });
 
-  test('normalizes a bare domain for link preview and browser opening', () {
+  test('keeps a bare domain clickable without creating a preview', () {
     expect(
       LinkPreviewService.firstUrl('Open drive.google.com/file/d/abc/view'),
+      isNull,
+    );
+    expect(
+      UrlLauncherUtils.extractFirstUrl('Open drive.google.com/file/d/abc/view'),
       'https://drive.google.com/file/d/abc/view',
     );
     expect(
@@ -32,6 +36,22 @@ void main() {
       UrlLauncherUtils.extractFirstUrl('Mail me at user@example.com'),
       isNull,
     );
+  });
+
+  test('rejects invalid or local domain names', () {
+    expect(
+      UrlLauncherUtils.extractFirstUrl('Do not link example.coom'),
+      isNull,
+    );
+    expect(UrlLauncherUtils.extractFirstUrl('Do not link test.local'), isNull);
+    expect(UrlLauncherUtils.extractFirstUrl('Do not link -bad.com'), isNull);
+    expect(UrlLauncherUtils.isValidWebUrl('https://localhost:8080'), isFalse);
+  });
+
+  test('accepts valid generic and country-code domains', () {
+    expect(UrlLauncherUtils.isValidWebUrl('https://example.com'), isTrue);
+    expect(UrlLauncherUtils.isValidWebUrl('pilach.com.bd'), isTrue);
+    expect(UrlLauncherUtils.isValidWebUrl('messenger.xdtunnel.icu'), isTrue);
   });
 
   test('extracts and normalizes phone numbers but ignores dates', () {

@@ -35,7 +35,7 @@ class LinkPreviewService {
   final Map<String, Future<LinkPreview?>> _inFlight = {};
 
   static String? firstUrl(String text) {
-    return UrlLauncherUtils.extractFirstUrl(text);
+    return UrlLauncherUtils.extractFirstExplicitUrl(text);
   }
 
   Future<LinkPreview?> previewForText(String text) {
