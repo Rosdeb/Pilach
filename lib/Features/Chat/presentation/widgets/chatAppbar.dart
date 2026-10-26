@@ -112,18 +112,18 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
         ),
       ),
       actions: [
-        IconButton(
-          icon: const Icon(CupertinoIcons.phone, color: _kGreen, size: 22),
-          onPressed: () {},
-        ),
-        IconButton(
-          icon: const Icon(
-            CupertinoIcons.video_camera,
-            color: _kGreen,
-            size: 26,
-          ),
-          onPressed: () {},
-        ),
+        // IconButton(
+        //   icon: const Icon(CupertinoIcons.phone, color: _kGreen, size: 22),
+        //   onPressed: () {},
+        // ),
+        // IconButton(
+        //   icon: const Icon(
+        //     CupertinoIcons.video_camera,
+        //     color: _kGreen,
+        //     size: 26,
+        //   ),
+        //   onPressed: () {},
+        // ),
         IconButton(
           icon: Icon(
             CupertinoIcons.ellipsis_vertical,

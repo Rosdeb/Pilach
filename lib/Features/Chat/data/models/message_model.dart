@@ -244,10 +244,20 @@ class MessageModel {
   }
 
   bool _reactionsEqual(List<Map<String, dynamic>>? a, List<Map<String, dynamic>>? b) {
+    if (identical(a, b)) return true;
     if (a == null && b == null) return true;
     if (a == null || b == null) return false;
     if (a.length != b.length) return false;
-    return a.toString() == b.toString();
+    for (int i = 0; i < a.length; i++) {
+      final mapA = a[i];
+      final mapB = b[i];
+      if (mapA.length != mapB.length) return false;
+      for (final key in mapA.keys) {
+        if (!mapB.containsKey(key)) return false;
+        if (mapA[key]?.toString() != mapB[key]?.toString()) return false;
+      }
+    }
+    return true;
   }
 
   @override

@@ -3,6 +3,8 @@ import 'package:app/Features/Market/presentation/screens/market_screen.dart';
 import 'package:app/Features/News/presentation/screens/news_screen.dart';
 import 'package:app/Features/Donate/presentation/screens/donate_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app/Features/Chat/presentation/screens/inbox_screen/direct_chat_screen.dart';
@@ -75,10 +77,10 @@ class RiverpodRouterRefreshListenable extends ChangeNotifier {
 
 /// iOS-style slide: new page comes in from right, old page slides left (parallax).
 /// Runs entirely as GPU layer transforms — zero Dart rebuilds during animation.
-CustomTransitionPage<T> _slidePage<T>({
-  required LocalKey key,
-  required Widget child,
-}) {
+Page<T> _slidePage<T>({required LocalKey key, required Widget child}) {
+  if (defaultTargetPlatform == TargetPlatform.iOS) {
+    return CupertinoPage<T>(key: key, child: child, maintainState: true);
+  }
   return CustomTransitionPage<T>(
     key: key,
     child: child,
@@ -88,30 +90,36 @@ CustomTransitionPage<T> _slidePage<T>({
     reverseTransitionDuration: const Duration(milliseconds: 200),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       // Incoming page slides in from the right.
-      final slideIn = Tween<Offset>(
-        begin: const Offset(1.0, 0.0),
-        end: Offset.zero,
-      ).animate(CurvedAnimation(
-        parent: animation,
-        curve: Curves.easeOutCubic,      // fast start → smooth land
-        reverseCurve: Curves.easeInCubic,
-      ));
+      final slideIn =
+          Tween<Offset>(
+            begin: const Offset(1.0, 0.0),
+            end: Offset.zero,
+          ).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic, // fast start → smooth land
+              reverseCurve: Curves.easeInCubic,
+            ),
+          );
 
       // Outgoing page slides slightly left (iOS depth / parallax cue).
       // secondaryAnimation runs 0→1 as the new page pushes over this one.
-      final slideOut = Tween<Offset>(
-        begin: Offset.zero,
-        end: const Offset(-0.25, 0.0),
-      ).animate(CurvedAnimation(
-        parent: secondaryAnimation,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      ));
+      final slideOut =
+          Tween<Offset>(
+            begin: Offset.zero,
+            end: const Offset(-0.25, 0.0),
+          ).animate(
+            CurvedAnimation(
+              parent: secondaryAnimation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            ),
+          );
 
       return SlideTransition(
-        position: slideOut,   // previous page drifts left
+        position: slideOut, // previous page drifts left
         child: SlideTransition(
-          position: slideIn,  // new page arrives from right
+          position: slideIn, // new page arrives from right
           child: child,
         ),
       );
@@ -120,10 +128,10 @@ CustomTransitionPage<T> _slidePage<T>({
 }
 
 /// Fade-only transition — best for overlay-style screens (search, modals).
-CustomTransitionPage<T> _fadePage<T>({
-  required LocalKey key,
-  required Widget child,
-}) {
+Page<T> _fadePage<T>({required LocalKey key, required Widget child}) {
+  if (defaultTargetPlatform == TargetPlatform.iOS) {
+    return CupertinoPage<T>(key: key, child: child, maintainState: true);
+  }
   return CustomTransitionPage<T>(
     key: key,
     child: child,
@@ -191,12 +199,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isSplash = path == AppPaths.splash;
       final isAuth =
           path == AppPaths.login ||
-              path == AppPaths.register ||
-              path == AppPaths.verify_email ||
-              path == AppPaths.forgot_password ||
-              path == AppPaths.two_factor_verify ||
-              path == AppPaths.two_factor_email_verify ||
-              path == AppPaths.two_factor_sms_verify;
+          path == AppPaths.register ||
+          path == AppPaths.verify_email ||
+          path == AppPaths.forgot_password ||
+          path == AppPaths.two_factor_verify ||
+          path == AppPaths.two_factor_email_verify ||
+          path == AppPaths.two_factor_sms_verify;
 
       if (status == AuthStatus.initial) return null;
 
@@ -207,11 +215,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (status == AuthStatus.authenticated) {
         // Only redirect login/register/verify_email/forgot_password to bottom menu.
         // We allow authenticated users to visit two_factor_*_verify screens for enrollment.
-        final isStrictAuth = path == AppPaths.login ||
-                             path == AppPaths.register ||
-                             path == AppPaths.verify_email ||
-                             path == AppPaths.forgot_password;
-                             
+        final isStrictAuth =
+            path == AppPaths.login ||
+            path == AppPaths.register ||
+            path == AppPaths.verify_email ||
+            path == AppPaths.forgot_password;
+
         if (isStrictAuth || isSplash) return AppPaths.bottom_manu;
       }
 
@@ -223,22 +232,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppPaths.splash,
         name: AppRoutes.splash,
-        pageBuilder: (c, s) => _fadePage(key: s.pageKey, child: const SplashScreen()),
+        pageBuilder: (c, s) =>
+            _fadePage(key: s.pageKey, child: const SplashScreen()),
       ),
       GoRoute(
         path: AppPaths.login,
         name: AppRoutes.login,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const LoginScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const LoginScreen()),
       ),
       GoRoute(
         path: AppPaths.register,
         name: AppRoutes.register,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const RegisterScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const RegisterScreen()),
       ),
       GoRoute(
         path: AppPaths.forgot_password,
         name: AppRoutes.forgot_password,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const ForgotPasswordScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const ForgotPasswordScreen()),
       ),
       GoRoute(
         path: AppPaths.verify_email,
@@ -261,7 +274,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoutes.two_factor_email_verify,
         pageBuilder: (c, s) => _slidePage(
           key: s.pageKey,
-          child: TwoFactorEmailVerifyScreen(args: s.extra as TwoFactorEmailVerifyArgs),
+          child: TwoFactorEmailVerifyScreen(
+            args: s.extra as TwoFactorEmailVerifyArgs,
+          ),
         ),
       ),
       GoRoute(
@@ -269,7 +284,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoutes.two_factor_sms_verify,
         pageBuilder: (c, s) => _slidePage(
           key: s.pageKey,
-          child: TwoFactorSmsVerifyScreen(args: s.extra as TwoFactorSmsVerifyArgs),
+          child: TwoFactorSmsVerifyScreen(
+            args: s.extra as TwoFactorSmsVerifyArgs,
+          ),
         ),
       ),
 
@@ -277,92 +294,110 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppPaths.bottom_manu,
         name: AppRoutes.bottom_manu,
-        pageBuilder: (c, s) => _fadePage(key: s.pageKey, child: BottomMenuWrapper()),
+        pageBuilder: (c, s) =>
+            _fadePage(key: s.pageKey, child: BottomMenuWrapper()),
       ),
 
       // ── Chat ───────────────────────────────────────────────────────────────
       GoRoute(
         path: AppPaths.chat,
         name: AppRoutes.chat,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: DirectChatScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: DirectChatScreen()),
       ),
       GoRoute(
         path: AppPaths.chat_profile,
         name: AppRoutes.chat_profile,
         pageBuilder: (c, s) {
           final chat = s.extra as ChatModel;
-          return _slidePage(key: s.pageKey, child: ChatProfileScreen(chat: chat));
+          return _slidePage(
+            key: s.pageKey,
+            child: ChatProfileScreen(chat: chat),
+          );
         },
       ),
       GoRoute(
         // Search feels more like an overlay → fade, not slide
         path: AppPaths.chat_search,
         name: AppRoutes.chat_search,
-        pageBuilder: (c, s) => _fadePage(key: s.pageKey, child: const ChatSearchScreen()),
+        pageBuilder: (c, s) =>
+            _fadePage(key: s.pageKey, child: const ChatSearchScreen()),
       ),
 
       // ── Me / Settings ──────────────────────────────────────────────────────
       GoRoute(
         path: AppPaths.edit_profile,
         name: AppRoutes.edit_profile,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: EditProfileScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: EditProfileScreen()),
       ),
       GoRoute(
         path: AppPaths.email_setting,
         name: AppRoutes.email_setting,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: EmailSettingsScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: EmailSettingsScreen()),
       ),
       GoRoute(
         path: AppPaths.security_privacy,
         name: AppRoutes.security_privacy,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: SecurityPrivacyScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: SecurityPrivacyScreen()),
       ),
       GoRoute(
         path: AppPaths.two_factor_settings,
         name: AppRoutes.two_factor_settings,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const TwoFactorSettingsScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const TwoFactorSettingsScreen()),
       ),
       GoRoute(
         path: AppPaths.change_password,
         name: AppRoutes.change_password,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const ChangePasswordScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const ChangePasswordScreen()),
       ),
       GoRoute(
         path: AppPaths.block_userlist,
         name: AppRoutes.block_userlist,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const BlockedUsersScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const BlockedUsersScreen()),
       ),
       GoRoute(
         path: AppPaths.chats_setting,
         name: AppRoutes.chats_setting,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: ChatsSettingsScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: ChatsSettingsScreen()),
       ),
       GoRoute(
         path: AppPaths.chat_theme_selection,
         name: AppRoutes.chat_theme_selection,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const ChatThemeSelectionScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const ChatThemeSelectionScreen()),
       ),
       GoRoute(
         path: AppPaths.chat_wallpaper,
         name: AppRoutes.chat_wallpaper,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const ChatWallpaperScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const ChatWallpaperScreen()),
       ),
       GoRoute(
         path: AppPaths.qr_screen,
         name: AppRoutes.qr_screen,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: QrScanScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: QrScanScreen()),
       ),
 
       // ── Discovers ──────────────────────────────────────────────────────────
       GoRoute(
         path: AppPaths.all_stories,
         name: AppRoutes.all_stories,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const AllStoriesScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const AllStoriesScreen()),
       ),
       GoRoute(
         path: AppPaths.create_story,
         name: AppRoutes.create_story,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const CreateStoryScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const CreateStoryScreen()),
       ),
       GoRoute(
         path: AppPaths.story_details,
@@ -377,10 +412,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           }
           return _slidePage(
             key: s.pageKey,
-            child: StoryDetailsScreen(
-              stories: stories,
-              initialIndex: 0,
-            ),
+            child: StoryDetailsScreen(stories: stories, initialIndex: 0),
           );
         },
       ),
@@ -389,22 +421,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppPaths.event_screen,
         name: AppRoutes.event_screen,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const EventScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const EventScreen()),
       ),
       GoRoute(
         path: AppPaths.market_screen,
         name: AppRoutes.market_screen,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const MarketScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const MarketScreen()),
       ),
       GoRoute(
         path: AppPaths.news_screen,
         name: AppRoutes.news_screen,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const NewsScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const NewsScreen()),
       ),
       GoRoute(
         path: AppPaths.donate_screen,
         name: AppRoutes.donate_screen,
-        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const DonateScreen()),
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const DonateScreen()),
       ),
     ],
   );

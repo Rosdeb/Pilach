@@ -438,19 +438,59 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
           (msgId != null && state.messagesById.containsKey(msgId));
       if (belongsToChat && msgId != null) {
         final existing = state.messagesById[msgId];
-        if (existing != null) {
-          List<Map<String, dynamic>> parsed;
-          final reactions = data['reactions'];
-          if (reactions is List) {
-            parsed = reactions
-                .whereType<Map>()
-                .map((item) => Map<String, dynamic>.from(item))
-                .toList();
+        List<Map<String, dynamic>> parsed;
+        final reactions = data['reactions'];
+        if (reactions is List) {
+          parsed = reactions
+              .map<Map<String, dynamic>?>((item) {
+                if (item is Map) {
+                  final map = Map<String, dynamic>.from(item);
+                  if (map['emoji'] == null) {
+                    map['emoji'] = map['reaction'] ?? map['code'];
+                  }
+                  return map;
+                } else if (item is String && item.isNotEmpty) {
+                  return {'emoji': item};
+                }
+                return null;
+              })
+              .whereType<Map<String, dynamic>>()
+              .toList();
+        } else {
+          List<Map<String, dynamic>> currentReactions;
+          if (existing != null) {
+            currentReactions = List<Map<String, dynamic>>.from(existing.reactions ?? const []);
           } else {
-            parsed = List<Map<String, dynamic>>.from(existing.reactions ?? const []);
-            final emoji = data['emoji']?.toString();
-            final userId = data['userId']?.toString();
-            if (emoji == null || userId == null) return;
+            final localRow = await _messageDao.getMessageById(msgId);
+            final existingJson = localRow?['reactions_json']?.toString();
+            currentReactions = [];
+            if (existingJson != null && existingJson.isNotEmpty) {
+              try {
+                final decoded = jsonDecode(existingJson);
+                if (decoded is List) {
+                  currentReactions = decoded
+                      .map<Map<String, dynamic>?>((item) {
+                        if (item is Map) {
+                          final map = Map<String, dynamic>.from(item);
+                          if (map['emoji'] == null) {
+                            map['emoji'] = map['reaction'] ?? map['code'];
+                          }
+                          return map;
+                        } else if (item is String && item.isNotEmpty) {
+                          return {'emoji': item};
+                        }
+                        return null;
+                      })
+                      .whereType<Map<String, dynamic>>()
+                      .toList();
+                }
+              } catch (_) {}
+            }
+          }
+          parsed = currentReactions;
+          final emoji = (data['emoji'] ?? data['reaction'] ?? data['code'])?.toString();
+          final userId = data['userId']?.toString();
+          if (emoji != null && emoji.isNotEmpty && userId != null && userId.isNotEmpty) {
             parsed.removeWhere((item) =>
                 item['emoji']?.toString() == emoji &&
                 item['userId']?.toString() == userId);
@@ -458,11 +498,13 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
               parsed.add({'emoji': emoji, 'userId': userId, 'messageId': msgId});
             }
           }
-          await _messageDao.updateMessageReactions(msgId, jsonEncode(parsed));
-            final updatedMsg = existing.copyWith(reactions: parsed);
-            final newById = Map<String, MessageModel>.from(state.messagesById);
-            newById[msgId] = updatedMsg;
-            state = state.copyWith(messagesById: newById);
+        }
+        await _messageDao.updateMessageReactions(msgId, jsonEncode(parsed));
+        if (existing != null && mounted) {
+          final updatedMsg = existing.copyWith(reactions: parsed);
+          final newById = Map<String, MessageModel>.from(state.messagesById);
+          newById[msgId] = updatedMsg;
+          state = state.copyWith(messagesById: newById);
         }
       }
     });

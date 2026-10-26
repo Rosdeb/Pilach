@@ -12,6 +12,7 @@ import 'package:app/core/services/notification_service.dart';
 import 'package:app/core/services/outbox_processor.dart';
 import 'package:app/Features/Chat/presentation/providers/direct_chat_provider.dart';
 import 'package:app/core/constants/app_paths.dart';
+import 'package:app/core/widgets/global_keyboard_dismiss.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,12 +20,12 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   final prefs = await SharedPreferences.getInstance();
 
-  runApp(ProviderScope(
-    overrides: [
-      sharedPreferencesProvider.overrideWithValue(prefs),
-    ],
-    child: const MyApp(),
-  ));
+  runApp(
+    ProviderScope(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends ConsumerWidget {
@@ -70,6 +71,8 @@ class MyApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeState.themeMode,
       routerConfig: router,
+      builder: (context, child) =>
+          GlobalKeyboardDismiss(child: child ?? const SizedBox.shrink()),
     );
   }
 }

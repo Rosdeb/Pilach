@@ -20,24 +20,32 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await db.execute('ALTER TABLE chats ADD COLUMN other_user_id TEXT');
         }
         if (oldVersion < 3) {
-          await db.execute('ALTER TABLE messages ADD COLUMN reactions_json TEXT');
+          await db.execute(
+            'ALTER TABLE messages ADD COLUMN reactions_json TEXT',
+          );
         }
         if (oldVersion < 4) {
-          await db.execute('ALTER TABLE chats ADD COLUMN is_online INTEGER DEFAULT 0');
+          await db.execute(
+            'ALTER TABLE chats ADD COLUMN is_online INTEGER DEFAULT 0',
+          );
           await db.execute('ALTER TABLE chats ADD COLUMN last_active_at TEXT');
         }
         if (oldVersion < 5) {
-          await db.execute('ALTER TABLE messages ADD COLUMN reply_to_json TEXT');
+          await db.execute(
+            'ALTER TABLE messages ADD COLUMN reply_to_json TEXT',
+          );
         }
         if (oldVersion < 6) {
-          await db.execute('ALTER TABLE messages ADD COLUMN is_pinned INTEGER DEFAULT 0');
+          await db.execute(
+            'ALTER TABLE messages ADD COLUMN is_pinned INTEGER DEFAULT 0',
+          );
           await db.execute('ALTER TABLE messages ADD COLUMN pinned_at TEXT');
           await db.execute('''
             DELETE FROM outbox
@@ -49,6 +57,9 @@ class AppDatabase {
             'CREATE UNIQUE INDEX IF NOT EXISTS idx_outbox_client_msg_id '
             'ON outbox(client_msg_id)',
           );
+        }
+        if (oldVersion < 7) {
+          await _createLinkPreviewsTable(db);
         }
       },
     );
@@ -97,8 +108,10 @@ class AppDatabase {
         pinned_at TEXT
       )
     ''');
-    
-    await db.execute('CREATE INDEX idx_messages_conv_seq ON messages(conversation_id, seq)');
+
+    await db.execute(
+      'CREATE INDEX idx_messages_conv_seq ON messages(conversation_id, seq)',
+    );
 
     await db.execute('''
       CREATE TABLE outbox (
@@ -135,6 +148,23 @@ class AppDatabase {
         last_synced_at TEXT
       )
     ''');
+
+    await _createLinkPreviewsTable(db);
+  }
+
+  static Future<void> _createLinkPreviewsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS link_previews (
+        url TEXT PRIMARY KEY,
+        host TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        image_url TEXT,
+        site_name TEXT,
+        is_fallback INTEGER NOT NULL DEFAULT 0,
+        fetched_at TEXT NOT NULL
+      )
+    ''');
   }
 
   Future close() async {
@@ -153,6 +183,7 @@ class AppDatabase {
       await txn.delete('outbox');
       await txn.delete('media_cache');
       await txn.delete('sync_state');
+      await txn.delete('link_previews');
     });
   }
 }

@@ -17,6 +17,8 @@ import '../../providers/chat_provider.dart';
 import '../../widgets/chatAppbar.dart';
 import '../../widgets/chat_bundle.dart';
 import 'package:app/core/utils/date_formatter.dart';
+import 'package:app/core/models/link_preview.dart';
+import 'package:app/core/services/link_preview_service.dart';
 
 
 final _chatReadyProvider = StateProvider.autoDispose<bool>((_) => false);
@@ -691,8 +693,13 @@ class _ReplyPreviewBar extends ConsumerWidget {
     final bool isImageType = replyTo.type == MessageType.image ||
         replyTo.type == MessageType.gif ||
         replyTo.type == MessageType.video;
-    final bool showThumb =
+    final bool showMediaThumb =
         isImageType && replyTo.mediaUrl != null && replyTo.mediaUrl!.isNotEmpty;
+
+    // Check if it's a URL reply (when not image/video)
+    final String? url = (!isImageType)
+        ? LinkPreviewService.firstUrl(replyTo.text)
+        : null;
 
     String previewText;
     if (replyTo.text.isNotEmpty) {
@@ -742,57 +749,157 @@ class _ReplyPreviewBar extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 10),
-          // Thumbnail (image replies only)
-          if (showThumb) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: CachedNetworkImage(
-                imageUrl: replyTo.mediaUrl!,
-                width: 40,
-                height: 40,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => Container(
-                  width: 40,
-                  height: 40,
-                  color: theme.dividerColor,
-                  child: const Icon(Icons.image, size: 18, color: Colors.white54),
-                ),
-                errorWidget: (_, __, ___) => Container(
-                  width: 40,
-                  height: 40,
-                  color: theme.dividerColor,
-                  child: const Icon(Icons.broken_image, size: 18, color: Colors.white54),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-          ],
-          // Text column
+          // Content section
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  replyTo.isMe ? 'Replying to yourself' : 'Replying to message',
-                  style: TextStyle(
-                    color: accentColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+            child: url != null
+                ? FutureBuilder<LinkPreview?>(
+                    future: LinkPreviewService.instance.previewForText(replyTo.text),
+                    builder: (context, snapshot) {
+                      final preview = snapshot.data;
+                      final parsedUri = Uri.tryParse(url);
+                      final fallbackHost =
+                          parsedUri?.host.isNotEmpty == true ? parsedUri!.host : url;
+                      final title = (preview != null && preview.title.isNotEmpty)
+                          ? preview.title
+                          : fallbackHost;
+                      final domain = (preview != null && preview.host.isNotEmpty)
+                          ? preview.host
+                          : fallbackHost;
+                      final hasImage =
+                          preview?.imageUrl != null && preview!.imageUrl!.isNotEmpty;
+
+                      return Row(
+                        children: [
+                          // Small thumbnail for URL reply
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: hasImage
+                                ? CachedNetworkImage(
+                                    imageUrl: preview!.imageUrl!,
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.cover,
+                                    placeholder: (_, __) => Container(
+                                      width: 40,
+                                      height: 40,
+                                      color: theme.dividerColor.withValues(alpha: 0.15),
+                                      alignment: Alignment.center,
+                                      child: Icon(Icons.public, size: 18, color: accentColor),
+                                    ),
+                                    errorWidget: (_, __, ___) => Container(
+                                      width: 40,
+                                      height: 40,
+                                      color: theme.dividerColor.withValues(alpha: 0.15),
+                                      alignment: Alignment.center,
+                                      child: Icon(Icons.public, size: 18, color: accentColor),
+                                    ),
+                                  )
+                                : Container(
+                                    width: 40,
+                                    height: 40,
+                                    color: theme.dividerColor.withValues(alpha: 0.15),
+                                    alignment: Alignment.center,
+                                    child: Icon(Icons.public, size: 20, color: accentColor),
+                                  ),
+                          ),
+                          const SizedBox(width: 10),
+                          // Title and domain
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurface,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    Icon(Icons.link_rounded, size: 12, color: accentColor),
+                                    const SizedBox(width: 3),
+                                    Expanded(
+                                      child: Text(
+                                        domain,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  )
+                : Row(
+                    children: [
+                      // Thumbnail for image/video replies only
+                      if (showMediaThumb) ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: CachedNetworkImage(
+                            imageUrl: replyTo.mediaUrl!,
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.cover,
+                            placeholder: (_, __) => Container(
+                              width: 40,
+                              height: 40,
+                              color: theme.dividerColor,
+                              child: const Icon(Icons.image, size: 18, color: Colors.white54),
+                            ),
+                            errorWidget: (_, __, ___) => Container(
+                              width: 40,
+                              height: 40,
+                              color: theme.dividerColor,
+                              child: const Icon(Icons.broken_image, size: 18, color: Colors.white54),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      // Text column (text-only if no media thumb)
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              replyTo.isMe ? 'Replying to yourself' : 'Replying to message',
+                              style: TextStyle(
+                                color: accentColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              previewText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  previewText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
           ),
           // Cancel button
           IconButton(

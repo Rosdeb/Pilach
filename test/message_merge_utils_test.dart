@@ -44,4 +44,32 @@ void main() {
     expect(merged['attachments_json'], '[{"url":"https://cdn.test/file.jpg"}]');
     expect(merged['seq'], 10);
   });
+
+  test('mergeMessageRows does not overwrite non-empty reactions with empty []', () {
+    final existing = {
+      'id': 'msg-1',
+      'reactions_json': '[{"emoji":"❤️","userId":"u1"}]',
+    };
+    final incomingEmpty = {
+      'id': 'msg-1',
+      'reactions_json': '[]',
+    };
+
+    final merged = mergeMessageRows(incomingEmpty, existing);
+    expect(merged['reactions_json'], '[{"emoji":"❤️","userId":"u1"}]');
+  });
+
+  test('mergeMessageRows updates reactions when incoming has non-empty reactions', () {
+    final existing = {
+      'id': 'msg-1',
+      'reactions_json': '[{"emoji":"❤️","userId":"u1"}]',
+    };
+    final incomingUpdated = {
+      'id': 'msg-1',
+      'reactions_json': '[{"emoji":"👍","userId":"u2"}]',
+    };
+
+    final merged = mergeMessageRows(incomingUpdated, existing);
+    expect(merged['reactions_json'], '[{"emoji":"👍","userId":"u2"}]');
+  });
 }

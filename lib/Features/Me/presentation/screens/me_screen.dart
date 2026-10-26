@@ -369,7 +369,7 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
                       icon: Icons.info_outline,
                       iconColor: AppColors.successGreen,
                       title: 'App Version',
-                      trailingText: 'v2.4.0',
+                      trailingText: 'V2.4.0',
                       showArrow: false,
                     ),
                   ]),

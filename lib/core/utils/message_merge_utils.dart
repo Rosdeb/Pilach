@@ -17,8 +17,19 @@ Map<String, dynamic> mergeMessageRows(
       return;
     }
 
-    if (key == 'reactions_json' && (value is String) && value.isEmpty) {
-      return;
+    if (key == 'reactions_json') {
+      if (value == null) return;
+      if (value is String) {
+        final trimmed = value.trim();
+        if (trimmed.isEmpty || trimmed == '[]') {
+          final existingVal = existing['reactions_json'];
+          if (existingVal is String &&
+              existingVal.trim().isNotEmpty &&
+              existingVal.trim() != '[]') {
+            return;
+          }
+        }
+      }
     }
 
     if (key == 'attachments_json' && (value is String) && value.isEmpty) {

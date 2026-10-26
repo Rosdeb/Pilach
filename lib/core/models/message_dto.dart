@@ -154,13 +154,28 @@ extension MessageSqliteMapper on Map<String, dynamic> {
     }
 
     List<Map<String, dynamic>>? parsedReactions;
-    if (this['reactions_json'] != null) {
+    final rawReactions = this['reactions_json'] ?? this['reactions'];
+    if (rawReactions != null) {
       try {
-        final decoded = jsonDecode(this['reactions_json']);
+        dynamic decoded = rawReactions;
+        if (rawReactions is String && rawReactions.trim().isNotEmpty) {
+          decoded = jsonDecode(rawReactions);
+        }
         if (decoded is List) {
           parsedReactions = decoded
-              .whereType<Map>()
-              .map((item) => Map<String, dynamic>.from(item))
+              .map<Map<String, dynamic>?>((item) {
+                if (item is Map) {
+                  final map = Map<String, dynamic>.from(item);
+                  if (map['emoji'] == null) {
+                    map['emoji'] = map['reaction'] ?? map['code'];
+                  }
+                  return map;
+                } else if (item is String && item.isNotEmpty) {
+                  return {'emoji': item};
+                }
+                return null;
+              })
+              .whereType<Map<String, dynamic>>()
               .toList();
         }
       } catch (e) {

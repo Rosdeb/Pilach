@@ -1,12 +1,11 @@
 import 'dart:io';
 import 'dart:ui';
-import 'package:app/core/constants/app_constants.dart';
-import 'package:app/core/constants/asset_constants.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/theme/chat_theme_model.dart';
+import '../../../../core/models/link_preview.dart';
+import '../../../../core/services/link_preview_service.dart';
 import '../../data/models/message_model.dart';
 import 'image_preview_viewer.dart';
 
@@ -48,6 +47,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
 
   final GlobalKey _bubbleKey = GlobalKey();
   OverlayEntry? _menuOverlay;
+  Future<LinkPreview?>? _linkPreviewFuture;
 
   bool _isReplyTriggered = false;
   final double _maxDragDistance = 60.0;
@@ -55,6 +55,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    _prepareLinkPreview();
 
     _swipeController = AnimationController(
       vsync: this,
@@ -86,6 +87,16 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(ChatBubble oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.message.text != widget.message.text) {
+      _prepareLinkPreview();
+    }
+  }
+
+  void _prepareLinkPreview() {
+    final url = LinkPreviewService.firstUrl(widget.message.text);
+    _linkPreviewFuture = url == null
+        ? null
+        : LinkPreviewService.instance.previewForText(widget.message.text);
   }
 
   @override
@@ -217,23 +228,23 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                             ),
                           ),
 
-                          const SizedBox(height: 4),
+                          if (_hasValidReactions(widget.message.reactions)) ...[
+                            const SizedBox(height: 3),
+                            Wrap(
+                              spacing: 4.0,
+                              runSpacing: 4.0,
+                              children: _buildReactions(
+                                widget.message.reactions!,
+                              ),
+                            ),
+                          ],
+
+                          const SizedBox(height: 3),
 
                           // Timestamp and Delivery Status indicators block line
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (widget.message.reactions != null &&
-                                  widget.message.reactions!.isNotEmpty) ...[
-                                Wrap(
-                                  spacing: 4.0,
-                                  runSpacing: 4.0,
-                                  children: _buildReactions(
-                                    widget.message.reactions!,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                              ],
                               Text(
                                 widget.message.time,
                                 style: TextStyle(
@@ -242,8 +253,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                                   fontSize: 11,
                                 ),
                               ),
-                              if (widget.message.isMe &&
-                                  widget.message.status != null) ...[
+                              if (widget.message.isMe) ...[
                                 const SizedBox(width: 4),
                                 Icon(
                                   (widget.message.status ==
@@ -375,6 +385,13 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
               ),
             ),
           ] else ...[
+            if (_linkPreviewFuture != null)
+              Padding(
+                padding: hasImage
+                    ? const EdgeInsets.fromLTRB(10, 10, 10, 2)
+                    : const EdgeInsets.only(bottom: 8),
+                child: _LinkPreviewCard(future: _linkPreviewFuture!),
+              ),
             if (hasImage) ...[
               Builder(
                 builder: (context) {
@@ -416,15 +433,16 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) =>
                                     Container(
-                                  color: Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? Colors.grey[850]
-                                      : Colors.grey[200],
-                                  child: const Icon(
-                                    Icons.broken_image,
-                                    size: 40,
-                                  ),
-                                ),
+                                      color:
+                                          Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? Colors.grey[850]
+                                          : Colors.grey[200],
+                                      child: const Icon(
+                                        Icons.broken_image,
+                                        size: 40,
+                                      ),
+                                    ),
                               )
                             else
                               CachedNetworkImage(
@@ -434,11 +452,12 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                                 fit: BoxFit.cover,
                                 placeholder: (context, url) =>
                                     const _ShimmerPlaceholder(
-                                  width: 250.0,
-                                  height: 190.0,
-                                ),
+                                      width: 250.0,
+                                      height: 190.0,
+                                    ),
                                 errorWidget: (context, url, error) => Container(
-                                  color: Theme.of(context).brightness ==
+                                  color:
+                                      Theme.of(context).brightness ==
                                           Brightness.dark
                                       ? Colors.grey[850]
                                       : Colors.grey[200],
@@ -450,7 +469,9 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                               ),
 
                             // Show an upload spinner overlay for local files that are still sending
-                            if (widget.message.status == MessageStatus.sending && isLocalFile)
+                            if (widget.message.status ==
+                                    MessageStatus.sending &&
+                                isLocalFile)
                               Container(
                                 color: Colors.black.withOpacity(0.35),
                                 child: const Center(
@@ -459,7 +480,9 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                                     height: 40,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 3,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -541,38 +564,61 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
     );
   }
 
+  bool _hasValidReactions(List<Map<String, dynamic>>? reactions) {
+    if (reactions == null || reactions.isEmpty) return false;
+    for (final r in reactions) {
+      final e = (r['emoji'] ?? r['reaction'] ?? r['code'])?.toString();
+      if (e != null && e.trim().isNotEmpty) return true;
+    }
+    return false;
+  }
+
   List<Widget> _buildReactions(List<Map<String, dynamic>> reactions) {
     final counts = <String, int>{};
     for (var r in reactions) {
-      final e = r['emoji'] as String?;
-      if (e != null) {
+      final e = (r['emoji'] ?? r['reaction'] ?? r['code'])?.toString();
+      if (e != null && e.trim().isNotEmpty) {
         counts[e] = (counts[e] ?? 0) + 1;
       }
     }
 
     return counts.entries
         .map(
-          (e) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.5),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(e.key, style: const TextStyle(fontSize: 12)),
-                if (e.value > 1) ...[
-                  const SizedBox(width: 4),
-                  Text(
-                    '${e.value}',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
+          (e) => GestureDetector(
+            onTap: () => widget.onReact?.call(e.key),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context).dividerColor.withOpacity(0.12),
+                  width: 0.8,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 3,
+                    offset: const Offset(0, 1),
                   ),
                 ],
-              ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(e.key, style: const TextStyle(fontSize: 12)),
+                  if (e.value > 1) ...[
+                    const SizedBox(width: 4),
+                    Text(
+                      '${e.value}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         )
@@ -604,17 +650,23 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
     const double estimatedMenuHeight = 170;
     const double gap = 8;
 
-    final double spaceBelow = screenHeight - bottomSafe - (bubbleTopLeft.dy + bubbleSize.height);
+    final double spaceBelow =
+        screenHeight - bottomSafe - (bubbleTopLeft.dy + bubbleSize.height);
 
     final bool openBelow = spaceBelow > estimatedMenuHeight;
 
-    final top = openBelow ? bubbleTopLeft.dy + bubbleSize.height + gap : (bubbleTopLeft.dy - estimatedMenuHeight - gap).clamp(
-      topSafe + gap,
-      screenHeight,
-    );
+    final top = openBelow
+        ? bubbleTopLeft.dy + bubbleSize.height + gap
+        : (bubbleTopLeft.dy - estimatedMenuHeight - gap).clamp(
+            topSafe + gap,
+            screenHeight,
+          );
 
     final double left = widget.message.isMe
-        ? (bubbleTopLeft.dx + bubbleSize.width - menuWidth).clamp(12.0, screenWidth - menuWidth - 12.0,)
+        ? (bubbleTopLeft.dx + bubbleSize.width - menuWidth).clamp(
+            12.0,
+            screenWidth - menuWidth - 12.0,
+          )
         : bubbleTopLeft.dx.clamp(12.0, screenWidth - menuWidth - 12.0);
 
     final anchorOffset = Offset(
@@ -622,7 +674,8 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
       openBelow ? bubbleTopLeft.dy + bubbleSize.height : bubbleTopLeft.dy,
     );
 
-    final hasImage = widget.message.mediaUrl != null &&
+    final hasImage =
+        widget.message.mediaUrl != null &&
         widget.message.mediaUrl!.isNotEmpty &&
         !widget.message.isDeleted;
     final copiedBubble = _buildBubbleContent(
@@ -681,6 +734,155 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
   void _removeOverlay() {
     _menuOverlay?.remove();
     _menuOverlay = null;
+  }
+}
+
+class _LinkPreviewCard extends StatelessWidget {
+  const _LinkPreviewCard({required this.future});
+
+  final Future<LinkPreview?> future;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<LinkPreview?>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            width: double.infinity,
+            height: 92,
+            decoration: BoxDecoration(
+              color: Theme.of(
+                context,
+              ).colorScheme.surface.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            alignment: Alignment.center,
+            child: const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        }
+
+        final preview = snapshot.data;
+        if (preview == null) return const SizedBox.shrink();
+        final colors = Theme.of(context).colorScheme;
+        final hasImage = preview.imageUrl?.isNotEmpty == true;
+        final isFavicon =
+            preview.imageUrl?.toLowerCase().contains('favicon') == true;
+        return Container(
+          width: double.infinity,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: colors.surface.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: colors.outlineVariant.withValues(alpha: 0.45),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (hasImage && !isFavicon)
+                CachedNetworkImage(
+                  imageUrl: preview.imageUrl!,
+                  width: double.infinity,
+                  height: 135,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) =>
+                      const _ShimmerPlaceholder(width: 280, height: 135),
+                  errorWidget: (_, __, ___) => Container(
+                    height: 110,
+                    color: colors.surfaceContainerHighest,
+                    alignment: Alignment.center,
+                    child: Icon(
+                      Icons.public,
+                      size: 40,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      preview.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.onSurface,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (preview.description?.isNotEmpty == true) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        preview.description!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        if (isFavicon) ...[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: CachedNetworkImage(
+                              imageUrl: preview.imageUrl!,
+                              width: 14,
+                              height: 14,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => Icon(
+                                Icons.link,
+                                size: 12,
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                        ] else ...[
+                          Icon(
+                            Icons.link,
+                            size: 12,
+                            color: colors.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        Expanded(
+                          child: Text(
+                            preview.siteName?.isNotEmpty == true
+                                ? preview.siteName!
+                                : preview.host,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -796,14 +998,32 @@ class _ReplyPreviewBlock extends StatelessWidget {
     final MessageType type = repliedMessage.type;
     final String? mediaUrl = repliedMessage.mediaUrl;
 
-    // Decide whether to show a thumbnail on the right side.
-    final bool showThumb =
-        !isDeleted && mediaUrl != null && mediaUrl.isNotEmpty &&
+    // 1. Image / video reply (features small thumbnail)
+    final bool isMediaThumb =
+        !isDeleted &&
+        mediaUrl != null &&
+        mediaUrl.isNotEmpty &&
         (type == MessageType.image ||
-         type == MessageType.gif ||
-         type == MessageType.video);
+            type == MessageType.gif ||
+            type == MessageType.video);
 
-    // Label text shown when there is no caption.
+    // 2. URL reply (features small thumbnail, title, and domain derived from link-preview)
+    final String? url = (!isDeleted && !isMediaThumb)
+        ? LinkPreviewService.firstUrl(repliedMessage.text)
+        : null;
+
+    if (url != null) {
+      return _UrlReplyPreviewBlock(
+        url: url,
+        rawText: repliedMessage.text,
+        accentColor: accentColor,
+        isMe: isMe,
+        textColor: textColor,
+        subColor: subColor,
+      );
+    }
+
+    // 3. Text-only or media reply
     String labelText;
     if (isDeleted) {
       labelText = 'Deleted message';
@@ -842,113 +1062,275 @@ class _ReplyPreviewBlock extends StatelessWidget {
 
     return IntrinsicWidth(
       child: Container(
-      margin: const EdgeInsets.only(bottom: 6.0),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border(
-          left: BorderSide(color: accentColor, width: 3),
+        margin: const EdgeInsets.only(bottom: 6.0),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border(left: BorderSide(color: accentColor, width: 3)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Text section
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Media type badge when there is a thumbnail
+                    if (isMediaThumb && type != MessageType.image) ...[
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            type == MessageType.video
+                                ? Icons.videocam_rounded
+                                : Icons.gif_box_rounded,
+                            size: 14,
+                            color: accentColor,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            type == MessageType.video ? 'Video' : 'GIF',
+                            style: TextStyle(
+                              color: accentColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                    ],
+                    Text(
+                      labelText,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isDeleted ? subColor : textColor,
+                        fontSize: 13,
+                        fontStyle: isDeleted
+                            ? FontStyle.italic
+                            : FontStyle.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Small thumbnail for image / video
+            if (isMediaThumb)
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(8),
+                  bottomRight: Radius.circular(8),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    CachedNetworkImage(
+                      imageUrl: mediaUrl,
+                      width: 52,
+                      height: 52,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(
+                        width: 52,
+                        height: 52,
+                        color: Colors.black12,
+                        child: const Icon(
+                          Icons.image,
+                          size: 20,
+                          color: Colors.white54,
+                        ),
+                      ),
+                      errorWidget: (_, __, ___) => Container(
+                        width: 52,
+                        height: 52,
+                        color: Colors.black12,
+                        child: const Icon(
+                          Icons.broken_image,
+                          size: 20,
+                          color: Colors.white54,
+                        ),
+                      ),
+                    ),
+                    // Play icon overlay for video
+                    if (type == MessageType.video)
+                      Container(
+                        width: 52,
+                        height: 52,
+                        color: Colors.black26,
+                        child: const Icon(
+                          Icons.play_circle_fill_rounded,
+                          size: 24,
+                          color: Colors.white,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
         ),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Text section
-          Flexible(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Media type badge when there is a thumbnail
-                  if (showThumb && type != MessageType.image) ...[
-                    Row(
+    );
+  }
+}
+
+class _UrlReplyPreviewBlock extends StatelessWidget {
+  final String url;
+  final String rawText;
+  final Color accentColor;
+  final bool isMe;
+  final Color textColor;
+  final Color subColor;
+
+  const _UrlReplyPreviewBlock({
+    required this.url,
+    required this.rawText,
+    required this.accentColor,
+    required this.isMe,
+    required this.textColor,
+    required this.subColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final parsedUri = Uri.tryParse(url);
+    final fallbackHost = parsedUri?.host.isNotEmpty == true ? parsedUri!.host : url;
+
+    return FutureBuilder<LinkPreview?>(
+      future: LinkPreviewService.instance.previewForText(rawText),
+      builder: (context, snapshot) {
+        final preview = snapshot.data;
+        final title = (preview != null && preview.title.isNotEmpty)
+            ? preview.title
+            : fallbackHost;
+        final domain = (preview != null && preview.host.isNotEmpty)
+            ? preview.host
+            : fallbackHost;
+        final hasImage = preview?.imageUrl != null && preview!.imageUrl!.isNotEmpty;
+
+        return IntrinsicWidth(
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 6.0),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border(left: BorderSide(color: accentColor, width: 3)),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Text section: title and domain
+                Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          type == MessageType.video
-                              ? Icons.videocam_rounded
-                              : Icons.gif_box_rounded,
-                          size: 14,
-                          color: accentColor,
-                        ),
-                        const SizedBox(width: 3),
                         Text(
-                          type == MessageType.video ? 'Video' : 'GIF',
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: accentColor,
-                            fontSize: 11,
+                            color: textColor,
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                        const SizedBox(height: 2),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.link_rounded,
+                              size: 12,
+                              color: subColor,
+                            ),
+                            const SizedBox(width: 3),
+                            Flexible(
+                              child: Text(
+                                domain,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: subColor,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 2),
-                  ],
-                  Text(
-                    labelText,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: isDeleted ? subColor : textColor,
-                      fontSize: 13,
-                      fontStyle: isDeleted ? FontStyle.italic : FontStyle.normal,
-                    ),
                   ),
-                ],
-              ),
+                ),
+                // Small thumbnail
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(8),
+                    bottomRight: Radius.circular(8),
+                  ),
+                  child: hasImage
+                      ? CachedNetworkImage(
+                          imageUrl: preview.imageUrl!,
+                          width: 52,
+                          height: 52,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => Container(
+                            width: 52,
+                            height: 52,
+                            color: Colors.black12,
+                            alignment: Alignment.center,
+                            child: Icon(
+                              Icons.public,
+                              size: 20,
+                              color: accentColor.withOpacity(0.7),
+                            ),
+                          ),
+                          errorWidget: (_, __, ___) => Container(
+                            width: 52,
+                            height: 52,
+                            color: Colors.black12,
+                            alignment: Alignment.center,
+                            child: Icon(
+                              Icons.public,
+                              size: 20,
+                              color: accentColor.withOpacity(0.7),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          width: 52,
+                          height: 52,
+                          color: Colors.black12,
+                          alignment: Alignment.center,
+                          child: Icon(
+                            Icons.public,
+                            size: 22,
+                            color: accentColor.withOpacity(0.7),
+                          ),
+                        ),
+                ),
+              ],
             ),
           ),
-          // Thumbnail for image / gif / video
-          if (showThumb)
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topRight: Radius.circular(8),
-                bottomRight: Radius.circular(8),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  CachedNetworkImage(
-                    imageUrl: mediaUrl!,
-                    width: 52,
-                    height: 52,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(
-                      width: 52,
-                      height: 52,
-                      color: Colors.black12,
-                      child: const Icon(Icons.image, size: 20, color: Colors.white54),
-                    ),
-                    errorWidget: (_, __, ___) => Container(
-                      width: 52,
-                      height: 52,
-                      color: Colors.black12,
-                      child: const Icon(Icons.broken_image, size: 20, color: Colors.white54),
-                    ),
-                  ),
-                  // Play icon overlay for video
-                  if (type == MessageType.video)
-                    Container(
-                      width: 52,
-                      height: 52,
-                      color: Colors.black26,
-                      child: const Icon(
-                        Icons.play_circle_fill_rounded,
-                        size: 24,
-                        color: Colors.white,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    ),
-    ); // IntrinsicWidth
+        );
+      },
+    );
   }
 }
 
@@ -991,7 +1373,8 @@ class _MessageActionOverlay extends StatefulWidget {
   State<_MessageActionOverlay> createState() => _MessageActionOverlayState();
 }
 
-class _MessageActionOverlayState extends State<_MessageActionOverlay> with SingleTickerProviderStateMixin {
+class _MessageActionOverlayState extends State<_MessageActionOverlay>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _controller;
   double _bubbleTop = 0;
   double _bubbleLeft = 0;
@@ -1003,6 +1386,7 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay> with Singl
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 160),
@@ -1017,6 +1401,7 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay> with Singl
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
   }
@@ -1030,18 +1415,16 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay> with Singl
     });
   }
 
-
   void _updateBubblePosition() {
     final box =
-    widget.bubbleKey.currentContext?.findRenderObject() as RenderBox?;
+        widget.bubbleKey.currentContext?.findRenderObject() as RenderBox?;
 
     if (box == null) {
       debugPrint("BOX NULL");
       return;
     }
 
-    final overlay =
-    Overlay.of(context).context.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
 
     final offset = box.localToGlobal(Offset.zero, ancestor: overlay);
 
@@ -1056,11 +1439,11 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay> with Singl
     });
   }
 
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final alignmentX = (widget.anchorOffset.dx - widget.left) / widget.menuWidth;
+    final alignmentX =
+        (widget.anchorOffset.dx - widget.left) / widget.menuWidth;
     final alignment = Alignment(
       (alignmentX.clamp(0.0, 1.0) * 2) - 1,
       widget.openBelow ? -1.0 : 1.0,

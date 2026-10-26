@@ -71,7 +71,11 @@ class MessageDao {
           deleted = excluded.deleted,
           reply_to_id = excluded.reply_to_id,
           reply_to_json = excluded.reply_to_json,
-          reactions_json = COALESCE(excluded.reactions_json, messages.reactions_json),
+          reactions_json = CASE 
+            WHEN excluded.reactions_json IS NOT NULL AND excluded.reactions_json <> '' AND excluded.reactions_json <> '[]' 
+              THEN excluded.reactions_json 
+            ELSE messages.reactions_json 
+          END,
           attachments_json = COALESCE(excluded.attachments_json, messages.attachments_json),
           is_pinned = COALESCE(excluded.is_pinned, messages.is_pinned),
           pinned_at = COALESCE(excluded.pinned_at, messages.pinned_at)

@@ -10,7 +10,10 @@ enum SocketConnectionState { connecting, connected, reconnecting, disconnected }
 
 class SocketService extends WidgetsBindingObserver {
   SocketService({required this.baseUrl}) {
-    Logger.log('SocketService created — registering lifecycle observer', type: 'socket');
+    Logger.log(
+      'SocketService created — registering lifecycle observer',
+      type: 'socket',
+    );
     WidgetsBinding.instance.addObserver(this);
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
       _handleConnectivityChanged,
@@ -106,6 +109,7 @@ class SocketService extends WidgetsBindingObserver {
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   Timer? _healthTimer;
   Timer? _reconnectTimer;
+  Timer? _connectionTimeoutTimer;
   String? _token;
   bool _isRefreshing = false;
   bool _isConnecting = false;
@@ -134,26 +138,38 @@ class SocketService extends WidgetsBindingObserver {
     _isSuspended = false;
 
     if (tokenChanged) {
-      Logger.log('connect() called — token changed, opening fresh socket', type: 'socket');
+      Logger.log(
+        'connect() called — token changed, opening fresh socket',
+        type: 'socket',
+      );
       _refreshAttemptedForCurrentToken = false;
       _reconnectAttempt = 0;
-      _hasConnectedOnce = false;
       _disposeCurrentSocket();
     } else if (isConnected || _isConnecting || _isRefreshing) {
       Logger.log(
-        'connect() skipped — already ${isConnected ? "connected" : _isConnecting ? "connecting" : "refreshing"}',
+        'connect() skipped — already ${isConnected
+            ? "connected"
+            : _isConnecting
+            ? "connecting"
+            : "refreshing"}',
         type: 'socket',
       );
       return;
     } else {
-      Logger.log('connect() called — same token, opening socket', type: 'socket');
+      Logger.log(
+        'connect() called — same token, opening socket',
+        type: 'socket',
+      );
     }
 
     _openSocket(isReconnect: _reconnectAttempt > 0);
   }
 
   void disconnect() {
-    Logger.log('disconnect() called — tearing down socket intentionally', type: 'socket');
+    Logger.log(
+      'disconnect() called — tearing down socket intentionally',
+      type: 'socket',
+    );
     _shouldBeConnected = false;
     _isSuspended = false;
     _token = null;
@@ -177,7 +193,10 @@ class SocketService extends WidgetsBindingObserver {
   }) {
     final completer = Completer<Map<String, dynamic>>();
     if (!isConnected) {
-      Logger.log('emitWithAck() skipped — not connected: [$event]', type: 'warning');
+      Logger.log(
+        'emitWithAck() skipped — not connected: [$event]',
+        type: 'warning',
+      );
       return Future.value({
         'ok': false,
         'error': {
@@ -189,7 +208,10 @@ class SocketService extends WidgetsBindingObserver {
 
     final timer = Timer(timeout, () {
       if (!completer.isCompleted) {
-        Logger.log('emitWithAck() ACK timeout for [$event] after ${timeout.inSeconds}s', type: 'warning');
+        Logger.log(
+          'emitWithAck() ACK timeout for [$event] after ${timeout.inSeconds}s',
+          type: 'warning',
+        );
         completer.complete({
           'ok': false,
           'error': {
@@ -201,15 +223,19 @@ class SocketService extends WidgetsBindingObserver {
     });
 
     try {
-      _socket!.emitWithAck(event, data, ack: (dynamic response) {
-        if (completer.isCompleted) return;
-        timer.cancel();
-        if (response is Map) {
-          completer.complete(Map<String, dynamic>.from(response));
-        } else {
-          completer.complete({'ok': true, 'data': response});
-        }
-      });
+      _socket!.emitWithAck(
+        event,
+        data,
+        ack: (dynamic response) {
+          if (completer.isCompleted) return;
+          timer.cancel();
+          if (response is Map) {
+            completer.complete(Map<String, dynamic>.from(response));
+          } else {
+            completer.complete({'ok': true, 'data': response});
+          }
+        },
+      );
     } catch (error) {
       timer.cancel();
       Logger.log('emitWithAck() threw for [$event]: $error', type: 'error');
@@ -244,6 +270,7 @@ class SocketService extends WidgetsBindingObserver {
     }
 
     _reconnectTimer?.cancel();
+    _connectionTimeoutTimer?.cancel();
     _isConnecting = true;
     _setConnectionState(
       isReconnect
@@ -272,8 +299,21 @@ class SocketService extends WidgetsBindingObserver {
     );
     _socket = socket;
 
+    _connectionTimeoutTimer = Timer(const Duration(seconds: 12), () {
+      if (!identical(_socket, socket) || isConnected) return;
+      Logger.log(
+        'Connection attempt timed out — resetting socket and retrying',
+        type: 'socket',
+      );
+      _disposeCurrentSocket();
+      _setConnectionState(SocketConnectionState.disconnected);
+      _scheduleReconnect();
+    });
+
     socket.onConnect((_) {
       if (!identical(_socket, socket)) return;
+      _connectionTimeoutTimer?.cancel();
+      _connectionTimeoutTimer = null;
       _isConnecting = false;
       _isRefreshing = false;
       _refreshAttemptedForCurrentToken = false;
@@ -294,6 +334,8 @@ class SocketService extends WidgetsBindingObserver {
 
     socket.onDisconnect((reason) {
       if (!identical(_socket, socket)) return;
+      _connectionTimeoutTimer?.cancel();
+      _connectionTimeoutTimer = null;
       _isConnecting = false;
       _healthTimer?.cancel();
       _setConnectionState(SocketConnectionState.disconnected);
@@ -303,6 +345,8 @@ class SocketService extends WidgetsBindingObserver {
 
     socket.onConnectError((error) {
       if (!identical(_socket, socket)) return;
+      _connectionTimeoutTimer?.cancel();
+      _connectionTimeoutTimer = null;
       _isConnecting = false;
       _setConnectionState(SocketConnectionState.disconnected);
       Logger.log('CONNECT ERROR ⚠️  $error', type: 'socket');
@@ -356,7 +400,10 @@ class SocketService extends WidgetsBindingObserver {
     listen('member:updated', _memberUpdatedController);
     listen('member:removed', _memberRemovedController);
 
-    Logger.log('Listeners registered for ${socket.id ?? "pending"}', type: 'socket');
+    Logger.log(
+      'Listeners registered for ${socket.id ?? "pending"}',
+      type: 'socket',
+    );
   }
 
   void _addEvent(
@@ -368,7 +415,10 @@ class SocketService extends WidgetsBindingObserver {
     if (data is Map) {
       controller.add(Map<String, dynamic>.from(data));
     } else {
-      Logger.log('Ignoring malformed socket event [$event] — expected Map, got ${data.runtimeType}', type: 'warning');
+      Logger.log(
+        'Ignoring malformed socket event [$event] — expected Map, got ${data.runtimeType}',
+        type: 'warning',
+      );
     }
   }
 
@@ -378,7 +428,10 @@ class SocketService extends WidgetsBindingObserver {
     _healthTimer?.cancel();
     _healthTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!isConnected && !_isConnecting && !_isRefreshing) {
-        Logger.log('Health-check: socket not connected — scheduling immediate reconnect', type: 'socket');
+        Logger.log(
+          'Health-check: socket not connected — scheduling immediate reconnect',
+          type: 'socket',
+        );
         _scheduleReconnect(immediate: true);
       }
     });
@@ -394,7 +447,9 @@ class SocketService extends WidgetsBindingObserver {
       return;
     }
 
-    final delaySeconds = immediate ? 0 : min(30, 1 << min(_reconnectAttempt, 5));
+    final delaySeconds = immediate
+        ? 0
+        : min(30, 1 << min(_reconnectAttempt, 5));
     _reconnectAttempt++;
     _setConnectionState(SocketConnectionState.reconnecting);
     Logger.log(
@@ -417,12 +472,16 @@ class SocketService extends WidgetsBindingObserver {
 
     if (!online) {
       _reconnectTimer?.cancel();
-      if (!isConnected) _setConnectionState(SocketConnectionState.disconnected);
+      _disposeCurrentSocket();
+      _setConnectionState(SocketConnectionState.disconnected);
       return;
     }
 
     if (_shouldBeConnected && !isConnected && !_isSuspended) {
-      Logger.log('Network restored — triggering immediate reconnect', type: 'socket');
+      Logger.log(
+        'Network restored — triggering immediate reconnect',
+        type: 'socket',
+      );
       _reconnectTimer?.cancel();
       _openSocket(isReconnect: true);
     }
@@ -449,7 +508,10 @@ class SocketService extends WidgetsBindingObserver {
       return;
     }
 
-    Logger.log('Auth error detected — attempting token refresh', type: 'socket');
+    Logger.log(
+      'Auth error detected — attempting token refresh',
+      type: 'socket',
+    );
     _refreshAttemptedForCurrentToken = true;
     _isRefreshing = true;
     _reconnectTimer?.cancel();
@@ -465,7 +527,10 @@ class SocketService extends WidgetsBindingObserver {
         _token = null; // Force connect() to treat this as a new token
         connect(refreshedToken);
       } else {
-        Logger.log('Token refresh returned no new token — socket stays down', type: 'socket');
+        Logger.log(
+          'Token refresh returned no new token — socket stays down',
+          type: 'socket',
+        );
       }
     } catch (e) {
       _isRefreshing = false;
@@ -492,6 +557,9 @@ class SocketService extends WidgetsBindingObserver {
   }
 
   void _disposeCurrentSocket() {
+    _connectionTimeoutTimer?.cancel();
+    _connectionTimeoutTimer = null;
+    _isConnecting = false;
     final socket = _socket;
     _socket = null;
     if (socket == null) return;
@@ -527,11 +595,17 @@ class SocketService extends WidgetsBindingObserver {
         );
         _isSuspended = false;
         if (_shouldBeConnected && !isConnected) {
-          Logger.log('APP RESUMED → socket was down, reconnecting now', type: 'lifecycle');
+          Logger.log(
+            'APP RESUMED → socket was down, reconnecting now',
+            type: 'lifecycle',
+          );
           _reconnectTimer?.cancel();
           _openSocket(isReconnect: true);
         } else if (isConnected) {
-          Logger.log('APP RESUMED → socket already connected, no action needed', type: 'lifecycle');
+          Logger.log(
+            'APP RESUMED → socket already connected, no action needed',
+            type: 'lifecycle',
+          );
         }
         break;
 
@@ -551,10 +625,7 @@ class SocketService extends WidgetsBindingObserver {
         break;
 
       case AppLifecycleState.hidden:
-        Logger.log(
-          'APP HIDDEN — suspending socket',
-          type: 'lifecycle',
-        );
+        Logger.log('APP HIDDEN — suspending socket', type: 'lifecycle');
         _suspendConnection();
         break;
 
@@ -573,7 +644,10 @@ class SocketService extends WidgetsBindingObserver {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    Logger.log('SocketService disposing — removing observer & closing all streams', type: 'socket');
+    Logger.log(
+      'SocketService disposing — removing observer & closing all streams',
+      type: 'socket',
+    );
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_connectivitySubscription?.cancel());
     _shouldBeConnected = false;

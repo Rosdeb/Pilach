@@ -15,7 +15,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
 
-import 'package:intl/intl.dart';
 import 'package:app/core/database/daos/outbox_dao.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/Features/Chat/presentation/providers/direct_chat_provider.dart';
@@ -36,6 +35,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
   StreamSubscription? _offlineSub;
   StreamSubscription? _newMessageSub;
   StreamSubscription<void>? _reconnectSub;
+  StreamSubscription? _reactionSub;
   final List<StreamSubscription<Map<String, dynamic>>> _metadataSubscriptions = [];
   Timer? _metadataRefreshDebounce;
   String _currentUserId = '';
@@ -45,6 +45,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     _listenToPresence();
     _listenToNewMessages();
     _listenToChatChanges();
+    _listenToReactions();
     _reconnectSub = _socketService.onReconnected.listen((_) {
       unawaited(_syncAfterReconnect());
     });
@@ -209,6 +210,75 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     ]);
   }
 
+  void _listenToReactions() {
+    _reactionSub = _socketService.onMessageReactionUpdated.listen((data) async {
+      try {
+        final msgId = (data['messageId'] ?? data['id'])?.toString();
+        if (msgId == null || msgId.isEmpty) return;
+
+        List<Map<String, dynamic>> parsed;
+        final reactions = data['reactions'];
+        if (reactions is List) {
+          parsed = reactions
+              .map<Map<String, dynamic>?>((item) {
+                if (item is Map) {
+                  final map = Map<String, dynamic>.from(item);
+                  if (map['emoji'] == null) {
+                    map['emoji'] = map['reaction'] ?? map['code'];
+                  }
+                  return map;
+                } else if (item is String && item.isNotEmpty) {
+                  return {'emoji': item};
+                }
+                return null;
+              })
+              .whereType<Map<String, dynamic>>()
+              .toList();
+        } else {
+          final localRow = await _messageDao.getMessageById(msgId);
+          final existingJson = localRow?['reactions_json']?.toString();
+          List<Map<String, dynamic>> existingReactions = [];
+          if (existingJson != null && existingJson.isNotEmpty) {
+            try {
+              final decoded = jsonDecode(existingJson);
+              if (decoded is List) {
+                existingReactions = decoded
+                    .map<Map<String, dynamic>?>((item) {
+                      if (item is Map) {
+                        final map = Map<String, dynamic>.from(item);
+                        if (map['emoji'] == null) {
+                          map['emoji'] = map['reaction'] ?? map['code'];
+                        }
+                        return map;
+                      } else if (item is String && item.isNotEmpty) {
+                        return {'emoji': item};
+                      }
+                      return null;
+                    })
+                    .whereType<Map<String, dynamic>>()
+                    .toList();
+              }
+            } catch (_) {}
+          }
+          parsed = existingReactions;
+          final emoji = (data['emoji'] ?? data['reaction'] ?? data['code'])?.toString();
+          final userId = data['userId']?.toString();
+          if (emoji != null && emoji.isNotEmpty && userId != null && userId.isNotEmpty) {
+            parsed.removeWhere((item) =>
+                item['emoji']?.toString() == emoji &&
+                item['userId']?.toString() == userId);
+            if (data['isAdded'] != false) {
+              parsed.add({'emoji': emoji, 'userId': userId, 'messageId': msgId});
+            }
+          }
+        }
+        await _messageDao.updateMessageReactions(msgId, jsonEncode(parsed));
+      } catch (e, st) {
+        Logger.log('Error updating reaction in ChatNotifier: $e\n$st', type: "error");
+      }
+    });
+  }
+
   Future<void> _syncAfterReconnect() async {
     await fetchFromServer();
     for (final chat in List<ChatModel>.from(state)) {
@@ -322,6 +392,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     _offlineSub?.cancel();
     _newMessageSub?.cancel();
     _reconnectSub?.cancel();
+    _reactionSub?.cancel();
     for (final subscription in _metadataSubscriptions) {
       subscription.cancel();
     }
