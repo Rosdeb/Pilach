@@ -15,6 +15,7 @@ import '../../../../core/models/message_dto.dart';
 import '../../../../core/network/chat_repository.dart';
 import '../../../../core/providers/api_provider.dart';
 import '../../../../core/services/socket_service.dart';
+import '../../../../core/services/outbox_processor.dart';
 import '../../../../core/utils/message_merge_utils.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import 'package:uuid/uuid.dart';
@@ -63,8 +64,17 @@ final directChatProvider = StateNotifierProvider<DirectChatNotifier, ChatState>(
   final chatRepo = ref.watch(chatRepositoryProvider);
   final socketService = ref.watch(socketServiceProvider);
   final uploadService = ref.watch(uploadServiceProvider);
+  final outboxProcessor = ref.watch(outboxProcessorProvider);
   final authState = ref.watch(authProvider);
-  return DirectChatNotifier(chatId, ref, chatRepo, socketService, uploadService, authState.id);
+  return DirectChatNotifier(
+    chatId,
+    ref,
+    chatRepo,
+    socketService,
+    uploadService,
+    outboxProcessor,
+    authState.id,
+  );
 });
 
 class DirectChatNotifier extends StateNotifier<ChatState> {
@@ -73,6 +83,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   final ChatRepository _chatRepository;
   final SocketService _socketService;
   final UploadService _uploadService;
+  final OutboxProcessor _outboxProcessor;
   final MessageDao _messageDao = MessageDao();
   final OutboxDao _outboxDao = OutboxDao();
   String _currentUserId; // Made mutable
@@ -87,11 +98,21 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   StreamSubscription? _messageDeliveredSubscription;
   StreamSubscription? _userActionSubscription;
   StreamSubscription? _reconnectSubscription;
+  StreamSubscription? _outboxProcessedSubscription;
+  StreamSubscription? _connectionStateSubscription;
   Timer? _typingResetTimer;   
   Timer? _typingDebounce;     
   bool _isTypingEmitted = false;
 
-  DirectChatNotifier(this.chatId, this._ref, this._chatRepository, this._socketService, this._uploadService, String? initialUserId) 
+  DirectChatNotifier(
+    this.chatId,
+    this._ref,
+    this._chatRepository,
+    this._socketService,
+    this._uploadService,
+    this._outboxProcessor,
+    String? initialUserId,
+  )
     : _currentUserId = initialUserId ?? '', 
       super(ChatState.initial()) {
     if (chatId != null) {
@@ -100,6 +121,12 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   }
 
   String get currentUserId => _currentUserId;
+
+  int? _parseInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
 
   Future<String> _ensureCurrentUserId() async {
     if (_currentUserId.isNotEmpty) return _currentUserId;
@@ -280,8 +307,24 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     });
 
     _messageEditedSubscription = _socketService.onMessageUpdated.listen((data) async {
-      if (data['conversationId'] == chatId || data['chatId'] == chatId) {
-        final messageData = data['message'] ?? data;
+      final raw = data['message'] ?? data;
+      if (raw is! Map) return;
+      final messageData = Map<String, dynamic>.from(raw);
+      final messageId = (messageData['id'] ?? messageData['messageId'])?.toString();
+      final belongsToChat = data['conversationId']?.toString() == chatId ||
+          data['chatId']?.toString() == chatId ||
+          messageData['conversationId']?.toString() == chatId ||
+          messageData['chatId']?.toString() == chatId ||
+          (messageId != null && state.messagesById.containsKey(messageId));
+      if (belongsToChat && messageId != null) {
+        final existingRow = await _messageDao.getMessageById(messageId);
+        messageData['id'] = messageId;
+        messageData['conversationId'] ??= existingRow?['conversation_id'] ?? chatId;
+        messageData['senderId'] ??= existingRow?['sender_id'];
+        messageData['type'] ??= existingRow?['type'];
+        messageData['status'] ??= existingRow?['status'];
+        messageData['createdAt'] ??= existingRow?['created_at'];
+        messageData['editedAt'] ??= DateTime.now().toIso8601String();
         final dto = MessageDto.fromJson(messageData);
         final sqliteMap = await _mergeIncomingRow(dto.toSqliteMap());
         await _messageDao.insertOrUpdateMessages([sqliteMap]);
@@ -295,9 +338,12 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     });
 
     _messageDeletedSubscription = _socketService.onMessageDeleted.listen((data) async {
-      if (data['conversationId'] == chatId || data['chatId'] == chatId) {
-        final msgId = data['messageId'] as String?;
-        if (msgId != null) {
+      final msgId = (data['messageId'] ?? data['id'])?.toString();
+      final belongsToChat = data['conversationId']?.toString() == chatId ||
+          data['chatId']?.toString() == chatId ||
+          (msgId != null && state.messagesById.containsKey(msgId));
+      if (belongsToChat && msgId != null) {
+          await _messageDao.markMessageDeleted(msgId);
           final existing = state.messagesById[msgId];
           if (existing != null) {
             final updatedMsg = existing.copyWith(isDeleted: true);
@@ -305,7 +351,6 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
             newById[msgId] = updatedMsg;
             state = state.copyWith(messagesById: newById);
           }
-        }
       }
     });
 
@@ -313,6 +358,11 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
         final String? msgId = (data['messageId'] ?? data['id'] ?? (data['message'] is Map ? data['message']['id'] : null))?.toString();
         if (msgId != null && state.messagesById.containsKey(msgId)) {
+          await _messageDao.updateMessagePinned(
+            msgId,
+            true,
+            pinnedAt: data['pinnedAt']?.toString(),
+          );
           final newById = Map<String, MessageModel>.from(state.messagesById);
           newById[msgId] = newById[msgId]!.copyWith(isPinned: true);
           state = state.copyWith(messagesById: newById);
@@ -324,6 +374,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
         final String? msgId = (data['messageId'] ?? data['id'] ?? (data['message'] is Map ? data['message']['id'] : null))?.toString();
         if (msgId != null && state.messagesById.containsKey(msgId)) {
+          await _messageDao.updateMessagePinned(msgId, false);
           final newById = Map<String, MessageModel>.from(state.messagesById);
           newById[msgId] = newById[msgId]!.copyWith(isPinned: false);
           state = state.copyWith(messagesById: newById);
@@ -332,19 +383,37 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     });
 
     _messageReactionSubscription = _socketService.onMessageReactionUpdated.listen((data) async {
-      if (data['conversationId'] == chatId || data['chatId'] == chatId) {
-        final msgId = data['messageId'] as String?;
-        final reactions = data['reactions'];
-        if (msgId != null && reactions != null) {
-          await _messageDao.updateMessageReactions(msgId, jsonEncode(reactions));
-          final existing = state.messagesById[msgId];
-          if (existing != null) {
-            final List<Map<String, dynamic>> parsed = List<Map<String, dynamic>>.from(reactions);
+      final msgId = (data['messageId'] ?? data['id'])?.toString();
+      final belongsToChat = data['conversationId']?.toString() == chatId ||
+          data['chatId']?.toString() == chatId ||
+          (msgId != null && state.messagesById.containsKey(msgId));
+      if (belongsToChat && msgId != null) {
+        final existing = state.messagesById[msgId];
+        if (existing != null) {
+          List<Map<String, dynamic>> parsed;
+          final reactions = data['reactions'];
+          if (reactions is List) {
+            parsed = reactions
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList();
+          } else {
+            parsed = List<Map<String, dynamic>>.from(existing.reactions ?? const []);
+            final emoji = data['emoji']?.toString();
+            final userId = data['userId']?.toString();
+            if (emoji == null || userId == null) return;
+            parsed.removeWhere((item) =>
+                item['emoji']?.toString() == emoji &&
+                item['userId']?.toString() == userId);
+            if (data['isAdded'] != false) {
+              parsed.add({'emoji': emoji, 'userId': userId, 'messageId': msgId});
+            }
+          }
+          await _messageDao.updateMessageReactions(msgId, jsonEncode(parsed));
             final updatedMsg = existing.copyWith(reactions: parsed);
             final newById = Map<String, MessageModel>.from(state.messagesById);
             newById[msgId] = updatedMsg;
             state = state.copyWith(messagesById: newById);
-          }
         }
       }
     });
@@ -352,10 +421,15 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     _messageReadReceiptSubscription = _socketService.onMessageReadReceipt.listen((data) async {
       Logger.log('👁️ READ RECEIPT received — data: $data');
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
-        final int? readSeq = (data['seq'] ?? data['lastReadSeq']) as int?;
+        final int? readSeq = _parseInt(data['seq'] ?? data['lastReadSeq']);
         if (readSeq != null && mounted) {
           if (chatId != null) {
-            await _messageDao.updateMessageStatusUpToSeq(chatId!, 'seen', readSeq);
+            await _messageDao.updateMessageStatusUpToSeq(
+              chatId!,
+              'seen',
+              readSeq,
+              senderId: currentUserId,
+            );
           }
           final newById = Map<String, MessageModel>.from(state.messagesById);
           bool hasChanges = false;
@@ -375,10 +449,15 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     _messageDeliveredSubscription = _socketService.onMessageDelivered.listen((data) async {
       Logger.log('🚚 DELIVERED RECEIPT received — data: $data');
       if (data['conversationId'] == chatId || data['chatId'] == chatId) {
-        final int? deliveredSeq = (data['seq'] ?? data['lastDeliveredSeq']) as int?;
+        final int? deliveredSeq = _parseInt(data['seq'] ?? data['lastDeliveredSeq']);
         if (deliveredSeq != null && mounted) {
           if (chatId != null) {
-            await _messageDao.updateMessageStatusUpToSeq(chatId!, 'delivered', deliveredSeq);
+            await _messageDao.updateMessageStatusUpToSeq(
+              chatId!,
+              'delivered',
+              deliveredSeq,
+              senderId: currentUserId,
+            );
           }
           final newById = Map<String, MessageModel>.from(state.messagesById);
           bool hasChanges = false;
@@ -420,59 +499,25 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     });
 
     _reconnectSubscription = _socketService.onReconnected.listen((_) async {
-       if (chatId == null) return;
-       final pending = await _outboxDao.getPendingMessages(chatId!);
-       if (pending.isEmpty) return;
+      if (chatId == null) return;
+      await syncHistoryFromServer(forceRefresh: true);
+      if (mounted) markAsRead();
+    });
 
-       Logger.log('🚀 SOCKET: Reconnected! Flushing ${pending.length} outbox messages for chat $chatId');
+    _outboxProcessedSubscription =
+        _outboxProcessor.onConversationProcessed.listen((conversationId) async {
+      if (conversationId == chatId && mounted) {
+        await loadFromDb(limitOverride: max(60, state.page * 60));
+      }
+    });
 
-       for (final item in pending) {
-          try {
-            final payload = jsonDecode(item['payload_json']);
-            final cleanPayload = Map<String, dynamic>.from(payload);
-
-            final response = await _socketService.emitWithAck('message:send', cleanPayload);
-
-            if (response['ok'] == true) {
-              // ✅ Outbox থেকে delete করো
-              await _outboxDao.deleteOutboxItem(item['client_msg_id']);
-              Logger.log('✅ Queued message sent: ${item['client_msg_id']}');
-
-              // ✅ loadFromDb() না — state-এ directly temp message update করো
-              // "Sending..." সরিয়ে actual time বসাও 
-              // message:new আসলে real message দিয়ে replace হবে
-              final tempId = 'temp_${item['client_msg_id']}';
-              final tempMsg = state.messagesById[tempId];
-              if (tempMsg != null && mounted) {
-                final formattedTime = DateFormat('hh:mm a').format(DateTime.now().toLocal());
-                final updatedMsg = tempMsg.copyWith(
-                  time: formattedTime,
-                  status: MessageStatus.sent,
-                );
-                final newById = Map<String, MessageModel>.from(state.messagesById);
-                newById[tempId] = updatedMsg;
-                state = ChatState(messageIds: state.messageIds, messagesById: newById);
-              }
-            } else {
-              final errCode = (response['error'] as Map?)?['code'];
-              Logger.log('❌ Server rejected queued message: ${response['error']}');
-              // VALIDATION_ERROR → retry করলে same error, তাই delete
-              if (errCode == 'VALIDATION_ERROR') {
-                await _outboxDao.deleteOutboxItem(item['client_msg_id']);
-                // সরাসরি state থেকেও বাদ দাও
-                final tempId = 'temp_${item['client_msg_id']}';
-                if (mounted && state.messagesById.containsKey(tempId)) {
-                  final newIds = state.messageIds.where((id) => id != tempId).toList();
-                  final newById = Map<String, MessageModel>.from(state.messagesById)
-                    ..remove(tempId);
-                  state = ChatState(messageIds: newIds, messagesById: newById);
-                }
-              }
-            }
-          } catch (e) {
-            Logger.log('Failed to flush outbox item: $e');
-          }
-       }
+    _connectionStateSubscription = _socketService.connectionStates.listen((socketState) {
+      if (socketState == SocketConnectionState.disconnected && chatId != null) {
+        _typingResetTimer?.cancel();
+        _typingDebounce?.cancel();
+        _isTypingEmitted = false;
+        _ref.read(typingStatusProvider(chatId!).notifier).state = false;
+      }
     });
 
     // 1. Load instantly from local SQLite (Offline-first)
@@ -503,6 +548,8 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     _messageDeliveredSubscription?.cancel();
     _userActionSubscription?.cancel();
     _reconnectSubscription?.cancel();
+    _outboxProcessedSubscription?.cancel();
+    _connectionStateSubscription?.cancel();
     _typingResetTimer?.cancel();
     _typingDebounce?.cancel();
     super.dispose();
@@ -550,16 +597,29 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     // Heavy mapping and sorting offloaded to background Isolate
     final List<MessageModel> models = await Isolate.run(() {
       final List<MessageModel> list = msgRows.map((row) => row.toMessageModel(userId)).toList();
-      
+      final persistedClientIds = msgRows
+          .map((row) => row['client_msg_id']?.toString())
+          .whereType<String>()
+          .toSet();
+
       for (var outboxMsg in outboxRows) {
+        if (persistedClientIds.contains(outboxMsg['client_msg_id']?.toString())) {
+          continue;
+        }
         final payload = jsonDecode(outboxMsg['payload_json']);
+        final attachments = payload is Map ? payload['attachments'] : null;
+        final firstAttachment = attachments is List && attachments.isNotEmpty && attachments.first is Map
+            ? attachments.first as Map
+            : null;
         list.add(MessageModel(
           id: 'temp_${outboxMsg['client_msg_id']}',
           text: payload['text'] ?? '',
           time: 'Sending...',
           timestamp: DateTime.parse(outboxMsg['created_at']),
           isMe: true,
-          status: MessageStatus.sending,
+          status: MessageStatus.queued,
+          type: messageTypeFromWire(payload is Map ? payload['type']?.toString() : null),
+          mediaUrl: firstAttachment?['url']?.toString(),
         ));
       }
       
@@ -634,11 +694,25 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
       final replyRow = await _messageDao.getMessageById(replyToId);
       if (replyRow != null) {
+        // Resolve the media URL from attachments_json if not directly stored.
+        String? mediaUrl;
+        final attachmentsJson = replyRow['attachments_json']?.toString();
+        if (attachmentsJson != null && attachmentsJson.isNotEmpty) {
+          try {
+            final decoded = jsonDecode(attachmentsJson);
+            if (decoded is List && decoded.isNotEmpty && decoded.first is Map) {
+              mediaUrl = decoded.first['url']?.toString();
+            }
+          } catch (_) {}
+        }
+
         row['reply_to_json'] = jsonEncode({
           'id': replyRow['id'],
           'text': replyRow['text'] ?? '',
           'senderId': replyRow['sender_id'],
           'isDeleted': replyRow['deleted'] == 1 || replyRow['deleted'] == true,
+          'type': replyRow['type'],        // e.g. 'IMAGE', 'VIDEO', 'AUDIO'
+          if (mediaUrl != null) 'mediaUrl': mediaUrl,
         });
       }
       hydrated.add(row);
@@ -649,48 +723,70 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   Future<void> syncHistoryFromServer({bool forceRefresh = false}) async {
     if (chatId == null || !mounted) return;
 
+    // The server has no afterSeq/sinceSeq filter — the messages endpoint only
+    // supports cursor/page/limit/query.  Strategy:
+    //   1. Fetch page 1 (newest 50 messages) from the server.
+    //   2. Persist with insertOrUpdate — duplicates are silently ignored.
+    //   3. Compare the highest server seq against local to detect a gap.
+    //   4. If there is still a gap, fall back to a full paginated fetch.
     final localLatestSeq = await _messageDao.getLastSeq(chatId!);
 
-    // Fresh install / no local data → full fetch
+    // Fresh install / no local data → full paginated fetch
     if (localLatestSeq == 0) {
-      await fetchMessagesFromServer(); // cursor-based, no cursor param = first page
+      await fetchMessagesFromServer();
       return;
     }
 
     try {
-      // Step 2: server-এর latest seq কত জিজ্ঞেস করো (lightweight)
-      final serverLatestSeq = await _chatRepository.getLatestSeq(chatId!);
+      // Single request: fetch the newest 50 messages (covers typical gaps after
+      // a brief background/reconnect without an extra round-trip).
+      final response = await _chatRepository.getRecentMessages(chatId!, limit: 50);
+      if (!mounted) return;
 
-      if (serverLatestSeq == localLatestSeq && !forceRefresh) {
-        Logger.log('Chat is up to date, seq: $localLatestSeq');
-        return; // মিসম্যাচ নেই, কিছু করার দরকার নাই
-      }
+      final success = response['success'] == true;
+      final List<dynamic>? data = success ? response['data'] as List<dynamic>? : null;
 
-      // Step 3: mismatch — gap থাকা মেসেজগুলো আনো
-      final response = await _chatRepository.getMessagesAfterSeq(chatId!, localLatestSeq);
-      if (response['success'] == true && response['data'] != null) {
-        final List<dynamic> data = response['data'];
-        if (data.isNotEmpty) {
-          final sqliteRows = await Isolate.run(() {
-            return data.map((item) {
-              final dto = MessageDto.fromJson(item as Map<String, dynamic>);
-              return dto.toSqliteMap();
-            }).toList();
-          });
+      if (data != null && data.isNotEmpty) {
+        // Determine the server's latest seq from the first element (newest-first).
+        final serverLatestSeq = (data.first['seq'] as num?)?.toInt() ?? 0;
 
-          final hydratedRows = await _hydrateReplyReferences(sqliteRows);
-          final mergedRows = <Map<String, dynamic>>[];
-          for (final incomingRow in hydratedRows) {
-            mergedRows.add(await _mergeIncomingRow(incomingRow));
-          }
-          await _messageDao.insertOrUpdateMessages(mergedRows);
-          await loadFromDb(limitOverride: max(60, state.page * 60)); // Step 4: state update
-          Logger.log('Synced ${mergedRows.length} missing messages (local: $localLatestSeq → server: $serverLatestSeq)');
+        if (serverLatestSeq == localLatestSeq && !forceRefresh) {
+          Logger.log('Chat is up to date, seq: $localLatestSeq');
+          return;
         }
+
+        final sqliteRows = await Isolate.run(() {
+          return data.map((item) {
+            final dto = MessageDto.fromJson(item as Map<String, dynamic>);
+            return dto.toSqliteMap();
+          }).toList();
+        });
+        if (!mounted) return;
+
+        final hydratedRows = await _hydrateReplyReferences(sqliteRows);
+        final mergedRows = <Map<String, dynamic>>[];
+        for (final incomingRow in hydratedRows) {
+          mergedRows.add(await _mergeIncomingRow(incomingRow));
+        }
+        await _messageDao.insertOrUpdateMessages(mergedRows);
+        if (!mounted) return;
+
+        Logger.log('Synced ${mergedRows.length} recent messages '
+            '(local seq: $localLatestSeq → server seq: $serverLatestSeq)');
+
+        // If the gap is larger than what 50 messages covered, do a full fetch.
+        final newLocalSeq = await _messageDao.getLastSeq(chatId!);
+        if (serverLatestSeq > newLocalSeq) {
+          Logger.log('Gap still exists after partial sync — falling back to full fetch');
+          await fetchMessagesFromServer();
+          return;
+        }
+
+        await loadFromDb(limitOverride: max(60, state.page * 60));
       }
     } catch (e) {
-      Logger.log('Failed to check seq mismatch, falling back to full fetch: $e');
-      await fetchMessagesFromServer();
+      Logger.log('Failed to sync recent messages, falling back to full fetch: $e');
+      if (mounted) await fetchMessagesFromServer();
     }
   }
 
@@ -786,10 +882,6 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     final conversationPayload = {
       'conversationId': chatId,
     };
-    final chatPayload = {
-      'chatId': chatId,
-    };
-
     // Leading-edge debounce:
     // প্রথম keystroke-এ তাৎক্ষণিক emit, তারপর 3 সেকেন্ড block
     // ফলে server-এ অতিরিক্ত hit হবে না
@@ -797,8 +889,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       _isTypingEmitted = true;
       try {
         _socketService.emit('message:typing', conversationPayload);
-        _socketService.emit('user:typing', chatPayload);
-        Logger.log('⌨️ TYPING EMITTED (message:typing & user:typing)');
+        Logger.log('⌨️ TYPING EMITTED (message:typing)');
       } catch (e) {
         Logger.log('Failed to emit typing: $e', type: "info");
       }
@@ -855,6 +946,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
     final Map<String, Object?> payloadJson = {
       'conversationId': chatId,
+      'clientMsgId': clientMsgId,
       'text': text,
       'type': 'TEXT',
       'attachments': [],
@@ -868,30 +960,53 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       timestamp: now,
       isMe: true,
       senderId: currentUserId,
-      status: MessageStatus.sending,
+      status: MessageStatus.queued,
       replyToMessageId: replyToId,
     );
 
-    final newIds = [tempMsg.id, ...state.messageIds];
-    final newById = Map<String, MessageModel>.from(state.messagesById);
-    newById[tempMsg.id] = tempMsg;
-    state = ChatState(messageIds: newIds, messagesById: newById);
-
-    _ref.read(chatProvider.notifier).updateLastMessage(chatId!, text, DateFormat('hh:mm a').format(now));
-
-    await _outboxDao.insertOutboxItem({
+    final outboxRow = {
       'client_msg_id': clientMsgId,
       'conversation_id': chatId!,
       'action': 'SEND_MESSAGE',
       'payload_json': jsonEncode(payloadJson),
       'created_at': now.toIso8601String(),
-    });
+    };
+    final pendingRow = MessageDto(
+      id: tempMsg.id,
+      clientMsgId: clientMsgId,
+      conversationId: chatId!,
+      senderId: currentUserId,
+      type: 'TEXT',
+      text: text,
+      status: 'queued',
+      createdAt: now.toIso8601String(),
+      replyToId: replyToId,
+    ).toSqliteMap();
+
+    // The local DB and outbox are committed atomically before the UI changes.
+    await _messageDao.insertPendingMessageAndOutbox(pendingRow, outboxRow);
+    if (!mounted) return;
+    await loadFromDb(limitOverride: max(60, state.page * 60));
+    unawaited(_ref.read(chatProvider.notifier).updateLastMessage(
+      chatId!,
+      text,
+      DateFormat('hh:mm a').format(now),
+    ));
 
     bool fallbackToRest = !_socketService.isConnected;
 
     try {
       if (_socketService.isConnected) {
-        final response = await _socketService.emitWithAck('message:send', payloadJson);
+        await _messageDao.updateMessageStatusByClientId(clientMsgId, 'sending');
+        if (mounted && state.messagesById.containsKey(tempMsg.id)) {
+          final updated = Map<String, MessageModel>.from(state.messagesById);
+          updated[tempMsg.id] = updated[tempMsg.id]!.copyWith(
+            status: MessageStatus.sending,
+          );
+          state = state.copyWith(messagesById: updated);
+        }
+        final socketPayload = Map<String, dynamic>.from(payloadJson)..remove('clientMsgId');
+        final response = await _socketService.emitWithAck('message:send', socketPayload);
         if (response['ok'] == true) {
           await _outboxDao.deleteOutboxItem(clientMsgId);
           final serverData = response['data'];
@@ -902,7 +1017,10 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         }
 
         final errCode = (response['error'] as Map?)?['code'];
-        fallbackToRest = errCode == 'NOT_CONNECTED' || errCode == 'EMIT_ERROR';
+        fallbackToRest = errCode == 'NOT_CONNECTED' ||
+            errCode == 'EMIT_ERROR' ||
+            errCode == 'ACK_TIMEOUT' ||
+            errCode == 'VALIDATION_ERROR';
         Logger.log('Socket send not accepted: ${response['error']}');
       }
 
@@ -929,6 +1047,14 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         }
       } catch (restError) {
         Logger.log('REST fallback failed: $restError');
+        await _messageDao.updateMessageStatusByClientId(clientMsgId, 'queued');
+        if (mounted && state.messagesById.containsKey(tempMsg.id)) {
+          final updated = Map<String, MessageModel>.from(state.messagesById);
+          updated[tempMsg.id] = updated[tempMsg.id]!.copyWith(
+            status: MessageStatus.queued,
+          );
+          state = state.copyWith(messagesById: updated);
+        }
       }
     }
   }
@@ -936,10 +1062,16 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   Future<void> deleteMessage(String messageId) async {
     if (chatId == null) return;
     try {
-      _socketService.emit('message:delete', {
+      final response = await _socketService.emitWithAck('message:delete', {
         'conversationId': chatId,
         'messageId': messageId,
       });
+      if (response['ok'] != true) {
+        Logger.log('Server rejected delete message: ${response['error']}');
+        return;
+      }
+      await _messageDao.markMessageDeleted(messageId);
+      if (!mounted) return;
       final existing = state.messagesById[messageId];
       if (existing != null) {
         final updatedMsg = existing.copyWith(isDeleted: true);
@@ -958,6 +1090,12 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     // Optimistic Update
     final msg = state.messagesById[messageId];
     if (msg != null) {
+      await _messageDao.updateMessageText(
+        messageId,
+        newText,
+        editedAt: DateTime.now().toIso8601String(),
+      );
+      if (!mounted) return;
       final updatedMsg = msg.copyWith(text: newText, isEdited: true);
       final newById = Map<String, MessageModel>.from(state.messagesById);
       newById[messageId] = updatedMsg;
@@ -977,6 +1115,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
          Logger.log('Server rejected edit message: ${response['error']}');
          // Revert on error
          if (msg != null) {
+           await _messageDao.updateMessageText(messageId, msg.text);
            final newById = Map<String, MessageModel>.from(state.messagesById);
            newById[messageId] = msg;
            state = state.copyWith(messagesById: newById);
@@ -985,6 +1124,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     } catch (e) {
       Logger.log('Failed to edit message: $e');
       if (msg != null) {
+        await _messageDao.updateMessageText(messageId, msg.text);
         final newById = Map<String, MessageModel>.from(state.messagesById);
         newById[messageId] = msg;
         state = state.copyWith(messagesById: newById);
@@ -998,6 +1138,12 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     // 1. Optimistic Update
     final msg = state.messagesById[messageId];
     if (msg != null) {
+      await _messageDao.updateMessagePinned(
+        messageId,
+        isPinned,
+        pinnedAt: isPinned ? DateTime.now().toIso8601String() : null,
+      );
+      if (!mounted) return;
       final updatedMsg = msg.copyWith(isPinned: isPinned);
       final newById = Map<String, MessageModel>.from(state.messagesById);
       newById[messageId] = updatedMsg;
@@ -1017,6 +1163,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
          Logger.log('Server rejected pin message: ${response['error']}');
          // Revert on error
          if (msg != null) {
+           await _messageDao.updateMessagePinned(messageId, msg.isPinned ?? false);
            final newById = Map<String, MessageModel>.from(state.messagesById);
            newById[messageId] = msg;
            state = state.copyWith(messagesById: newById);
@@ -1025,6 +1172,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
     } catch (e) {
       Logger.log('Failed to pin message: $e');
       if (msg != null) {
+        await _messageDao.updateMessagePinned(messageId, msg.isPinned ?? false);
         final newById = Map<String, MessageModel>.from(state.messagesById);
         newById[messageId] = msg;
         state = state.copyWith(messagesById: newById);
@@ -1034,28 +1182,29 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
   Future<void> sendImageAttachment(String filePath, {String? caption, String? replyToId}) async {
     if (chatId == null) return;
+    String? pendingClientMsgId;
     try {
+      await _ensureCurrentUserId();
       final clientMsgId = const Uuid().v4();
+      pendingClientMsgId = clientMsgId;
       final tempId = 'temp_$clientMsgId';
-      final formattedTime = DateFormat('hh:mm a').format(DateTime.now());
+      final now = DateTime.now();
+      final formattedTime = DateFormat('hh:mm a').format(now);
 
-      // 1. Optimistic insertion into UI
-      final optimisticMsg = MessageModel(
+      await _messageDao.insertOrUpdateMessage(MessageDto(
         id: tempId,
+        clientMsgId: clientMsgId,
+        conversationId: chatId!,
+        senderId: currentUserId,
+        type: 'IMAGE',
         text: caption ?? '',
-        time: formattedTime,
-        timestamp: DateTime.now(),
-        isMe: true,
-        type: MessageType.image,
+        status: 'sending',
+        createdAt: now.toIso8601String(),
+        replyToId: replyToId,
         mediaUrl: filePath,
-        status: MessageStatus.sending,
-        replyToMessageId: replyToId,
-      );
-
-      final newById = Map<String, MessageModel>.from(state.messagesById);
-      newById[tempId] = optimisticMsg;
-      final newIds = [tempId, ...state.messageIds];
-      state = state.copyWith(messageIds: newIds, messagesById: newById);
+      ).toSqliteMap());
+      if (!mounted) return;
+      await loadFromDb(limitOverride: max(60, state.page * 60));
 
       // Update chat list immediately
       _ref.read(chatProvider.notifier).updateLastMessage(chatId!, '📷 Photo', formattedTime);
@@ -1074,6 +1223,8 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       final String attachmentUrl = objectKey.isNotEmpty ? objectKey : publicUrl;
       if (attachmentUrl.isEmpty) {
         Logger.log('Attachment URL missing from upload result, aborting send', type: "error");
+        await _messageDao.updateMessageStatusByClientId(clientMsgId, 'failed');
+        if (mounted) await loadFromDb(limitOverride: max(60, state.page * 60));
         return;
       }
 
@@ -1087,6 +1238,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
       final payload = {
         'conversationId': chatId,
+        'clientMsgId': clientMsgId,
         'type': 'IMAGE',
         'text': caption ?? '',
         'attachments': [attachmentObj],
@@ -1102,79 +1254,61 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      final response = await _socketService.emitWithAck('message:send', payload);
+      final socketPayload = Map<String, dynamic>.from(payload)..remove('clientMsgId');
+      final response = await _socketService.emitWithAck('message:send', socketPayload);
       if (response['ok'] == true) {
         await _outboxDao.deleteOutboxItem(clientMsgId);
         if (!mounted) return;
         final serverData = response['data'];
-        if (serverData != null) {
-          final tId = 'temp_$clientMsgId';
-          final existing = state.messagesById[tId];
-          if (existing != null) {
-            final newMsg = existing.copyWith(
-              id: serverData['id'],
-              seq: serverData['seq'],
-              status: MessageStatus.sent,
-              time: DateFormat('hh:mm a').format(DateTime.now()),
-            );
-            final newById = Map<String, MessageModel>.from(state.messagesById);
-            newById.remove(tId);
-            newById[newMsg.id!] = newMsg;
-            final newIds = state.messageIds.map((e) => e == tId ? newMsg.id! : e).toList();
-            state = state.copyWith(messageIds: newIds, messagesById: newById);
-            
-            final sqliteMap = MessageDto(
-              id: newMsg.id!,
-              clientMsgId: clientMsgId,
-              conversationId: chatId!,
-              seq: newMsg.seq,
-              senderId: currentUserId,
-              type: 'IMAGE',
-              text: caption ?? '',
-              status: 'sent',
-              createdAt: DateTime.now().toIso8601String(),
-              mediaUrl: publicUrl,
-            ).toSqliteMap();
-            await _messageDao.insertOrUpdateMessages([sqliteMap]);
-          }
+        if (serverData is Map) {
+          await _replaceTempMessageWithServerData(
+            clientMsgId,
+            Map<String, dynamic>.from(serverData),
+          );
+        } else {
+          await _messageDao.updateMessageStatusByClientId(clientMsgId, 'sent');
+          if (mounted) await loadFromDb(limitOverride: max(60, state.page * 60));
         }
       } else {
-        final errCode = (response['error'] as Map?)?['code'];
         Logger.log('Server rejected image message: ${response['error']}');
-        if (errCode == 'VALIDATION_ERROR') {
-          await _outboxDao.deleteOutboxItem(clientMsgId);
-        }
+        await _messageDao.updateMessageStatusByClientId(clientMsgId, 'queued');
+        if (mounted) await loadFromDb(limitOverride: max(60, state.page * 60));
       }
       Logger.log('Image attachment message sent successfully with key $publicUrl');
     } catch (e) {
       Logger.log('Failed to upload and send image attachment: $e');
+      if (pendingClientMsgId != null) {
+        await _messageDao.updateMessageStatusByClientId(pendingClientMsgId, 'failed');
+        if (mounted) await loadFromDb(limitOverride: max(60, state.page * 60));
+      }
     }
   }
 
   Future<void> sendFileAttachment(String filePath, {String? caption, String? replyToId}) async {
     if (chatId == null) return;
+    String? pendingClientMsgId;
     try {
+      await _ensureCurrentUserId();
       final clientMsgId = const Uuid().v4();
+      pendingClientMsgId = clientMsgId;
       final tempId = 'temp_$clientMsgId';
-      final formattedTime = DateFormat('hh:mm a').format(DateTime.now());
+      final now = DateTime.now();
+      final formattedTime = DateFormat('hh:mm a').format(now);
 
-      // 1. Optimistic insertion into UI
-      final optimisticMsg = MessageModel(
+      await _messageDao.insertOrUpdateMessage(MessageDto(
         id: tempId,
+        clientMsgId: clientMsgId,
+        conversationId: chatId!,
+        senderId: currentUserId,
+        type: 'FILE',
         text: caption ?? '',
-        time: formattedTime,
-        timestamp: DateTime.now(),
-        isMe: true,
-        type: MessageType.file,
+        status: 'sending',
+        createdAt: now.toIso8601String(),
+        replyToId: replyToId,
         mediaUrl: filePath,
-        status: MessageStatus.sending,
-        replyToMessageId: replyToId,
-      );
-
-      final newById = Map<String, MessageModel>.from(state.messagesById);
-      newById[tempId] = optimisticMsg;
-      final newIds = [tempId, ...state.messageIds];
-      state = state.copyWith(messageIds: newIds, messagesById: newById);
+      ).toSqliteMap());
+      if (!mounted) return;
+      await loadFromDb(limitOverride: max(60, state.page * 60));
 
       // Update chat list immediately
       _ref.read(chatProvider.notifier).updateLastMessage(chatId!, '📁 Attachment', formattedTime);
@@ -1193,6 +1327,8 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       final String attachmentUrl = objectKey.isNotEmpty ? objectKey : publicUrl;
       if (attachmentUrl.isEmpty) {
         Logger.log('Attachment URL missing from upload result, aborting send', type: "error");
+        await _messageDao.updateMessageStatusByClientId(clientMsgId, 'failed');
+        if (mounted) await loadFromDb(limitOverride: max(60, state.page * 60));
         return;
       }
 
@@ -1206,6 +1342,7 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
 
       final payload = {
         'conversationId': chatId,
+        'clientMsgId': clientMsgId,
         'type': 'FILE',
         'text': caption ?? '',
         'attachments': [attachmentObj],
@@ -1221,52 +1358,33 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      final response = await _socketService.emitWithAck('message:send', payload);
+      final socketPayload = Map<String, dynamic>.from(payload)..remove('clientMsgId');
+      final response = await _socketService.emitWithAck('message:send', socketPayload);
       if (response['ok'] == true) {
         await _outboxDao.deleteOutboxItem(clientMsgId);
         if (!mounted) return;
         final serverData = response['data'];
-        if (serverData != null) {
-          final tId = 'temp_$clientMsgId';
-          final existing = state.messagesById[tId];
-          if (existing != null) {
-            final newMsg = existing.copyWith(
-              id: serverData['id'],
-              seq: serverData['seq'],
-              status: MessageStatus.sent,
-              time: DateFormat('hh:mm a').format(DateTime.now()),
-            );
-            final newById = Map<String, MessageModel>.from(state.messagesById);
-            newById.remove(tId);
-            newById[newMsg.id!] = newMsg;
-            final newIds = state.messageIds.map((e) => e == tId ? newMsg.id! : e).toList();
-            state = state.copyWith(messageIds: newIds, messagesById: newById);
-
-            final sqliteMap = MessageDto(
-              id: newMsg.id!,
-              clientMsgId: clientMsgId,
-              conversationId: chatId!,
-              seq: newMsg.seq,
-              senderId: currentUserId,
-              type: 'FILE',
-              text: caption ?? '',
-              status: 'sent',
-              createdAt: DateTime.now().toIso8601String(),
-              mediaUrl: publicUrl,
-            ).toSqliteMap();
-            await _messageDao.insertOrUpdateMessages([sqliteMap]);
-          }
+        if (serverData is Map) {
+          await _replaceTempMessageWithServerData(
+            clientMsgId,
+            Map<String, dynamic>.from(serverData),
+          );
+        } else {
+          await _messageDao.updateMessageStatusByClientId(clientMsgId, 'sent');
+          if (mounted) await loadFromDb(limitOverride: max(60, state.page * 60));
         }
       } else {
-        final errCode = (response['error'] as Map?)?['code'];
         Logger.log('Server rejected file message: ${response['error']}');
-        if (errCode == 'VALIDATION_ERROR') {
-          await _outboxDao.deleteOutboxItem(clientMsgId);
-        }
+        await _messageDao.updateMessageStatusByClientId(clientMsgId, 'queued');
+        if (mounted) await loadFromDb(limitOverride: max(60, state.page * 60));
       }
       Logger.log('File attachment message sent successfully with key $publicUrl');
     } catch (e) {
       Logger.log('Failed to upload and send file attachment: $e');
+      if (pendingClientMsgId != null) {
+        await _messageDao.updateMessageStatusByClientId(pendingClientMsgId, 'failed');
+        if (mounted) await loadFromDb(limitOverride: max(60, state.page * 60));
+      }
     }
   }
 
@@ -1299,24 +1417,42 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
         }
       }
       
+      await _messageDao.updateMessageReactions(messageId, jsonEncode(currentReactions));
+      if (!mounted) return;
       final updatedMsg = msg.copyWith(reactions: currentReactions);
       final newById = Map<String, MessageModel>.from(state.messagesById);
       newById[messageId] = updatedMsg;
       state = ChatState(messageIds: state.messageIds, messagesById: newById);
       
-      // Also optionally save optimistically to DB so it persists until server responds
-      _messageDao.updateMessageReactions(messageId, jsonEncode(currentReactions));
-
       // 2. Emit to Socket
       try {
-        _socketService.emit('message:react', {
+        final response = await _socketService.emitWithAck('message:react', {
           'conversationId': chatId,
           'messageId': messageId,
           'emoji': emoji,
           'isAdded': isAdded,
         });
+        if (response['ok'] != true) {
+          await _messageDao.updateMessageReactions(
+            messageId,
+            jsonEncode(msg.reactions ?? const []),
+          );
+          if (!mounted) return;
+          final reverted = Map<String, MessageModel>.from(state.messagesById);
+          reverted[messageId] = msg;
+          state = state.copyWith(messagesById: reverted);
+        }
       } catch (e) {
         Logger.log('Failed to react to message: $e');
+        await _messageDao.updateMessageReactions(
+          messageId,
+          jsonEncode(msg.reactions ?? const []),
+        );
+        if (mounted) {
+          final reverted = Map<String, MessageModel>.from(state.messagesById);
+          reverted[messageId] = msg;
+          state = state.copyWith(messagesById: reverted);
+        }
       }
     }
   }

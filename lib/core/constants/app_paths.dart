@@ -3,6 +3,7 @@ class AppPaths {
   static const String login = '/login';
   static const String register = '/register';
   static const String verify_email = '/verify_email';
+  static const String forgot_password = '/forgot_password';
   static const String main = '/main';
   static const String profile = '/profile';
   static const String block_userlist = '/block_userlist_screen';

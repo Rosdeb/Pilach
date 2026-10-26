@@ -14,16 +14,16 @@ class ChatWallpaperScreen extends ConsumerWidget {
       "url": "",
     },
     {
-      "name": "Blue Pink Pastel",
-      "url": "https://brunty.me/files/chat-bgs/1.0/blue-pink-20-pct.png",
+      "name": "Dark Nebula",
+      "url": "https://images.unsplash.com/photo-1538370965046-79c0d6907d47?w=800&q=80",
     },
     {
-      "name": "Classic Teal",
-      "url": "https://brunty.me/files/chat-bgs/1.0/classic-teal.png",
+      "name": "Minimal Gradient",
+      "url": "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800&q=80",
     },
     {
-      "name": "Warm Amber",
-      "url": "https://brunty.me/files/chat-bgs/1.0/warm-amber.png",
+      "name": "Moody Forest",
+      "url": "https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&q=80",
     }
   ];
 
@@ -32,7 +32,6 @@ class ChatWallpaperScreen extends ConsumerWidget {
     final activeTheme = ref.watch(chatThemeProvider);
     final currentWallpaper = ref.watch(chatWallpaperProvider);
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -157,7 +156,7 @@ class ChatWallpaperScreen extends ConsumerWidget {
             offset: const Offset(0, 5),
           )
         ],
-        image: wallpaperUrl != null
+        image: (wallpaperUrl != null && wallpaperUrl.isNotEmpty)
             ? DecorationImage(
                 image: NetworkImage(wallpaperUrl),
                 fit: BoxFit.cover,

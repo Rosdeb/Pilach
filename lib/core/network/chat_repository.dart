@@ -23,6 +23,8 @@ class ChatRepository {
     return response.data as Map<String, dynamic>;
   }
 
+  /// Returns the highest seq value stored in the most-recent page of messages.
+  /// The server sorts newest-first on page 1, so data[0] is the latest message.
   Future<int> getLatestSeq(String chatId) async {
     try {
       final response = await getMessages(chatId, limit: 1);
@@ -30,20 +32,30 @@ class ChatRepository {
       if (data != null && data.isNotEmpty) {
         return (data.first['seq'] as num?)?.toInt() ?? 0;
       }
-    } catch (e) {
-      // Fallback
-    }
+    } catch (_) {}
     return 0;
   }
 
-  Future<Map<String, dynamic>> getMessagesAfterSeq(String chatId, int afterSeq) async {
-    final response = await _apiService.get('/api/v1/chats/$chatId/messages?afterSeq=$afterSeq');
-    return response.data as Map<String, dynamic>;
+  /// Fetches the most-recent [limit] messages for [chatId].
+  ///
+  /// The server's messages endpoint only supports cursor / page / limit / query
+  /// query params — there is no `afterSeq` filter.  Callers that need to
+  /// sync a gap should fetch page 1 and deduplicate against local storage by
+  /// message ID (insertOrUpdate semantics).
+  Future<Map<String, dynamic>> getRecentMessages(String chatId, {int limit = 50}) {
+    return getMessages(chatId, page: 1, limit: limit);
   }
 
-  Future<Map<String, dynamic>> sendMessage(String chatId, Map<String, Object?> payload, String clientMsgId) async {
-    final requestBody = Map<String, Object?>.from(payload);
-    requestBody['clientMsgId'] = clientMsgId;
+  Future<Map<String, dynamic>> sendMessage(String chatId, Map<String, Object?> payload, [String? clientMsgId]) async {
+    // Backend SendMessageDto strictly allows: type, text, replyToId, attachments.
+    // Must NOT contain conversationId or clientMsgId (server throws 400 validation error).
+    final requestBody = <String, Object?>{
+      'type': payload['type'] ?? 'TEXT',
+      if (payload['text'] != null) 'text': payload['text'],
+      if (payload['replyToId'] != null) 'replyToId': payload['replyToId'],
+      if (payload['attachments'] is List && (payload['attachments'] as List).isNotEmpty)
+        'attachments': payload['attachments'],
+    };
     final response = await _apiService.post('/api/v1/chats/$chatId/messages', data: requestBody);
     return response.data as Map<String, dynamic>;
   }

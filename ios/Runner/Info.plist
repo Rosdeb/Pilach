@@ -14,6 +14,17 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.877037378701-mh94qd8hqhdi72sl3eot9n881blqjcja</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleName</key>
 	<string>messageapp</string>
 	<key>CFBundlePackageType</key>
@@ -24,6 +35,10 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GIDClientID</key>
+	<string>877037378701-mh94qd8hqhdi72sl3eot9n881blqjcja.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>877037378701-6s81l0858ss4etf94sg05dloba6i4rr1.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

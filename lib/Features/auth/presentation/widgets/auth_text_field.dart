@@ -7,6 +7,7 @@ class AuthTextField extends StatefulWidget {
   final bool isPassword;
   final TextInputType keyboardType;
   final String? Function(String?)? validator;
+  final Color? fillColor;
 
   const AuthTextField({
     super.key,
@@ -16,6 +17,7 @@ class AuthTextField extends StatefulWidget {
     this.isPassword = false,
     this.keyboardType = TextInputType.text,
     this.validator,
+    this.fillColor,
   });
 
   @override
@@ -29,6 +31,9 @@ class _AuthTextFieldState extends State<AuthTextField> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final defaultFillColor = isDark ? Colors.black : Colors.white;
+    final effectiveFillColor = widget.fillColor ?? defaultFillColor;
+
     return TextFormField(
       controller: widget.controller,
       obscureText: widget.isPassword ? _obscureText : false,
@@ -42,20 +47,20 @@ class _AuthTextFieldState extends State<AuthTextField> {
       decoration: InputDecoration(
         hintText: widget.hintText,
         hintStyle: TextStyle(
-          color: theme.colorScheme.onSurface.withOpacity(0.38),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.38),
           fontSize: 14,
           fontFamily: "Inter",
         ),
         prefixIcon: Icon(
           widget.prefixIcon,
-          color: theme.colorScheme.onSurface.withOpacity(0.6),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
           size: 20,
         ),
         suffixIcon: widget.isPassword
             ? IconButton(
                 icon: Icon(
                   _obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   size: 20,
                 ),
                 onPressed: () {
@@ -66,17 +71,31 @@ class _AuthTextFieldState extends State<AuthTextField> {
               )
             : null,
         filled: true,
-        fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9), // slate-800 or slate-100
+        fillColor: effectiveFillColor,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: theme.colorScheme.onSurface.withOpacity(0.08)),
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.12)
+                : Colors.black.withValues(alpha: 0.08),
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: theme.colorScheme.onSurface.withOpacity(0.08)),
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.12)
+                : Colors.black.withValues(alpha: 0.08),
+          ),
         ),
-
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: theme.colorScheme.primary,
+            width: 1.5,
+          ),
+        ),
       ),
     );
   }

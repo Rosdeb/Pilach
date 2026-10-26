@@ -90,5 +90,10 @@ final socketServiceProvider = Provider<SocketService>((ref) {
     }
     return null;
   };
+  ref.onDispose(service.dispose);
   return service;
+});
+
+final socketConnectionStateProvider = StreamProvider<SocketConnectionState>((ref) {
+  return ref.watch(socketServiceProvider).connectionStates;
 });

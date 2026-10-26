@@ -1,4 +1,3 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/core/theme/theme_provider.dart';
@@ -56,5 +55,10 @@ class StringPreferenceNotifier extends StateNotifier<String?> {
 
 // Provider to manage Chat Wallpaper URL
 final chatWallpaperProvider = StateNotifierProvider<StringPreferenceNotifier, String?>((ref) {
-  return StringPreferenceNotifier(ref.watch(sharedPreferencesProvider), 'chat_wallpaper', null);
+  final prefs = ref.watch(sharedPreferencesProvider);
+  final saved = prefs.getString('chat_wallpaper');
+  if (saved != null && (saved.contains('brunty.me') || saved.isEmpty)) {
+    prefs.remove('chat_wallpaper');
+  }
+  return StringPreferenceNotifier(prefs, 'chat_wallpaper', null);
 });

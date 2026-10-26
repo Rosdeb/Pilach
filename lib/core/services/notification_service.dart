@@ -1,33 +1,65 @@
+import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:go_router/go_router.dart';
 import 'api_service.dart';
 import '../constants/api_constants.dart';
-import '../constants/app_constants.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/api_provider.dart';
 import '../theme/theme_provider.dart';
 import '../router/app_router.dart';
 import '../../components/InAppNotificationBanner/in_app_notification_banner.dart';
+import '../../firebase_options.dart';
+import '../database/daos/message_dao.dart';
+import '../models/message_dto.dart';
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await NotificationService.persistRemoteMessage(message);
+}
 
 final notificationServiceProvider = Provider<NotificationService>((ref) {
   final apiService = ref.watch(apiServiceProvider);
   final prefs = ref.watch(sharedPreferencesProvider);
-  return NotificationService(apiService, prefs);
+  final service = NotificationService(apiService, prefs);
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 class NotificationService {
   final ApiService _apiService;
   final SharedPreferences _prefs;
+  final LinkedHashSet<String> _handledNotificationIds = LinkedHashSet();
+  StreamSubscription<RemoteMessage>? _foregroundSubscription;
+  StreamSubscription<RemoteMessage>? _openedAppSubscription;
+  StreamSubscription<String>? _tokenRefreshSubscription;
+  String? Function()? _activeChatId;
+  void Function(String chatId)? _openChat;
+  RemoteMessage? _pendingNavigation;
 
   NotificationService(this._apiService, this._prefs) {
     _requestPermissions();
     _setupFcmListeners();
+  }
+
+  void configureNavigation({
+    required String? Function() activeChatId,
+    required void Function(String chatId) openChat,
+  }) {
+    _activeChatId = activeChatId;
+    _openChat = openChat;
+    final pending = _pendingNavigation;
+    if (pending != null) {
+      _pendingNavigation = null;
+      _handleNotificationClick(pending);
+    }
   }
 
   Future<void> _requestPermissions() async {
@@ -50,13 +82,13 @@ class NotificationService {
 
   void _setupFcmListeners() {
     // 1. Listen to foreground messages
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    _foregroundSubscription = FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       debugPrint("[NotificationService] Foreground message received: ${message.messageId}");
-      _showInAppNotification(message);
+      unawaited(_showInAppNotification(message));
     });
 
     // 2. Listen to background/opened-app messages
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+    _openedAppSubscription = FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       debugPrint("[NotificationService] Notification clicked (app in background): ${message.messageId}");
       _handleNotificationClick(message);
     });
@@ -68,11 +100,26 @@ class NotificationService {
         _handleNotificationClick(message);
       }
     });
+
+    _tokenRefreshSubscription = FirebaseMessaging.instance.onTokenRefresh.listen((_) {
+      unawaited(registerFcmToken());
+    });
   }
 
-  void _showInAppNotification(RemoteMessage message) {
+  Future<void> _showInAppNotification(RemoteMessage message) async {
     final notification = message.notification;
     final data = message.data;
+    final chatId = _extractConversationId(data);
+    if (chatId != null && chatId == _activeChatId?.call()) {
+      await persistRemoteMessage(message);
+      return;
+    }
+
+    final dedupeId = _extractMessageId(data) ?? message.messageId;
+    if (dedupeId != null && !_rememberNotification(dedupeId)) return;
+
+    final wasNew = await persistRemoteMessage(message);
+    if (!wasNew && _extractMessageId(data) != null) return;
 
     final title = notification?.title ?? data['title'] ?? 'New Message';
     final body = notification?.body ?? data['body'] ?? '';
@@ -93,12 +140,66 @@ class NotificationService {
   }
 
   void _handleNotificationClick(RemoteMessage message) {
-    final context = rootNavigatorKey.currentContext;
-    if (context != null) {
-      context.push(AppPaths.chat);
-    } else {
-      debugPrint("[NotificationService] Cannot navigate on notification click: context is null.");
+    final chatId = _extractConversationId(message.data);
+    if (chatId == null) return;
+    final handler = _openChat;
+    if (handler == null) {
+      _pendingNavigation = message;
+      return;
     }
+    handler(chatId);
+  }
+
+  bool _rememberNotification(String id) {
+    if (_handledNotificationIds.contains(id)) return false;
+    _handledNotificationIds.add(id);
+    while (_handledNotificationIds.length > 200) {
+      _handledNotificationIds.remove(_handledNotificationIds.first);
+    }
+    return true;
+  }
+
+  static String? _extractConversationId(Map<String, dynamic> data) {
+    final nested = data['message'];
+    final value = data['conversationId'] ??
+        data['conversation_id'] ??
+        data['chatId'] ??
+        (nested is Map
+            ? nested['conversationId'] ?? nested['conversation_id'] ?? nested['chatId']
+            : null);
+    final result = value?.toString();
+    return result == null || result.isEmpty ? null : result;
+  }
+
+  static String? _extractMessageId(Map<String, dynamic> data) {
+    final nested = data['message'];
+    final value = data['messageId'] ??
+        data['message_id'] ??
+        data['id'] ??
+        (nested is Map ? nested['messageId'] ?? nested['id'] : null);
+    final result = value?.toString();
+    return result == null || result.isEmpty ? null : result;
+  }
+
+  static Future<bool> persistRemoteMessage(RemoteMessage message) async {
+    final data = Map<String, dynamic>.from(message.data);
+    final nested = data['message'];
+    final payload = nested is Map
+        ? <String, dynamic>{...data, ...Map<String, dynamic>.from(nested)}
+        : data;
+    payload['id'] ??= _extractMessageId(data);
+    payload['conversationId'] ??= _extractConversationId(data);
+    payload['text'] ??= message.notification?.body;
+    payload['createdAt'] ??= DateTime.now().toIso8601String();
+
+    final dto = MessageDto.fromJson(payload);
+    if (dto.id.isEmpty || dto.conversationId.isEmpty || dto.senderId.isEmpty) {
+      return true;
+    }
+    final dao = MessageDao();
+    final existing = await dao.getMessageById(dto.id);
+    await dao.insertOrUpdateMessages([dto.toSqliteMap()]);
+    return existing == null;
   }
 
   static const String _registeredFcmTokenKey = 'registered_fcm_token';
@@ -115,14 +216,14 @@ class NotificationService {
 
       final cachedToken = _prefs.getString(_registeredFcmTokenKey);
       if (cachedToken == token) {
-        debugPrint("[NotificationService] FCM token is already registered and hasn't changed: $token Skipping API call.");
+        debugPrint("[NotificationService] FCM token is already registered; skipping API call.");
         return;
       }
 
       final deviceId = await _getOrCreateDeviceId();
       final platform = _getPlatformName();
 
-      debugPrint("[NotificationService] Registering new FCM token on backend: $token (platform: $platform, deviceId: $deviceId)");
+      debugPrint("[NotificationService] Registering FCM token (platform: $platform, deviceId: $deviceId)");
 
       final response = await _apiService.post(
         ApiConstants.fcmTokens,
@@ -238,5 +339,11 @@ class NotificationService {
     if (Platform.isWindows) return 'windows';
     if (Platform.isLinux) return 'linux';
     return 'unknown';
+  }
+
+  void dispose() {
+    unawaited(_foregroundSubscription?.cancel());
+    unawaited(_openedAppSubscription?.cancel());
+    unawaited(_tokenRefreshSubscription?.cancel());
   }
 }

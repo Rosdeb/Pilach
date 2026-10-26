@@ -30,8 +30,8 @@ class IOSSearchBar extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Container(
-      height: 38,
-      margin: margin ?? EdgeInsets.symmetric(horizontal: AppSizes.paddingMedium,vertical: 10),
+      height: 41,
+      margin: margin ?? EdgeInsets.symmetric(horizontal: 8,vertical: 10),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(10),

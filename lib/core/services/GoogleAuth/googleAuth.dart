@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 class GoogleSignInService {
@@ -7,11 +8,18 @@ class GoogleSignInService {
   static final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
   static bool isInitialized = false;
 
+  static const String _iosClientId =
+      '877037378701-mh94qd8hqhdi72sl3eot9n881blqjcja.apps.googleusercontent.com';
+  static const String _serverClientId =
+      '877037378701-6s81l0858ss4etf94sg05dloba6i4rr1.apps.googleusercontent.com';
+
   static Future<void> _initSignIn() async {
     if (!isInitialized) {
-      await _googleSignIn.initialize();
+      await _googleSignIn.initialize(
+        clientId: defaultTargetPlatform == TargetPlatform.iOS ? _iosClientId : null,
+        serverClientId: _serverClientId,
+      );
       isInitialized = true;
-
     }
   }
 

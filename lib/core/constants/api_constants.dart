@@ -13,6 +13,10 @@ class ApiConstants {
   static const String logout = "/api/v1/auth/logout";
   static const String refreshToken = "/api/v1/auth/refresh";
   static const String verifyOtp = "/api/v1/auth/email/verify/otp";
+  static const String forgotPassword = "/api/v1/auth/password/forgot";
+  static const String resetPassword = "/api/v1/auth/password/reset";
+  static const String resendEmailVerification = "/api/v1/auth/email/verify/resend";
+  static const String resetPasswordByOtp = "/api/v1/auth/password/reset/otp";
 
   // 2FA Endpoints
   static const String twoFactorMethods = "/api/v1/auth/2fa/methods";

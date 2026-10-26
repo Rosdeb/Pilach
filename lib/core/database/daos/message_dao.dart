@@ -39,10 +39,21 @@ class MessageDao {
     final database = await db;
     final batch = database.batch();
     for (var msg in messages) {
+      final clientMsgId = msg['client_msg_id']?.toString();
+      final messageId = msg['id']?.toString();
+      if (clientMsgId != null && clientMsgId.isNotEmpty && messageId != null) {
+        // A server ACK replaces the local temp row. Without this delete the
+        // UNIQUE client_msg_id constraint rejects the authoritative row.
+        batch.delete(
+          'messages',
+          where: 'client_msg_id = ? AND id <> ?',
+          whereArgs: [clientMsgId, messageId],
+        );
+      }
       batch.rawInsert(
         '''
-        INSERT INTO messages (id, client_msg_id, conversation_id, seq, sender_id, type, text, status, created_at, edited_at, deleted, reply_to_id, reply_to_json, reactions_json, attachments_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO messages (id, client_msg_id, conversation_id, seq, sender_id, type, text, status, created_at, edited_at, deleted, reply_to_id, reply_to_json, reactions_json, attachments_json, is_pinned, pinned_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           client_msg_id = COALESCE(excluded.client_msg_id, messages.client_msg_id),
           conversation_id = excluded.conversation_id,
@@ -61,7 +72,9 @@ class MessageDao {
           reply_to_id = excluded.reply_to_id,
           reply_to_json = excluded.reply_to_json,
           reactions_json = COALESCE(excluded.reactions_json, messages.reactions_json),
-          attachments_json = COALESCE(excluded.attachments_json, messages.attachments_json)
+          attachments_json = COALESCE(excluded.attachments_json, messages.attachments_json),
+          is_pinned = COALESCE(excluded.is_pinned, messages.is_pinned),
+          pinned_at = COALESCE(excluded.pinned_at, messages.pinned_at)
         ''',
         [
           msg['id'],
@@ -79,19 +92,30 @@ class MessageDao {
           msg['reply_to_json'],
           msg['reactions_json'],
           msg['attachments_json'],
+          msg['is_pinned'],
+          msg['pinned_at'],
         ],
       );
     }
     await batch.commit(noResult: true);
   }
 
-  Future<void> updateMessageStatusUpToSeq(String conversationId, String status, int seq) async {
+  Future<void> updateMessageStatusUpToSeq(
+    String conversationId,
+    String status,
+    int seq, {
+    String? senderId,
+  }) async {
     final database = await db;
     await database.update(
       'messages',
       {'status': status},
-      where: 'conversation_id = ? AND (seq IS NULL OR seq <= ?)',
-      whereArgs: [conversationId, seq],
+      where: senderId == null
+          ? 'conversation_id = ? AND seq IS NOT NULL AND seq <= ?'
+          : 'conversation_id = ? AND sender_id = ? AND seq IS NOT NULL AND seq <= ?',
+      whereArgs: senderId == null
+          ? [conversationId, seq]
+          : [conversationId, senderId, seq],
     );
   }
 
@@ -155,6 +179,58 @@ class MessageDao {
       where: 'id = ? OR client_msg_id = ?',
       whereArgs: [id, id],
     );
+  }
+
+  Future<void> markMessageDeleted(String id) async {
+    final database = await db;
+    await database.update(
+      'messages',
+      {'deleted': 1, 'text': ''},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> updateMessageText(String id, String text, {String? editedAt}) async {
+    final database = await db;
+    await database.update(
+      'messages',
+      {'text': text, 'edited_at': editedAt},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> updateMessagePinned(String id, bool isPinned, {String? pinnedAt}) async {
+    final database = await db;
+    await database.update(
+      'messages',
+      {
+        'is_pinned': isPinned ? 1 : 0,
+        'pinned_at': isPinned ? pinnedAt : null,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> insertPendingMessageAndOutbox(
+    Map<String, dynamic> message,
+    Map<String, dynamic> outboxRow,
+  ) async {
+    final database = await db;
+    await database.transaction((txn) async {
+      await txn.insert(
+        'messages',
+        message,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      await txn.insert(
+        'outbox',
+        outboxRow,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    });
   }
 
   Future<Map<String, dynamic>?> getMessageById(String id) async {

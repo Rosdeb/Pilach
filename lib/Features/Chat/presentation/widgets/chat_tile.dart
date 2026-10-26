@@ -229,7 +229,7 @@ class _ChatTileContent extends ConsumerWidget {
       // the ripple visual. We absorb taps at GestureDetector level.
       onTap: null,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         child: Row(
           children: [
             // Avatar — gets its own RepaintBoundary: image decode is expensive

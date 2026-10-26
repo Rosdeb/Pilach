@@ -3,14 +3,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zoom_tap_animation/zoom_tap_animation.dart';
 import '../../../../components/AppText/appText.dart';
 import '../../../../components/FloatingErrorBar/floatingbar.dart';
 import '../../../../components/SuccessBar/successbar.dart';
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/constants/asset_constants.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
 import 'package:app/Features/auth/data/repositories/auth_repository.dart';
@@ -142,6 +140,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -158,18 +157,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 children: [
                   const SizedBox(height: 20),
 
-                  // Logo & Title
-                  Center(
-                    child: Hero(
-                      tag: 'app_logo',
-                      child: SvgPicture.asset(
-                        Assets.logo,
-                        height: 100,
-                        width: 100,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
                   Center(
                     child: AppText(
                       "Welcome Back",
@@ -196,6 +183,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     controller: _emailController,
                     hintText: "Email address",
                     prefixIcon: Icons.email_outlined,
+                    fillColor: isDark ? Colors.black : Colors.white,
                     keyboardType: TextInputType.emailAddress,
                   ),
                   const SizedBox(height: 16),
@@ -205,6 +193,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     controller: _passwordController,
                     hintText: "Password",
                     prefixIcon: Icons.lock_outline_rounded,
+                    fillColor: isDark ? Colors.black : Colors.white,
                     isPassword: true,
                   ),
 
@@ -212,7 +201,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {},
+                      onPressed: () => context.push(AppPaths.forgot_password),
                       child: AppText(
                         "Forgot Password?",
                         color: theme.colorScheme.primary,

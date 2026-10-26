@@ -6,7 +6,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 import '../../../../../components/AppText/appText.dart';
 import '../../../../../core/utils/app_colour.dart';
-
+import '../../../../../core/utils/app_toast.dart';
 import '../../../../../core/theme/theme_provider.dart';
 import '../../../../auth/presentation/providers/auth_provider.dart';
 
@@ -288,13 +288,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen>
                               );
 
                               if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    backgroundColor: Colors.green,
-                                    content: Text('ID copied'),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
+                                AppToast.show(context, 'ID copied', type: ToastType.success);
                               }
                             },
                             child: Container(
@@ -372,10 +366,8 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen>
                           // TODO: Handle the scanned QR code here!
                           // Example: print("Scanned: $scannedValue");
 
-                          // Optional: Show a snackbar or navigate
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Scanned: $scannedValue')),
-                          );
+                          // Optional: Show a toast or navigate
+                          AppToast.show(context, 'Scanned: $scannedValue');
                         }
                       }
                     },

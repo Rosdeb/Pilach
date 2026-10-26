@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/legacy.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/core/network/api_exceptions.dart';
+import 'package:app/core/utils/app_logger.dart';
+import '../../../../core/database/app_database.dart';
 import '../../../../core/providers/api_provider.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/services/socket_service.dart';
@@ -127,16 +128,37 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final id = rawId?.toString();
       final name = userData?['name'];
       final profileImage = userData?['profilePicture'] ?? userData?['avatar'];
-      
+
+      // Compare against lastLoggedInUserId — this key survives logout()
+      // so we can detect a user-switch even after _storage.clearAll().
+      //
+      // Decision table:
+      //   same user logs back in  → keep DB cache (instant load, no re-fetch)
+      //   different user logs in  → wipe DB so their data never bleeds
+      //   first ever login        → nothing to wipe
+      final lastUserId = _storage.lastLoggedInUserId;
+      final isDifferentUser = lastUserId != null && id != null && lastUserId != id;
+
+      if (isDifferentUser) {
+        Logger.log(
+          'login() — user switched ($lastUserId → $id), wiping local DB cache',
+          type: 'lifecycle',
+        );
+        await AppDatabase.instance.clearAllUserData();
+      } else if (lastUserId != null && lastUserId == id) {
+        Logger.log(
+          'login() — same user ($id) logging back in, local DB cache preserved ✓',
+          type: 'lifecycle',
+        );
+      }
+
       await _storage.setEmail(resolvedEmail);
-      if (id != null) await _storage.setUserId(id);
+      if (id != null) await _storage.setUserId(id); // also updates lastLoggedInUserId
       if (name != null) await _storage.setName(name);
       if (profileImage != null) await _storage.setProfileImage(profileImage);
-      print("rawId : $rawId");
-      
-      // We assume the token was saved by AuthRepository. Let's get it to connect socket.
+
       final token = _storage.token ?? result['token'] ?? '';
-      
+
       state = AuthState.authenticated(resolvedEmail, id: id, name: name, profileImage: profileImage);
       _notificationService.registerFcmToken();
       if (token.isNotEmpty) _socketService.connect(token);
@@ -193,6 +215,66 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Future<bool> forgotPassword(String email) async {
+    state = AuthState.loading();
+    try {
+      await _authRepository.forgotPassword(email);
+      state = AuthState.unauthenticated();
+      return true;
+    } on ApiException catch (e) {
+      state = AuthState.error(e.message);
+      return false;
+    } catch (e) {
+      state = AuthState.error("Failed to send reset link");
+      return false;
+    }
+  }
+
+  Future<bool> resetPassword(String token, String newPassword) async {
+    state = AuthState.loading();
+    try {
+      await _authRepository.resetPassword(token, newPassword);
+      state = AuthState.unauthenticated();
+      return true;
+    } on ApiException catch (e) {
+      state = AuthState.error(e.message);
+      return false;
+    } catch (e) {
+      state = AuthState.error("Failed to reset password");
+      return false;
+    }
+  }
+
+  Future<bool> resendEmailVerification(String email) async {
+    state = AuthState.loading();
+    try {
+      await _authRepository.resendEmailVerification(email);
+      state = AuthState.unauthenticated();
+      return true;
+    } on ApiException catch (e) {
+      state = AuthState.error(e.message);
+      return false;
+    } catch (e) {
+      state = AuthState.error("Failed to resend verification");
+      return false;
+    }
+  }
+
+  Future<bool> resetPasswordByOtp(String email, String code, String newPassword) async {
+    state = AuthState.loading();
+    try {
+      await _authRepository.resetPasswordByOtp(email, code, newPassword);
+      state = AuthState.unauthenticated();
+      return true;
+    } on ApiException catch (e) {
+      state = AuthState.error(e.message);
+      return false;
+    } catch (e) {
+      state = AuthState.error("Failed to reset password");
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     state = AuthState.loading();
     _socketService.disconnect();
@@ -202,7 +284,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (_) {
       // Ignore API errors, we still want to log out locally
     }
-    
+
+    // Only clear auth credentials (token, userId, email, name, profileImage).
+    // The DB cache is intentionally kept so the same user logging back in gets
+    // instant offline-first load without hitting the server again.
+    // If a DIFFERENT user logs in next, login() detects the mismatch via
+    // lastLoggedInUserId and wipes the DB at that point.
+    Logger.log('logout() — clearing auth credentials, DB cache preserved for same-user re-login', type: 'lifecycle');
     await _storage.clearAll();
     state = AuthState.unauthenticated();
   }

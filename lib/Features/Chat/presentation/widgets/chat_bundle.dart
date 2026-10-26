@@ -308,6 +308,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
           : const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           if (widget.repliedMessage != null) ...[
             Padding(
@@ -319,33 +320,10 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                       bottom: 4.0,
                     )
                   : EdgeInsets.zero,
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 6.0),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border(
-                    left: BorderSide(
-                      color: widget.activeTheme.accentColor ?? Colors.green,
-                      width: 3,
-                    ),
-                  ),
-                ),
-                child: Text(
-                  widget.repliedMessage!.text,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: widget.message.isMe
-                        ? Colors.white.withOpacity(0.9)
-                        : Colors.black.withOpacity(0.7),
-                    fontSize: 13,
-                  ),
-                ),
+              child: _ReplyPreviewBlock(
+                repliedMessage: widget.repliedMessage!,
+                accentColor: widget.activeTheme.accentColor ?? Colors.green,
+                isMe: widget.message.isMe,
               ),
             ),
           ],
@@ -786,6 +764,191 @@ class _SlidingGradientTransform extends GradientTransform {
       0.0,
       0.0,
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reply preview block shown inside every chat bubble that is a reply.
+// Shows a small image thumbnail for IMAGE/GIF/VIDEO messages, an icon label
+// for other media types, and plain text for text messages.
+// ---------------------------------------------------------------------------
+class _ReplyPreviewBlock extends StatelessWidget {
+  final MessageModel repliedMessage;
+  final Color accentColor;
+  final bool isMe;
+
+  const _ReplyPreviewBlock({
+    required this.repliedMessage,
+    required this.accentColor,
+    required this.isMe,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isMe
+        ? Colors.white.withOpacity(0.9)
+        : Colors.black.withOpacity(0.75);
+    final subColor = isMe
+        ? Colors.white.withOpacity(0.65)
+        : Colors.black.withOpacity(0.5);
+
+    final bool isDeleted = repliedMessage.isDeleted;
+    final MessageType type = repliedMessage.type;
+    final String? mediaUrl = repliedMessage.mediaUrl;
+
+    // Decide whether to show a thumbnail on the right side.
+    final bool showThumb =
+        !isDeleted && mediaUrl != null && mediaUrl.isNotEmpty &&
+        (type == MessageType.image ||
+         type == MessageType.gif ||
+         type == MessageType.video);
+
+    // Label text shown when there is no caption.
+    String labelText;
+    if (isDeleted) {
+      labelText = 'Deleted message';
+    } else if (repliedMessage.text.isNotEmpty) {
+      labelText = repliedMessage.text;
+    } else {
+      switch (type) {
+        case MessageType.image:
+          labelText = '📷 Photo';
+          break;
+        case MessageType.gif:
+          labelText = '🎞 GIF';
+          break;
+        case MessageType.video:
+          labelText = '🎥 Video';
+          break;
+        case MessageType.audio:
+          labelText = '🎵 Audio';
+          break;
+        case MessageType.voice:
+          labelText = '🎙 Voice message';
+          break;
+        case MessageType.file:
+          labelText = '📁 File';
+          break;
+        case MessageType.location:
+          labelText = '📍 Location';
+          break;
+        case MessageType.contact:
+          labelText = '👤 Contact';
+          break;
+        default:
+          labelText = '📎 Attachment';
+      }
+    }
+
+    return IntrinsicWidth(
+      child: Container(
+      margin: const EdgeInsets.only(bottom: 6.0),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(
+          left: BorderSide(color: accentColor, width: 3),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Text section
+          Flexible(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Media type badge when there is a thumbnail
+                  if (showThumb && type != MessageType.image) ...[
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          type == MessageType.video
+                              ? Icons.videocam_rounded
+                              : Icons.gif_box_rounded,
+                          size: 14,
+                          color: accentColor,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          type == MessageType.video ? 'Video' : 'GIF',
+                          style: TextStyle(
+                            color: accentColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                  ],
+                  Text(
+                    labelText,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isDeleted ? subColor : textColor,
+                      fontSize: 13,
+                      fontStyle: isDeleted ? FontStyle.italic : FontStyle.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Thumbnail for image / gif / video
+          if (showThumb)
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topRight: Radius.circular(8),
+                bottomRight: Radius.circular(8),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CachedNetworkImage(
+                    imageUrl: mediaUrl!,
+                    width: 52,
+                    height: 52,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(
+                      width: 52,
+                      height: 52,
+                      color: Colors.black12,
+                      child: const Icon(Icons.image, size: 20, color: Colors.white54),
+                    ),
+                    errorWidget: (_, __, ___) => Container(
+                      width: 52,
+                      height: 52,
+                      color: Colors.black12,
+                      child: const Icon(Icons.broken_image, size: 20, color: Colors.white54),
+                    ),
+                  ),
+                  // Play icon overlay for video
+                  if (type == MessageType.video)
+                    Container(
+                      width: 52,
+                      height: 52,
+                      color: Colors.black26,
+                      child: const Icon(
+                        Icons.play_circle_fill_rounded,
+                        size: 24,
+                        color: Colors.white,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    ),
+    ); // IntrinsicWidth
   }
 }
 

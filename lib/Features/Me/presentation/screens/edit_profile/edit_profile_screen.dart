@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:app/components/AppText/appText.dart';
 import '../../../../../core/utils/app_colour.dart';
+import '../../../../../core/utils/app_toast.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../providers/profile_provider.dart';
 
@@ -61,21 +62,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         setState(() {
           _avatarUrl = uploadedUrl;
         });
-        if (mounted) {
-          // Success message removed per request
-        }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to upload avatar')),
-          );
+          AppToast.show(context, 'Failed to upload avatar', type: ToastType.error);
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        AppToast.show(context, 'Error: $e', type: ToastType.error);
       }
     } finally {
       if (mounted) {
@@ -88,9 +82,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   Future<void> _saveProfile() async {
     if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Name cannot be empty')),
-      );
+      AppToast.show(context, 'Name cannot be empty', type: ToastType.warning);
       return;
     }
 
@@ -106,13 +98,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       );
 
       if (mounted) {
+        AppToast.show(context, 'Profile updated', type: ToastType.success);
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update profile: $e')),
-        );
+        AppToast.show(context, 'Failed to update profile: $e', type: ToastType.error);
       }
     } finally {
       if (mounted) {

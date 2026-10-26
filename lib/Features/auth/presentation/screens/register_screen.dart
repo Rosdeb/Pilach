@@ -1,7 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zoom_tap_animation/zoom_tap_animation.dart';
 
@@ -9,7 +8,6 @@ import '../../../../components/AppText/appText.dart';
 import '../../../../components/FloatingErrorBar/floatingbar.dart';
 import '../../../../components/SuccessBar/successbar.dart';
 
-import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
@@ -84,15 +82,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     children: [
                       const SizedBox(height: 40),
 
-                      // Logo & Title
-                      Center(
-                        child: SvgPicture.asset(
-                          Assets.logo,
-                          height: 70,
-                          width: 70,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
                       Center(
                         child: AppText(
                           "Create Account",

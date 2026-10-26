@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:app/core/utils/app_toast.dart';
 import '../../domain/models/donation.dart';
 import '../providers/donate_providers.dart';
 
@@ -337,9 +338,7 @@ class DonationDetailScreen extends StatelessWidget {
                               ElevatedButton(
                                 onPressed: () {
                                   Navigator.pop(ctx);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Thank you for your generous support!')),
-                                  );
+                                  AppToast.show(context, 'Thank you for your generous support! 🙏', type: ToastType.success);
                                 },
                                 style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
                                 child: const Text('Donate'),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,12 +21,41 @@ class VerifyEmailScreen extends ConsumerStatefulWidget {
 class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   final _pinController = TextEditingController();
   final _focusNode = FocusNode();
+  int _resendCooldown = 0;
+  Timer? _cooldownTimer;
 
   @override
   void dispose() {
     _pinController.dispose();
     _focusNode.dispose();
+    _cooldownTimer?.cancel();
     super.dispose();
+  }
+
+  void _handleResend() async {
+    if (_resendCooldown > 0) return;
+    final success = await ref.read(authProvider.notifier).resendEmailVerification(widget.email);
+    if (!mounted) return;
+    if (success) {
+      FloatingSuccessBar.show(context, message: "Verification code resent!");
+      setState(() => _resendCooldown = 60);
+      _cooldownTimer?.cancel();
+      _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        if (_resendCooldown <= 1) {
+          setState(() => _resendCooldown = 0);
+          timer.cancel();
+        } else {
+          setState(() => _resendCooldown--);
+        }
+      });
+    } else {
+      final errorMsg = ref.read(authProvider).errorMessage ?? "Failed to resend code";
+      FloatingErrorBar.show(context, message: errorMsg);
+    }
   }
 
   void _verifyOtp(String code) async {
@@ -152,7 +182,25 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: isLoading ? CupertinoActivityIndicator() :const Text("Verify"),
+                          child: isLoading ? const CupertinoActivityIndicator() : const Text("Verify"),
+                        ),
+                        const SizedBox(height: 20),
+                        Center(
+                          child: TextButton(
+                            onPressed: (_resendCooldown > 0 || isLoading) ? null : _handleResend,
+                            child: Text(
+                              _resendCooldown > 0
+                                  ? "Resend Code (${_resendCooldown}s)"
+                                  : "Resend Code",
+                              style: TextStyle(
+                                color: (_resendCooldown > 0 || isLoading)
+                                    ? theme.colorScheme.onSurface.withValues(alpha: 0.35)
+                                    : theme.colorScheme.primary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
                         ),
                     ],
                   ),

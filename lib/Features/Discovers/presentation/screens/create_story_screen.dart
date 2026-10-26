@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:app/core/services/upload_service.dart';
 import 'package:app/core/providers/api_provider.dart';
+import 'package:app/core/utils/app_toast.dart';
 import 'package:app/Features/Discovers/presentation/providers/story_provider.dart';
 
 class CreateStoryScreen extends ConsumerStatefulWidget {
@@ -31,7 +32,7 @@ class _CreateStoryScreenState extends ConsumerState<CreateStoryScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to pick media: $e')));
+        AppToast.show(context, 'Failed to pick media: $e', type: ToastType.error);
       }
     }
   }
@@ -77,12 +78,12 @@ class _CreateStoryScreenState extends ConsumerState<CreateStoryScreen> {
       await ref.read(myStoriesProvider.notifier).fetchMyStories();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Story created successfully!')));
+        AppToast.show(context, 'Story created!', type: ToastType.success);
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to create story: $e')));
+        AppToast.show(context, 'Failed to create story: $e', type: ToastType.error);
       }
     } finally {
       if (mounted) {

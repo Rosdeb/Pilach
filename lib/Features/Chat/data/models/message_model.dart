@@ -1,6 +1,7 @@
 // message_model.dart
 
 enum MessageStatus {
+  queued,   // Persisted locally and waiting for a connection
   sending,  // Message is being sent
   sent,     // Message sent to server
   delivered, // Message delivered to recipient
@@ -13,20 +14,35 @@ class ReplyMessageModel {
   final String text;
   final String? senderId;
   final bool isDeleted;
+  final String? type;       // e.g. 'IMAGE', 'VIDEO', 'AUDIO', 'FILE', 'TEXT'
+  final String? mediaUrl;   // thumbnail URL for image/video replies
 
   ReplyMessageModel({
     required this.id,
     required this.text,
     this.senderId,
     this.isDeleted = false,
+    this.type,
+    this.mediaUrl,
   });
 
   factory ReplyMessageModel.fromJson(Map<String, dynamic> json) {
+    // Resolve mediaUrl — server may send it directly or inside attachments[].
+    String? mediaUrl = json['mediaUrl']?.toString();
+    if (mediaUrl == null) {
+      final attachments = json['attachments'];
+      if (attachments is List && attachments.isNotEmpty && attachments.first is Map) {
+        mediaUrl = attachments.first['url']?.toString();
+      }
+    }
+
     return ReplyMessageModel(
-      id: json['id'] as String,
-      text: json['text'] as String? ?? '',
-      senderId: json['senderId'] as String?,
-      isDeleted: json['isDeleted'] as bool? ?? false,
+      id: json['id']?.toString() ?? '',
+      text: json['text']?.toString() ?? '',
+      senderId: json['senderId']?.toString(),
+      isDeleted: json['isDeleted'] == true || json['isDeleted'] == 1,
+      type: json['type']?.toString(),
+      mediaUrl: mediaUrl,
     );
   }
 
@@ -36,6 +52,8 @@ class ReplyMessageModel {
       'text': text,
       'senderId': senderId,
       'isDeleted': isDeleted,
+      if (type != null) 'type': type,
+      if (mediaUrl != null) 'mediaUrl': mediaUrl,
     };
   }
 
@@ -46,11 +64,13 @@ class ReplyMessageModel {
         other.id == id &&
         other.text == text &&
         other.senderId == senderId &&
-        other.isDeleted == isDeleted;
+        other.isDeleted == isDeleted &&
+        other.type == type &&
+        other.mediaUrl == mediaUrl;
   }
 
   @override
-  int get hashCode => Object.hash(id, text, senderId, isDeleted);
+  int get hashCode => Object.hash(id, text, senderId, isDeleted, type, mediaUrl);
 }
 
 class MessageModel {
@@ -170,24 +190,22 @@ class MessageModel {
 
   // Create from JSON
   factory MessageModel.fromJson(Map<String, dynamic> json) {
+    final parsedTimestamp = DateTime.tryParse(json['timestamp']?.toString() ?? '');
     return MessageModel(
-      id: json['id'] as String,
-      text: json['text'] as String? ?? '',
-      time: json['time'] as String? ?? '',
-      timestamp: DateTime.parse(json['timestamp'] as String).toLocal(),
+      id: json['id']?.toString() ?? '',
+      text: json['text']?.toString() ?? '',
+      time: json['time']?.toString() ?? '',
+      timestamp: (parsedTimestamp ?? DateTime.now()).toLocal(),
       isMe: json['isMe'] as bool? ?? false,
       status: MessageStatus.values.firstWhere(
             (e) => e.name == json['status'],
         orElse: () => MessageStatus.sent,
       ),
-      senderId: json['senderId'] as String?,
-      senderName: json['senderName'] as String?,
-      senderAvatar: json['senderAvatar'] as String?,
-      type: MessageType.values.firstWhere(
-            (e) => e.name == json['type'],
-        orElse: () => MessageType.text,
-      ),
-      mediaUrl: json['mediaUrl'] as String?,
+      senderId: json['senderId']?.toString(),
+      senderName: json['senderName']?.toString(),
+      senderAvatar: json['senderAvatar']?.toString(),
+      type: messageTypeFromWire(json['type']?.toString()),
+      mediaUrl: json['mediaUrl']?.toString(),
       isEdited: json['isEdited'] as bool? ?? false,
       isDeleted: json['isDeleted'] as bool? ?? false,
       isPinned: json['isPinned'] as bool? ?? false,
@@ -241,9 +259,38 @@ enum MessageType {
   text,
   image,
   video,
+  gif,
   audio,
+  voice,
   file,
+  poll,
+  system,
+  deleted,
+  edited,
+  reply,
   location,
   contact,
   sticker,
+  unknown,
+}
+
+MessageType messageTypeFromWire(String? value) {
+  switch (value?.toUpperCase()) {
+    case 'TEXT': return MessageType.text;
+    case 'IMAGE': return MessageType.image;
+    case 'VIDEO': return MessageType.video;
+    case 'GIF': return MessageType.gif;
+    case 'AUDIO': return MessageType.audio;
+    case 'VOICE': return MessageType.voice;
+    case 'FILE': return MessageType.file;
+    case 'POLL': return MessageType.poll;
+    case 'SYSTEM': return MessageType.system;
+    case 'DELETED': return MessageType.deleted;
+    case 'EDITED': return MessageType.edited;
+    case 'REPLY': return MessageType.reply;
+    case 'LOCATION': return MessageType.location;
+    case 'CONTACT': return MessageType.contact;
+    case 'STICKER': return MessageType.sticker;
+    default: return MessageType.unknown;
+  }
 }

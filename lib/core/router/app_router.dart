@@ -25,12 +25,15 @@ import 'package:app/Features/Me/presentation/screens/security_privacy/change_pas
 import 'package:app/Features/auth/presentation/screens/splash_screen.dart';
 import 'package:app/Features/auth/presentation/screens/login_screen.dart';
 import 'package:app/Features/auth/presentation/screens/register_screen.dart';
+import 'package:app/Features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:app/Features/auth/presentation/screens/verify_email_screen.dart';
 import 'package:app/Features/auth/presentation/screens/two_factor_verify_screen.dart';
 import 'package:app/Features/auth/presentation/screens/two_factor_email_verify_screen.dart';
 import 'package:app/Features/auth/presentation/screens/two_factor_sms_verify_screen.dart';
 import 'package:app/Features/Me/presentation/screens/security_privacy/two_factor_settings_screen.dart';
 import 'package:app/Features/auth/presentation/providers/auth_provider.dart';
+import 'package:app/Features/Me/presentation/providers/profile_provider.dart';
+import 'package:app/Features/Chat/presentation/providers/chat_provider.dart';
 import '../../Features/Chat/data/models/chat_model.dart';
 import '../../Features/bottom_nav_bar/presentation/screens/bottom_manu_wrappers.dart';
 import '../constants/app_constants.dart' hide AppPaths;
@@ -46,10 +49,19 @@ class RiverpodRouterRefreshListenable extends ChangeNotifier {
       if (previous?.status != next.status) {
         notifyListeners();
       }
-      
-      // PRELOAD SYSTEM: Once token is verified and user is authenticated, preload the stories API immediately
-      if (next.status == AuthStatus.authenticated && previous?.status != AuthStatus.authenticated) {
+
+      // When the user becomes authenticated (fresh login or app resume),
+      // invalidate the profile provider so it re-fetches for the current user.
+      // Without this, logging out and back in shows the previous session's
+      // profile because the StateNotifierProvider is never recreated.
+      if (next.status == AuthStatus.authenticated &&
+          previous?.status != AuthStatus.authenticated) {
         Future.microtask(() {
+          // Invalidate all providers that hold user-specific data so they
+          // re-fetch fresh for the newly authenticated user.
+          // This is essential for logout → login (same or different user).
+          ref.invalidate(profileNotifierProvider);
+          ref.invalidate(chatProvider);
           ref.read(myStoriesProvider.notifier).fetchMyStories();
         });
       }
@@ -181,6 +193,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path == AppPaths.login ||
               path == AppPaths.register ||
               path == AppPaths.verify_email ||
+              path == AppPaths.forgot_password ||
               path == AppPaths.two_factor_verify ||
               path == AppPaths.two_factor_email_verify ||
               path == AppPaths.two_factor_sms_verify;
@@ -192,11 +205,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (status == AuthStatus.authenticated) {
-        // Only redirect login/register/verify_email to bottom menu.
+        // Only redirect login/register/verify_email/forgot_password to bottom menu.
         // We allow authenticated users to visit two_factor_*_verify screens for enrollment.
         final isStrictAuth = path == AppPaths.login ||
                              path == AppPaths.register ||
-                             path == AppPaths.verify_email;
+                             path == AppPaths.verify_email ||
+                             path == AppPaths.forgot_password;
                              
         if (isStrictAuth || isSplash) return AppPaths.bottom_manu;
       }
@@ -220,6 +234,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppPaths.register,
         name: AppRoutes.register,
         pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const RegisterScreen()),
+      ),
+      GoRoute(
+        path: AppPaths.forgot_password,
+        name: AppRoutes.forgot_password,
+        pageBuilder: (c, s) => _slidePage(key: s.pageKey, child: const ForgotPasswordScreen()),
       ),
       GoRoute(
         path: AppPaths.verify_email,

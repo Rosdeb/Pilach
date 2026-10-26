@@ -104,6 +104,63 @@ class AuthRepository {
     }
   }
 
+  Future<void> forgotPassword(String email) async {
+    final response = await _apiService.post(
+      ApiConstants.forgotPassword,
+      data: {
+        "email": email,
+      },
+    );
+
+    if (response.data['success'] != true) {
+      final msg = response.data['message'];
+      final errorMsg = msg is List ? msg.join(', ') : (msg ?? 'Failed to send reset link');
+      throw ApiException(errorMsg);
+    }
+  }
+
+  Future<void> resetPassword(String token, String newPassword) async {
+    final response = await _apiService.post(
+      ApiConstants.resetPassword,
+      data: {
+        "token": token,
+        "password": newPassword,
+      },
+    );
+
+    if (response.data['success'] != true) {
+      final msg = response.data['message'];
+      final errorMsg = msg is List ? msg.join(', ') : (msg ?? 'Password reset failed');
+      throw ApiException(errorMsg);
+    }
+  }
+
+  Future<void> resendEmailVerification(String email) async {
+    final response = await _apiService.post(
+      ApiConstants.resendEmailVerification,
+      data: {"email": email},
+    );
+    if (response.data['success'] != true) {
+      final msg = response.data['message'];
+      throw ApiException(msg is List ? msg.join(', ') : (msg ?? 'Failed to resend verification'));
+    }
+  }
+
+  Future<void> resetPasswordByOtp(String email, String code, String newPassword) async {
+    final response = await _apiService.post(
+      ApiConstants.resetPasswordByOtp,
+      data: {
+        "email": email,
+        "code": code,
+        "password": newPassword,
+      },
+    );
+    if (response.data['success'] != true) {
+      final msg = response.data['message'];
+      throw ApiException(msg is List ? msg.join(', ') : (msg ?? 'Failed to reset password'));
+    }
+  }
+
   Future<void> logout() async {
     try {
       await _apiService.post(ApiConstants.logout);

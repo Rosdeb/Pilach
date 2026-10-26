@@ -6,10 +6,17 @@ import 'package:app/app/app_initializer.dart';
 import 'package:app/core/theme/app_theme.dart';
 import 'package:app/core/theme/theme_provider.dart';
 import 'package:app/core/utils/app_colour.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:app/core/providers/api_provider.dart';
+import 'package:app/core/services/notification_service.dart';
+import 'package:app/core/services/outbox_processor.dart';
+import 'package:app/Features/Chat/presentation/providers/direct_chat_provider.dart';
+import 'package:app/core/constants/app_paths.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppInitializer.init();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   final prefs = await SharedPreferences.getInstance();
 
   runApp(ProviderScope(
@@ -27,6 +34,18 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     final themeState = ref.watch(themeProvider);
+    ref.watch(socketServiceProvider);
+    ref.watch(outboxProcessorProvider);
+    final notificationService = ref.watch(notificationServiceProvider);
+    notificationService.configureNavigation(
+      activeChatId: () => ref.read(currentChatIdProvider),
+      openChat: (chatId) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(currentChatIdProvider.notifier).state = chatId;
+          router.push(AppPaths.chat);
+        });
+      },
+    );
 
     // Resolve dark mode status based on the selected ThemeMode and system platform brightness
     final systemBrightness = MediaQuery.of(context).platformBrightness;

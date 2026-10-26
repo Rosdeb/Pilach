@@ -34,21 +34,33 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
   StreamSubscription? _onlineSub;
   StreamSubscription? _offlineSub;
   StreamSubscription? _newMessageSub;
+  StreamSubscription<void>? _reconnectSub;
+  final List<StreamSubscription<Map<String, dynamic>>> _metadataSubscriptions = [];
+  Timer? _metadataRefreshDebounce;
   String _currentUserId = '';
 
   ChatNotifier(this._ref, this._chatRepository, this._socketService) : super([]) {
     _init();
     _listenToPresence();
     _listenToNewMessages();
+    _listenToChatChanges();
+    _reconnectSub = _socketService.onReconnected.listen((_) {
+      unawaited(_syncAfterReconnect());
+    });
   }
 
   void _listenToNewMessages() {
     _newMessageSub = _socketService.onNewMessage.listen((data) async {
       try {
-        final conversationId = (data['conversationId'] ?? data['chatId'])?.toString();
-        if (conversationId == null) return;
-
-        final messageData = data['message'] ?? data;
+        final rawMessageData = data['message'] ?? data;
+        if (rawMessageData is! Map) return;
+        final messageData = Map<String, dynamic>.from(rawMessageData);
+        final conversationId = (data['conversationId'] ??
+                data['chatId'] ??
+                messageData['conversationId'] ??
+                messageData['chatId'])
+            ?.toString();
+        if (conversationId == null || conversationId.isEmpty) return;
 
         // If the broadcast is minimal, try to fill it from SQLite or Outbox
         final String? msgId = (messageData['id'] ?? messageData['messageId'])?.toString();
@@ -61,7 +73,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
             messageData['createdAt'] ??= localMsg['created_at'];
           }
         }
-        final clientMsgId = messageData['clientMsgId'] as String?;
+        final clientMsgId = messageData['clientMsgId']?.toString();
         if (messageData['text'] == null && (clientMsgId != null || messageData['senderId'] == null || messageData['senderId'] == _currentUserId)) {
            final outboxDao = OutboxDao();
            final pending = await outboxDao.getPendingMessages(conversationId);
@@ -82,9 +94,13 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
            }
         }
 
-        // Save incoming message to local SQLite DB immediately in background
+        final existingMessage = msgId == null
+            ? null
+            : await _messageDao.getMessageById(msgId);
+
+        // Persist before changing Riverpod/UI state.
         try {
-          if (messageData is Map<String, dynamic> && messageData['text'] != null) {
+          if (messageData['text'] != null) {
              final dto = MessageDto.fromJson(messageData);
             await _messageDao.insertOrUpdateMessages([dto.toSqliteMap()]);
           }
@@ -96,11 +112,13 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         String? rawText = messageData['text']?.toString();
         final type = messageData['type']?.toString() ?? 'TEXT';
         final createdAtStr = messageData['createdAt']?.toString() ?? DateTime.now().toIso8601String();
-        final attachments = messageData['attachments'] as List<dynamic>?;
+        final rawAttachments = messageData['attachments'];
+        final attachments = rawAttachments is List ? rawAttachments : null;
         
         String? attachmentType;
         if (attachments != null && attachments.isNotEmpty) {
-          attachmentType = attachments.first['type']?.toString();
+          final first = attachments.first;
+          if (first is Map) attachmentType = first['type']?.toString();
         }
 
         final actualType = attachmentType ?? type;
@@ -137,7 +155,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         final updatedList = state.map((chat) {
           if (chat.id == conversationId) {
             chatFound = true;
-            final newUnreadCount = (isIncoming && !isCurrentlyOpen)
+            final newUnreadCount = (isIncoming && !isCurrentlyOpen && existingMessage == null)
                 ? chat.unreadCount + 1
                 : (isCurrentlyOpen ? 0 : chat.unreadCount);
 
@@ -174,15 +192,55 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     });
   }
 
+  void _listenToChatChanges() {
+    void refresh(Map<String, dynamic> _) {
+      _metadataRefreshDebounce?.cancel();
+      _metadataRefreshDebounce = Timer(const Duration(milliseconds: 250), () {
+        unawaited(fetchFromServer());
+      });
+    }
+
+    _metadataSubscriptions.addAll([
+      _socketService.onChatUpdated.listen(refresh),
+      _socketService.onChatAdded.listen(refresh),
+      _socketService.onMemberUpdated.listen(refresh),
+      _socketService.onMemberRemoved.listen(refresh),
+    ]);
+  }
+
+  Future<void> _syncAfterReconnect() async {
+    await fetchFromServer();
+    for (final chat in List<ChatModel>.from(state)) {
+      try {
+        // The server has no afterSeq filter — fetch newest 50 messages and
+        // let insertOrUpdate deduplicate against what is already in local DB.
+        final response = await _chatRepository.getRecentMessages(chat.id, limit: 50);
+        final rawMessages = response['data'];
+        if (rawMessages is! List || rawMessages.isEmpty) continue;
+        final rows = <Map<String, dynamic>>[];
+        for (final raw in rawMessages) {
+          if (raw is! Map) continue;
+          final dto = MessageDto.fromJson(Map<String, dynamic>.from(raw));
+          if (dto.id.isNotEmpty && dto.conversationId.isNotEmpty) {
+            rows.add(dto.toSqliteMap());
+          }
+        }
+        if (rows.isNotEmpty) await _messageDao.insertOrUpdateMessages(rows);
+      } catch (error) {
+        Logger.log('Reconnect sync failed for ${chat.id}: $error');
+      }
+    }
+  }
+
   void _listenToPresence() {
     _onlineSub = _socketService.onPresenceOnline.listen((data) {
-      final userId = data['userId'] as String?;
+      final userId = data['userId']?.toString();
       Logger.log('PRESENCE ONLINE received: userId=$userId');
       if (userId != null) _updatePresence(userId, true);
     });
     
     _offlineSub = _socketService.onPresenceOffline.listen((data) {
-      final userId = data['userId'] as String?;
+      final userId = data['userId']?.toString();
       final lastSeen = data['lastSeen'];
       String? lastActiveIso;
       
@@ -262,6 +320,11 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     _onlineSub?.cancel();
     _offlineSub?.cancel();
     _newMessageSub?.cancel();
+    _reconnectSub?.cancel();
+    for (final subscription in _metadataSubscriptions) {
+      subscription.cancel();
+    }
+    _metadataRefreshDebounce?.cancel();
     super.dispose();
   }
 

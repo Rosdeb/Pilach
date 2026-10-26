@@ -146,39 +146,39 @@ class DiscoverScreen extends ConsumerWidget {
 
                       const SizedBox(height: 40),
 
-                      _buildSectionHeader(
-                        context,
-                        "Quick Actions",
-                        "",
-                      ),
+                      // _buildSectionHeader(
+                      //   context,
+                      //   "Quick Actions",
+                      //   "",
+                      // ),
 
-                      const SizedBox(height:16),
+                      // const SizedBox(height:16),
 
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal:16),
-                        child: GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 4,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 10,
-                            childAspectRatio: 0.95,
-                          ),
-                          itemCount: actions.length,
-                          itemBuilder: (context, index) {
-                            return QuickActionCard(
-                              icon: actions[index].icon,
-                              title: actions[index].title,
-                              onTap: () {
-                                context.push(actions[index].route);
-                              },
-                            );
+                      // Padding(
+                      //   padding: const EdgeInsets.symmetric(horizontal:16),
+                      //   child: GridView.builder(
+                      //     shrinkWrap: true,
+                      //     physics: const NeverScrollableScrollPhysics(),
+                      //     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      //       crossAxisCount: 4,
+                      //       crossAxisSpacing: 8,
+                      //       mainAxisSpacing: 10,
+                      //       childAspectRatio: 0.95,
+                      //     ),
+                      //     itemCount: actions.length,
+                      //     itemBuilder: (context, index) {
+                      //       return QuickActionCard(
+                      //         icon: actions[index].icon,
+                      //         title: actions[index].title,
+                      //         onTap: () {
+                      //           context.push(actions[index].route);
+                      //         },
+                      //       );
 
-                          },
+                      //     },
 
-                        )
-                      ),
+                      //   )
+                      // ),
                       const SizedBox(height:50),
                     ],
                   ),

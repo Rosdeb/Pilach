@@ -20,7 +20,7 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -35,6 +35,20 @@ class AppDatabase {
         }
         if (oldVersion < 5) {
           await db.execute('ALTER TABLE messages ADD COLUMN reply_to_json TEXT');
+        }
+        if (oldVersion < 6) {
+          await db.execute('ALTER TABLE messages ADD COLUMN is_pinned INTEGER DEFAULT 0');
+          await db.execute('ALTER TABLE messages ADD COLUMN pinned_at TEXT');
+          await db.execute('''
+            DELETE FROM outbox
+            WHERE id NOT IN (
+              SELECT MIN(id) FROM outbox GROUP BY client_msg_id
+            )
+          ''');
+          await db.execute(
+            'CREATE UNIQUE INDEX IF NOT EXISTS idx_outbox_client_msg_id '
+            'ON outbox(client_msg_id)',
+          );
         }
       },
     );
@@ -78,7 +92,9 @@ class AppDatabase {
         edited_at TEXT,
         deleted INTEGER DEFAULT 0,
         reply_to_id TEXT,
-        reply_to_json TEXT
+        reply_to_json TEXT,
+        is_pinned INTEGER DEFAULT 0,
+        pinned_at TEXT
       )
     ''');
     
@@ -87,7 +103,7 @@ class AppDatabase {
     await db.execute('''
       CREATE TABLE outbox (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        client_msg_id TEXT NOT NULL,
+        client_msg_id TEXT NOT NULL UNIQUE,
         conversation_id TEXT NOT NULL,
         action TEXT NOT NULL,
         payload_json TEXT NOT NULL,
@@ -97,6 +113,9 @@ class AppDatabase {
         created_at TEXT NOT NULL
       )
     ''');
+    await db.execute(
+      'CREATE UNIQUE INDEX idx_outbox_client_msg_id ON outbox(client_msg_id)',
+    );
 
     await db.execute('''
       CREATE TABLE media_cache (
@@ -121,5 +140,19 @@ class AppDatabase {
   Future close() async {
     final db = await instance.database;
     db.close();
+  }
+
+  /// Called on logout. Clears every user-specific table so the next user
+  /// starts with a clean slate. Does NOT drop the schema — tables are
+  /// preserved so the next login can write immediately without re-migration.
+  Future<void> clearAllUserData() async {
+    final db = await instance.database;
+    await db.transaction((txn) async {
+      await txn.delete('messages');
+      await txn.delete('chats');
+      await txn.delete('outbox');
+      await txn.delete('media_cache');
+      await txn.delete('sync_state');
+    });
   }
 }

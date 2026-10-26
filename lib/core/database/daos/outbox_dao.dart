@@ -17,7 +17,7 @@ class OutboxDao {
     final database = await db;
     return await database.query(
       'outbox',
-      where: 'next_retry_at IS NULL OR next_retry_at <= ?',
+      where: 'attempt_count <= 5 AND (next_retry_at IS NULL OR next_retry_at <= ?)',
       whereArgs: [DateTime.now().toIso8601String()],
       orderBy: 'created_at ASC', // FIFO
     );

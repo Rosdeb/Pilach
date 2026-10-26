@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app/components/AppText/appText.dart';
 import 'package:app/core/constants/app_constants.dart';
 import 'package:app/core/utils/app_colour.dart';
+import 'package:app/core/utils/app_toast.dart';
 import 'package:app/components/PasswordTextField/password_text_field.dart';
 
 class ChangePasswordScreen extends ConsumerStatefulWidget {
@@ -61,12 +62,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
       // --------------------------------------------------------
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Password changed successfully'),
-          backgroundColor: AppColors.successGreen,
-        ),
-      );
+      AppToast.show(context, 'Password changed successfully', type: ToastType.success);
       Navigator.pop(context);
     }
   }

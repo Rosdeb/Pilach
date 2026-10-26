@@ -304,7 +304,7 @@ class _MessageList extends ConsumerWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        image: wallpaper != null
+        image: (wallpaper != null && wallpaper.isNotEmpty)
             ? DecorationImage(
                 image: CachedNetworkImageProvider(wallpaper),
                 fit: BoxFit.cover,
@@ -412,6 +412,8 @@ class _BubbleById extends ConsumerWidget {
         time: '',
         timestamp: DateTime.now(),
         isMe: false,
+        type: messageTypeFromWire(msg.replyToMessage!.type),
+        mediaUrl: msg.replyToMessage!.mediaUrl,
       );
     } else if (msg.replyToMessageId != null) {
       repliedMsg = ref.watch(directChatProvider.select((state) => state.messagesById[msg.replyToMessageId]));
@@ -631,36 +633,104 @@ class _ReplyPreviewBar extends ConsumerWidget {
     if (replyTo == null) return const SizedBox.shrink();
     final activeTheme = ref.watch(chatThemeProvider);
     final theme = Theme.of(context);
+    final accentColor = activeTheme.accentColor ?? Colors.green;
+
+    final bool isImageType = replyTo.type == MessageType.image ||
+        replyTo.type == MessageType.gif ||
+        replyTo.type == MessageType.video;
+    final bool showThumb =
+        isImageType && replyTo.mediaUrl != null && replyTo.mediaUrl!.isNotEmpty;
+
+    String previewText;
+    if (replyTo.text.isNotEmpty) {
+      previewText = replyTo.text;
+    } else {
+      switch (replyTo.type) {
+        case MessageType.image:
+          previewText = '📷 Photo';
+          break;
+        case MessageType.gif:
+          previewText = '🎞 GIF';
+          break;
+        case MessageType.video:
+          previewText = '🎥 Video';
+          break;
+        case MessageType.audio:
+          previewText = '🎵 Audio';
+          break;
+        case MessageType.voice:
+          previewText = '🎙 Voice message';
+          break;
+        case MessageType.file:
+          previewText = '📁 File';
+          break;
+        default:
+          previewText = '📎 Attachment';
+      }
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: theme.scaffoldBackgroundColor,
-        border: Border(top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.2))),
+        border: Border(
+          top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.2)),
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.reply, color: activeTheme.accentColor ?? Colors.green, size: 20),
-          const SizedBox(width: 12),
+          // Accent bar
+          Container(
+            width: 3,
+            height: 40,
+            decoration: BoxDecoration(
+              color: accentColor,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Thumbnail (image replies only)
+          if (showThumb) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: CachedNetworkImage(
+                imageUrl: replyTo.mediaUrl!,
+                width: 40,
+                height: 40,
+                fit: BoxFit.cover,
+                placeholder: (_, __) => Container(
+                  width: 40,
+                  height: 40,
+                  color: theme.dividerColor,
+                  child: const Icon(Icons.image, size: 18, color: Colors.white54),
+                ),
+                errorWidget: (_, __, ___) => Container(
+                  width: 40,
+                  height: 40,
+                  color: theme.dividerColor,
+                  child: const Icon(Icons.broken_image, size: 18, color: Colors.white54),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+          // Text column
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   replyTo.isMe ? 'Replying to yourself' : 'Replying to message',
                   style: TextStyle(
-                    color: activeTheme.accentColor ?? Colors.green,
+                    color: accentColor,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  replyTo.text.isNotEmpty 
-                      ? replyTo.text 
-                      : (replyTo.type == MessageType.image ? '📷 Photo' 
-                          : (replyTo.type == MessageType.video ? '🎥 Video' 
-                          : (replyTo.type == MessageType.audio ? '🎵 Audio' 
-                          : '📁 Attachment'))),
+                  previewText,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -671,8 +741,11 @@ class _ReplyPreviewBar extends ConsumerWidget {
               ],
             ),
           ),
+          // Cancel button
           IconButton(
             icon: const Icon(Icons.close, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
             onPressed: () => ref.read(replyingToProvider.notifier).state = null,
           ),
         ],
