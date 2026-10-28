@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -139,7 +140,7 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
 }
 
 
-class _AppBarStatusText extends ConsumerWidget {
+class _AppBarStatusText extends ConsumerStatefulWidget {
   const _AppBarStatusText({
     required this.chatId,
     required this.chatIsOnline,
@@ -152,40 +153,92 @@ class _AppBarStatusText extends ConsumerWidget {
   final String? lastActive;
   final Color headerTextColor;
 
-  String _formatLastActive(String? isoString) {
-    if (isoString == null || isoString.isEmpty) return 'Offline';
-    
-    DateTime? dt = DateTime.tryParse(isoString);
-    if (dt == null) {
-      // Fallback if the string is just a raw epoch timestamp
-      final parsedInt = int.tryParse(isoString);
-      if (parsedInt != null) {
-        dt = DateTime.fromMillisecondsSinceEpoch(parsedInt);
-      }
-    }
-    
-    if (dt == null) return 'Offline';
-    
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1) return 'Last active: Just now';
-    if (diff.inMinutes < 60) return 'Last active: ${diff.inMinutes} mins ago';
-    if (diff.inHours < 24) return 'Last active: ${diff.inHours} hours ago';
-    if (diff.inDays < 7) return 'Last active: ${diff.inDays} days ago';
-    if (diff.inDays < 30) return 'Last active: ${diff.inDays ~/ 7} weeks ago';
-    return 'Last active: ${diff.inDays ~/ 30} months ago';
+  @override
+  ConsumerState<_AppBarStatusText> createState() => _AppBarStatusTextState();
+}
+
+class _AppBarStatusTextState extends ConsumerState<_AppBarStatusText> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    // Smoothly refresh relative time every 30 seconds
+    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isTyping = ref.watch(typingStatusProvider(chatId));
-    final statusText = isTyping 
-        ? 'Typing...' 
-        : (chatIsOnline ? 'Online' : _formatLastActive(lastActive));
-        
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  String _formatLastActive(String? isoString) {
+    if (isoString == null || isoString.isEmpty) return 'Offline';
+
+    DateTime? dt;
+    final trimmed = isoString.trim();
+
+    // Check if it's a numeric epoch string (10 digits seconds or 13 digits ms)
+    final parsedInt = int.tryParse(trimmed);
+    if (parsedInt != null) {
+      dt = (parsedInt > 100000000000
+              ? DateTime.fromMillisecondsSinceEpoch(parsedInt)
+              : DateTime.fromMillisecondsSinceEpoch(parsedInt * 1000))
+          .toLocal();
+    } else {
+      // If ISO format has no timezone indicator, treat as UTC
+      final hasTimezone = trimmed.endsWith('Z') ||
+          trimmed.contains('+') ||
+          (trimmed.length > 10 && trimmed.substring(10).contains('-'));
+      final toParse = hasTimezone ? trimmed : '${trimmed}Z';
+      dt = DateTime.tryParse(toParse)?.toLocal();
+    }
+
+    if (dt == null) return 'Offline';
+
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+
+    // Guard against server clock skew where diff is negative
+    if (diff.isNegative || diff.inSeconds < 45) {
+      return 'Last active: Just now';
+    }
+    if (diff.inMinutes < 60) {
+      final m = diff.inMinutes;
+      return 'Last active: $m ${m == 1 ? "min" : "mins"} ago';
+    }
+    if (diff.inHours < 24) {
+      final h = diff.inHours;
+      return 'Last active: $h ${h == 1 ? "hour" : "hours"} ago';
+    }
+    if (diff.inDays < 7) {
+      final d = diff.inDays;
+      return 'Last active: $d ${d == 1 ? "day" : "days"} ago';
+    }
+    if (diff.inDays < 30) {
+      final w = diff.inDays ~/ 7;
+      return 'Last active: $w ${w == 1 ? "week" : "weeks"} ago';
+    }
+    final months = diff.inDays ~/ 30;
+    return 'Last active: $months ${months == 1 ? "month" : "months"} ago';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isTyping = ref.watch(typingStatusProvider(widget.chatId));
+    final statusText = isTyping
+        ? 'Typing...'
+        : (widget.chatIsOnline
+            ? 'Online'
+            : _formatLastActive(widget.lastActive));
+
     return Text(
       statusText,
       style: TextStyle(
-        color: isTyping || chatIsOnline ? _kGreen : Colors.grey.shade400,
+        color: isTyping || widget.chatIsOnline ? _kGreen : Colors.grey.shade400,
         fontSize: 12,
         fontWeight: FontWeight.w500,
       ),

@@ -223,6 +223,9 @@ class _ChatTileContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final hasUnread = chat.unreadCount > 0;
+    final isTyping = ref.watch(typingStatusProvider(chat.id));
+    final typingUserName =
+        isTyping ? ref.watch(typingUserNameProvider(chat.id)) : null;
 
     return InkWell(
       // onTap handled by parent GestureDetector — InkWell here is purely for
@@ -292,30 +295,57 @@ class _ChatTileContent extends ConsumerWidget {
                         // Preview row
                         Row(
                           children: [
-                            _LeadingPreviewIcon(
-                              hasUnread: hasUnread,
-                              hasDraft: chat.draft != null,
-                              isMuted: chat.isMuted,
-                              isRead: chat.isRead,
-                            ),
-                            Expanded(
-                              child: Text(
-                                chat.draft ?? chat.message,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  color: chat.draft != null
-                                      ? theme.colorScheme.onSurface
-                                          .withValues(alpha: 0.85)
-                                      : theme.colorScheme.onSurface
-                                          .withValues(alpha: 0.55),
-                                  fontStyle: chat.draft != null
-                                      ? FontStyle.italic
-                                      : FontStyle.normal,
+                            if (isTyping) ...[
+                              Expanded(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        typingUserName != null &&
+                                                typingUserName.isNotEmpty
+                                            ? '$typingUserName is typing'
+                                            : 'typing',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: _kWaGreen,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const _ChatTileTypingDots(color: _kWaGreen),
+                                  ],
                                 ),
                               ),
-                            ),
+                            ] else ...[
+                              _LeadingPreviewIcon(
+                                hasUnread: hasUnread,
+                                hasDraft: chat.draft != null,
+                                isMuted: chat.isMuted,
+                                isRead: chat.isRead,
+                              ),
+                              Expanded(
+                                child: Text(
+                                  chat.draft ?? chat.message,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    color: chat.draft != null
+                                        ? theme.colorScheme.onSurface
+                                            .withValues(alpha: 0.85)
+                                        : theme.colorScheme.onSurface
+                                            .withValues(alpha: 0.55),
+                                    fontStyle: chat.draft != null
+                                        ? FontStyle.italic
+                                        : FontStyle.normal,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ],
@@ -407,5 +437,76 @@ class _LeadingPreviewIcon extends StatelessWidget {
     }
 
     return const SizedBox.shrink();
+  }
+}
+
+class _ChatTileTypingDots extends StatefulWidget {
+  const _ChatTileTypingDots({required this.color});
+  final Color color;
+
+  @override
+  State<_ChatTileTypingDots> createState() => _ChatTileTypingDotsState();
+}
+
+class _ChatTileTypingDotsState extends State<_ChatTileTypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 18,
+      height: 12,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(3, (i) {
+              final t = (_controller.value - (i * 0.18)) % 1.0;
+              final bounce = t < 0.5
+                  ? Curves.easeOut.transform(t * 2)
+                  : Curves.easeIn.transform((1 - t) * 2);
+              final scale = 0.65 + (bounce * 0.45);
+              final opacity = 0.35 + (bounce * 0.65);
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1.0),
+                child: Opacity(
+                  opacity: opacity.clamp(0.0, 1.0),
+                  child: Transform.scale(
+                    scale: scale,
+                    child: Container(
+                      width: 3.5,
+                      height: 3.5,
+                      decoration: BoxDecoration(
+                        color: widget.color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          );
+        },
+      ),
+    );
   }
 }

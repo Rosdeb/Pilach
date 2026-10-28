@@ -60,6 +60,7 @@ class ChatState {
 final currentChatIdProvider = StateProvider<String?>((ref) => null);
 
 final typingStatusProvider = StateProvider.family<bool, String>((ref, chatId) => false);
+final typingUserNameProvider = StateProvider.family<String?, String>((ref, chatId) => null);
 
 final directChatProvider = StateNotifierProvider<DirectChatNotifier, ChatState>((ref) {
   final chatId = ref.watch(currentChatIdProvider);

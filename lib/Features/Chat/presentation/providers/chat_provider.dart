@@ -39,6 +39,8 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
   StreamSubscription? _newMessageSub;
   StreamSubscription<void>? _reconnectSub;
   StreamSubscription? _reactionSub;
+  StreamSubscription? _typingSub;
+  final Map<String, Timer> _typingTimers = {};
   final List<StreamSubscription<Map<String, dynamic>>> _metadataSubscriptions =
       [];
   Timer? _metadataRefreshDebounce;
@@ -51,6 +53,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     _listenToNewMessages();
     _listenToChatChanges();
     _listenToReactions();
+    _listenToTyping();
     _reconnectSub = _socketService.onReconnected.listen((_) {
       unawaited(_syncAfterReconnect());
     });
@@ -69,6 +72,11 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
                     messageData['chatId'])
                 ?.toString();
         if (conversationId == null || conversationId.isEmpty) return;
+
+        // Reset typing indicator when a new message arrives from that chat
+        _typingTimers[conversationId]?.cancel();
+        _ref.read(typingStatusProvider(conversationId).notifier).state = false;
+        _ref.read(typingUserNameProvider(conversationId).notifier).state = null;
 
         // If the broadcast is minimal, try to fill it from SQLite or Outbox
         final String? msgId = (messageData['id'] ?? messageData['messageId'])
@@ -240,6 +248,64 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
           'Error updating chat list on new message: $e\n$st',
           type: "error",
         );
+      }
+    });
+  }
+
+  void _listenToTyping() {
+    _typingSub = _socketService.onUserTyping.listen((data) {
+      final eventChatId =
+          (data['conversationId'] ?? data['chatId'])?.toString();
+      final senderId = (data['userId'] ??
+              data['senderId'] ??
+              (data['user'] is Map ? data['user']['id'] : null))
+          ?.toString();
+
+      if (_currentUserId.isEmpty) {
+        final authId = _ref.read(authProvider).id;
+        if (authId != null && authId.isNotEmpty && authId != '***') {
+          _currentUserId = authId;
+        }
+      }
+
+      // Ignore typing indicators emitted by the current user
+      if (senderId != null &&
+          _currentUserId.isNotEmpty &&
+          senderId == _currentUserId) {
+        return;
+      }
+
+      String? targetChatId = eventChatId;
+      if (targetChatId == null || targetChatId.isEmpty) {
+        if (senderId != null) {
+          final matched = state.cast<ChatModel?>().firstWhere(
+                (c) => c != null && c.userId == senderId,
+                orElse: () => null,
+              );
+          if (matched != null) {
+            targetChatId = matched.id;
+          }
+        }
+      }
+
+      if (targetChatId != null && targetChatId.isNotEmpty) {
+        final userName = (data['userName'] ??
+                data['name'] ??
+                data['username'] ??
+                (data['user'] is Map
+                    ? (data['user']['name'] ?? data['user']['username'])
+                    : null))
+            ?.toString();
+
+        final chatId = targetChatId;
+        _ref.read(typingStatusProvider(chatId).notifier).state = true;
+        _ref.read(typingUserNameProvider(chatId).notifier).state = userName;
+
+        _typingTimers[chatId]?.cancel();
+        _typingTimers[chatId] = Timer(const Duration(seconds: 4), () {
+          _ref.read(typingStatusProvider(chatId).notifier).state = false;
+          _ref.read(typingUserNameProvider(chatId).notifier).state = null;
+        });
       }
     });
   }
@@ -575,6 +641,11 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     _newMessageSub?.cancel();
     _reconnectSub?.cancel();
     _reactionSub?.cancel();
+    _typingSub?.cancel();
+    for (final timer in _typingTimers.values) {
+      timer.cancel();
+    }
+    _typingTimers.clear();
     for (final subscription in _metadataSubscriptions) {
       subscription.cancel();
     }
