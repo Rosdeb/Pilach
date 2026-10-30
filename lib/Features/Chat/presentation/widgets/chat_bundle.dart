@@ -23,6 +23,8 @@ class ChatBubble extends StatefulWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onRetry;
   final VoidCallback? onCancel;
+  final VoidCallback? onReplyTap;
+  final bool isHighlighted;
 
   const ChatBubble({
     super.key,
@@ -37,6 +39,8 @@ class ChatBubble extends StatefulWidget {
     this.onEdit,
     this.onRetry,
     this.onCancel,
+    this.onReplyTap,
+    this.isHighlighted = false,
   });
 
   @override
@@ -46,8 +50,10 @@ class ChatBubble extends StatefulWidget {
 class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
   late AnimationController controller;
   late AnimationController _swipeController;
+  late AnimationController _highlightController;
 
   late Animation<double> fade;
+  late Animation<double> _highlightAnim;
 
   late Animation<Offset> slide;
 
@@ -73,6 +79,21 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 180),
     );
 
+    _highlightController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    );
+
+    _highlightAnim = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 1.0), weight: 20),
+      TweenSequenceItem(tween: ConstantTween<double>(1.0), weight: 50),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(CurvedAnimation(parent: _highlightController, curve: Curves.easeInOut));
+
+    if (widget.isHighlighted) {
+      _highlightController.forward();
+    }
+
     fade = CurvedAnimation(parent: controller, curve: Curves.easeOut);
 
     slide = Tween(
@@ -96,6 +117,9 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
     if (oldWidget.message.text != widget.message.text) {
       _prepareLinkPreview();
     }
+    if (widget.isHighlighted && !oldWidget.isHighlighted) {
+      _highlightController.forward(from: 0.0);
+    }
   }
 
   void _prepareLinkPreview() {
@@ -110,6 +134,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
     _removeOverlay();
     controller.dispose();
     _swipeController.dispose();
+    _highlightController.dispose();
     super.dispose();
   }
 
@@ -421,51 +446,84 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
     bool hasImage, {
     bool isOverlay = false,
   }) {
-    return Container(
-      key: isOverlay ? null : _bubbleKey,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: widget.message.isMe
+    return AnimatedBuilder(
+      animation: _highlightController,
+      builder: (context, child) {
+        final highlightVal = _highlightAnim.value;
+        final baseColor = widget.message.isMe
             ? widget.activeTheme.sentMessageColor
-            : widget.activeTheme.receivedMessageColor,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(16),
-          topRight: const Radius.circular(16),
-          bottomLeft: Radius.circular(widget.message.isMe ? 16 : 4),
-          bottomRight: Radius.circular(widget.message.isMe ? 4 : 16),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: hasImage
-          ? EdgeInsets.zero
-          : const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (widget.repliedMessage != null) ...[
-            Padding(
-              padding: hasImage
-                  ? const EdgeInsets.only(
-                      left: 14.0,
-                      right: 14.0,
-                      top: 10.0,
-                      bottom: 4.0,
-                    )
-                  : EdgeInsets.zero,
-              child: _ReplyPreviewBlock(
-                repliedMessage: widget.repliedMessage!,
-                accentColor: widget.activeTheme.accentColor ?? Colors.green,
-                isMe: widget.message.isMe,
-              ),
+            : widget.activeTheme.receivedMessageColor;
+        final effectiveColor = (widget.isHighlighted && highlightVal > 0.0)
+            ? Color.lerp(
+                baseColor,
+                Colors.orangeAccent.withValues(alpha: 0.35),
+                highlightVal,
+              )!
+            : baseColor;
+
+        return Container(
+          key: isOverlay ? null : _bubbleKey,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: effectiveColor,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(16),
+              topRight: const Radius.circular(16),
+              bottomLeft: Radius.circular(widget.message.isMe ? 16 : 4),
+              bottomRight: Radius.circular(widget.message.isMe ? 4 : 16),
             ),
-          ],
+            border: (widget.isHighlighted && highlightVal > 0.05)
+                ? Border.all(
+                    color: Colors.orangeAccent.withValues(
+                      alpha: highlightVal * 0.9,
+                    ),
+                    width: 2.0,
+                  )
+                : null,
+            boxShadow: [
+              if (widget.isHighlighted && highlightVal > 0.05)
+                BoxShadow(
+                  color: Colors.orangeAccent.withValues(
+                    alpha: highlightVal * 0.45,
+                  ),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          padding: hasImage
+              ? EdgeInsets.zero
+              : const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.repliedMessage != null) ...[
+                Padding(
+                  padding: hasImage
+                      ? const EdgeInsets.only(
+                          left: 14.0,
+                          right: 14.0,
+                          top: 10.0,
+                          bottom: 4.0,
+                        )
+                      : EdgeInsets.zero,
+                  child: GestureDetector(
+                    onTap: widget.onReplyTap,
+                    child: _ReplyPreviewBlock(
+                      repliedMessage: widget.repliedMessage!,
+                      accentColor:
+                          widget.activeTheme.accentColor ?? Colors.green,
+                      isMe: widget.message.isMe,
+                    ),
+                  ),
+                ),
+              ],
           if (widget.message.isDeleted) ...[
             Padding(
               padding: hasImage
@@ -718,6 +776,8 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
           ],
         ],
       ),
+    );
+      },
     );
   }
 

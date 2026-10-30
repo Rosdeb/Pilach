@@ -705,6 +705,17 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     } catch (_) {}
   }
 
+  Future<void> ensureConversationLoaded(String conversationId) async {
+    final exists = state.any((c) => c.id == conversationId);
+    if (!exists) {
+      final localRow = await _chatDao.getChatById(conversationId);
+      if (localRow != null) {
+        await loadFromDb();
+      }
+      await _fetchAndSaveConversationMetadata(conversationId);
+    }
+  }
+
   @override
   void dispose() {
     _onlineSub?.cancel();
@@ -1304,21 +1315,58 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     }
   }
 
-  Future<String?> uploadGroupAvatar(File imageFile) async {
+  Future<String?> uploadGroupAvatar(String conversationId, File imageFile) async {
     try {
-      final uploadService = _ref.read(uploadServiceProvider);
-      final uploadRes = await uploadService.uploadMediaFile(
-        filePath: imageFile.path,
-        purpose: 'message',
-      );
-      final rawUrl =
-          uploadRes['publicUrl'] ?? uploadRes['url'] ?? uploadRes['key'];
-      if (rawUrl != null && rawUrl.toString().isNotEmpty) {
-        String finalUrl = rawUrl.toString();
-        if (!finalUrl.startsWith('http')) {
-          finalUrl = '${ApiConstants.baseUrl}/$finalUrl';
+      String? avatarUrl;
+      try {
+        // Primary: use official Swagger endpoint POST /api/v1/conversations/{id}/avatar
+        avatarUrl = await _chatRepository.uploadGroupAvatar(
+          conversationId,
+          imageFile.path,
+        );
+      } catch (e) {
+        Logger.log('Primary avatar upload endpoint error, trying presigned fallback: $e', type: 'warning');
+        // Fallback: upload to S3 bucket via presigned URL
+        final uploadService = _ref.read(uploadServiceProvider);
+        final uploadRes = await uploadService.uploadMediaFile(
+          filePath: imageFile.path,
+          purpose: 'message',
+        );
+        final rawUrl =
+            uploadRes['publicUrl'] ?? uploadRes['url'] ?? uploadRes['key'];
+        if (rawUrl != null && rawUrl.toString().isNotEmpty) {
+          avatarUrl = rawUrl.toString();
+          if (!avatarUrl.startsWith('http')) {
+            avatarUrl = '${ApiConstants.baseUrl}/$avatarUrl';
+          }
         }
-        return finalUrl;
+      }
+
+      if (avatarUrl != null && avatarUrl.isNotEmpty) {
+        // Emit socket chat:update event as per Developer Guide so the room gets chat:updated
+        unawaited(
+          _socketService.emitWithAck('chat:update', {
+            'conversationId': conversationId,
+            'data': {'avatarUrl': avatarUrl},
+          }),
+        );
+
+        // Update SQLite DAO immediately
+        await _chatDao.updateGroupMetadata(
+          conversationId,
+          avatarUrl: avatarUrl,
+        );
+
+        // Update state in memory
+        state = state.map((chat) {
+          if (chat.id == conversationId) {
+            return chat.copyWith(image: avatarUrl);
+          }
+          return chat;
+        }).toList();
+
+        await fetchFromServer();
+        return avatarUrl;
       }
     } catch (e, st) {
       Logger.log('Failed to upload group avatar: $e\n$st', type: 'error');

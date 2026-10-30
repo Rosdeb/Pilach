@@ -321,8 +321,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         // Search feels more like an overlay → fade, not slide
         path: AppPaths.chat_search,
         name: AppRoutes.chat_search,
-        pageBuilder: (c, s) =>
-            _fadePage(key: s.pageKey, child: const ChatSearchScreen()),
+        pageBuilder: (c, s) {
+          String? chatId;
+          String? chatTitle;
+          if (s.extra is Map) {
+            final map = s.extra as Map;
+            chatId = map['chatId']?.toString();
+            chatTitle = map['chatTitle']?.toString();
+          } else if (s.extra is String) {
+            chatId = s.extra as String;
+          }
+          return _fadePage(
+            key: s.pageKey,
+            child: ChatSearchScreen(chatId: chatId, chatTitle: chatTitle),
+          );
+        },
       ),
 
       // ── Me / Settings ──────────────────────────────────────────────────────

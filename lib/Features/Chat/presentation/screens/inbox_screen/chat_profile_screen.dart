@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import 'package:app/core/constants/app_paths.dart';
 import 'package:app/core/utils/app_toast.dart';
 import '../../../data/models/chat_model.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/in_chat_search_provider.dart';
 import '../../widgets/chat_avatar.dart';
 import '../../../../Contact/presentation/widgets/add_group_members_sheet.dart';
 import '../../../../Me/data/repositories/security_repository.dart';
@@ -55,29 +57,28 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
     setState(() => _isUploadingPhoto = true);
     try {
       final file = File(pickedFile.path);
-      final uploadedUrl =
-          await ref.read(chatProvider.notifier).uploadGroupAvatar(file);
+      final uploadedUrl = await ref
+          .read(chatProvider.notifier)
+          .uploadGroupAvatar(_chat.id, file);
 
       if (uploadedUrl != null && mounted) {
-        final ok = await ref
-            .read(chatProvider.notifier)
-            .updateGroupInfo(_chat.id, avatarUrl: uploadedUrl);
-        if (ok && mounted) {
-          setState(() {
-            _chat = _chat.copyWith(image: uploadedUrl);
-          });
-          AppToast.show(
-            context,
-            'Group photo updated',
-            type: ToastType.success,
-          );
-        } else if (mounted) {
-          AppToast.show(
-            context,
-            'Failed to update group metadata',
-            type: ToastType.error,
-          );
-        }
+        try {
+          if (_chat.image.isNotEmpty) {
+            await CachedNetworkImage.evictFromCache(_chat.image);
+          }
+          await CachedNetworkImage.evictFromCache(uploadedUrl);
+          PaintingBinding.instance.imageCache.clear();
+          PaintingBinding.instance.imageCache.clearLiveImages();
+        } catch (_) {}
+
+        setState(() {
+          _chat = _chat.copyWith(image: uploadedUrl);
+        });
+        AppToast.show(
+          context,
+          'Group photo updated',
+          type: ToastType.success,
+        );
       } else if (mounted) {
         AppToast.show(context, 'Failed to upload photo', type: ToastType.error);
       }
@@ -123,11 +124,14 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
   }
 
   bool get _isCurrentUserAdminOrOwner {
-    if (_currentUserId.isEmpty) return false;
+    if (!_chat.isGroup) return false;
+    // Allow by default while member list is loading or user ID is not yet resolved
+    if (_members.isEmpty || _currentUserId.isEmpty) return true;
     final myMember = _members.firstWhere(
       (m) => (m['userId'] ?? m['user']?['id']) == _currentUserId,
       orElse: () => const {},
     );
+    if (myMember.isEmpty) return true;
     final role = myMember['role']?.toString().toUpperCase();
     return role == 'OWNER' || role == 'ADMIN';
   }
@@ -414,6 +418,13 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Keep _chat synchronized with chatProvider so updates from socket or API reflect instantly
+    final liveChat = ref.watch(chatProvider.select((list) => list.firstWhere(
+      (c) => c.id == widget.chat.id,
+      orElse: () => _chat,
+    )));
+    _chat = liveChat;
+
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -543,7 +554,10 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                         context,
                         CupertinoIcons.search,
                         'Search',
-                        () => context.push(AppPaths.chat_search),
+                        () {
+                          Navigator.of(context).pop();
+                          ref.read(inChatSearchProvider.notifier).activate();
+                        },
                       ),
                     _buildActionButton(
                       context,
@@ -643,7 +657,10 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                 CupertinoIcons.search,
                 'Search in Conversation',
                 theme.colorScheme.onSurface,
-                onTap: () => context.push(AppPaths.chat_search),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  ref.read(inChatSearchProvider.notifier).activate();
+                },
               ),
             ]),
           ),

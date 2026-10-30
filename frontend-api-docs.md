@@ -35,17 +35,18 @@ Base URL for all REST endpoints: `/api/v1`
   }
   ```
 
-### Update Group Info (Name, About, Avatar)
+### Rename Group (REST)
 - **Method:** `PATCH`
 - **Path:** `/conversations/:id`
-- **Body:**
-  ```json
-  {
-    "title": "New Name",
-    "about": "Group description",
-    "avatarUrl": "https://..."
-  }
-  ```
+- **Body:** `{ "title": "New Name" }`
+*(Note: REST DTO strictly accepts `title` only. To update description, slow mode, or allowed reactions, emit socket event `chat:update`).*
+
+### Upload Group Avatar (Direct)
+- **Method:** `POST`
+- **Path:** `/conversations/:id/avatar`
+- **Form-Data:** `file` (multipart image binary, ≤ 5 MiB)
+- **Response:** `UploadGroupAvatarResponseDto` (Full conversation object with `avatarUrl`)
+*(Also emit socket event `chat:update` with `{ avatarUrl }` so all room participants receive `chat:updated` in real-time).*
 
 ### List Group Members (Paginated)
 - **Method:** `GET`
@@ -369,3 +370,59 @@ Media is NOT sent directly through the WebSocket. You must upload the file to cl
 **Step 3: Send the Message**
 - Emit the `message:send` socket event (or use the REST fallback). 
 - Pass the URL inside the `attachments` array in your JSON payload.
+
+---
+
+## 6. Privacy API
+
+### Get All Privacy Settings
+- **Method:** `GET`
+- **Path:** `/privacy`
+- **Response:**
+  ```json
+  {
+    "settings": [
+      {
+        "scope": "LAST_SEEN",
+        "level": "EVERYONE",
+        "allowUserIds": [],
+        "denyUserIds": []
+      }
+    ]
+  }
+  ```
+
+### Set Privacy Scope
+- **Method:** `PUT`
+- **Path:** `/privacy/:scope`
+- **Scopes:** `LAST_SEEN`, `PROFILE_PHOTO`, `BIO`, `PHONE_NUMBER`, `FORWARDS`, `CALLS`, `GROUP_INVITES`, `STORIES`, `READ_RECEIPTS`
+- **Levels:** `EVERYONE`, `CONTACTS`, `NOBODY`
+- **Body:**
+  ```json
+  {
+    "level": "EVERYONE",
+    "allowUserIds": ["uuid"],
+    "denyUserIds": ["uuid"]
+  }
+  ```
+
+---
+
+## 7. Message Search (REST)
+
+### Search Messages Within Chat
+- **Method:** `GET`
+- **Path:** `/chats/:chatId/messages/search`
+- **Query Params:**
+  - `q`: Keyword (min 2 characters, required)
+  - `cursor`: Cursor token for pagination
+  - `page`: Page number (default: 1)
+  - `limit`: Items per page (default: 10, max: 150)
+  - `from` / `to`: ISO date-time bounds
+  - `senderId`: UUID filter
+  - `type`: Message type (`TEXT`, `IMAGE`, `VIDEO`, etc.)
+
+### Search Messages Across All Chats
+- **Method:** `GET`
+- **Path:** `/messages/search`
+- **Query Params:** Same as chat search, plus optional `chatId` to restrict to one chat.

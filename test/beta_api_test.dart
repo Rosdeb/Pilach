@@ -1,4 +1,5 @@
 import 'package:app/Features/Me/data/models/device_session_model.dart';
+import 'package:app/Features/Me/data/repositories/security_repository.dart';
 import 'package:app/Features/auth/data/repositories/auth_repository.dart';
 import 'package:app/core/network/chat_repository.dart';
 import 'package:app/core/services/api_service.dart';
@@ -72,6 +73,49 @@ class TestMockApiService extends ApiService {
   }
 
   @override
+  Future<Response> put(
+    String endpoint, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Map<String, String>? headers,
+  }) async {
+    lastMethod = 'PUT';
+    lastEndpoint = endpoint;
+    lastData = data;
+    lastQueryParams = queryParameters;
+    return Response(
+      requestOptions: RequestOptions(path: endpoint),
+      data: {
+        'success': true,
+        'data': {'id': 'put-1', if (data is Map) ...Map<String, dynamic>.from(data)},
+      },
+    );
+  }
+
+  @override
+  Future<Response> uploadFile(
+    String endpoint, {
+    required String filePath,
+    required String fieldName,
+    Map<String, dynamic>? extraData,
+    Map<String, String>? headers,
+  }) async {
+    lastMethod = 'POST';
+    lastEndpoint = endpoint;
+    lastData = {'filePath': filePath, 'fieldName': fieldName};
+    return Response(
+      requestOptions: RequestOptions(path: endpoint),
+      data: {
+        'success': true,
+        'data': {
+          'id': 'conv-123',
+          'avatarUrl': 'https://example.com/uploaded-group-avatar.jpg',
+        },
+      },
+    );
+  }
+
+  @override
   Future<Response> delete(
     String endpoint, {
     dynamic data,
@@ -117,6 +161,13 @@ void main() {
       expect(api.lastEndpoint, '/api/v1/conversations/chat-abc');
       expect(api.lastData['title'], 'Pilach Core Team');
       expect(api.lastData.containsKey('avatarUrl'), isFalse);
+    });
+
+    test('uploadGroupAvatar sends POST to /api/v1/conversations/:id/avatar', () async {
+      final url = await repo.uploadGroupAvatar('chat-abc', '/path/to/avatar.jpg');
+      expect(api.lastMethod, 'POST');
+      expect(api.lastEndpoint, '/api/v1/conversations/chat-abc/avatar');
+      expect(url, 'https://example.com/uploaded-group-avatar.jpg');
     });
 
     test('updateMemberRole sends PATCH to /api/v1/conversations/:id/members/:userId/role', () async {
@@ -314,6 +365,32 @@ void main() {
       expect(session.isPrimary, isTrue);
       expect(session.isCurrentDevice, isTrue);
       expect(session.platformType, DevicePlatformType.macos);
+    });
+  });
+
+  group('Beta Messenger API - Privacy & Security Endpoints', () {
+    late TestMockApiService api;
+    late SecurityRepository secRepo;
+
+    setUp(() {
+      api = TestMockApiService();
+      secRepo = SecurityRepository(api);
+    });
+
+    test('getPrivacySettings queries /api/v1/privacy', () async {
+      await secRepo.getPrivacySettings();
+      expect(api.lastMethod, 'GET');
+      expect(api.lastEndpoint, '/api/v1/privacy');
+    });
+
+    test('updatePrivacySetting puts to /api/v1/privacy/:scope', () async {
+      await secRepo.updatePrivacySetting(
+        scope: 'LAST_SEEN',
+        level: 'NOBODY',
+      );
+      expect(api.lastMethod, 'PUT');
+      expect(api.lastEndpoint, '/api/v1/privacy/LAST_SEEN');
+      expect(api.lastData['level'], 'NOBODY');
     });
   });
 }

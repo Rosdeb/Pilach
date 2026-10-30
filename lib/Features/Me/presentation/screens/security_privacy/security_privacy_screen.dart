@@ -28,6 +28,7 @@ class _SecurityPrivacyScreenState extends ConsumerState<SecurityPrivacyScreen> w
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(twoFactorNotifierProvider.notifier).loadMethods();
+      ref.read(privacyNotifierProvider.notifier).loadSettings();
     });
   }
 
@@ -50,6 +51,7 @@ class _SecurityPrivacyScreenState extends ConsumerState<SecurityPrivacyScreen> w
   Widget build(BuildContext context) {
     final isBiometricEnabled = ref.watch(biometricProvider);
     final twoFactorState = ref.watch(twoFactorNotifierProvider);
+    final privacyState = ref.watch(privacyNotifierProvider);
     final isTwoFactorEnabled = twoFactorState.enrolledMethods.any((m) {
       if (m is Map) {
         return m['isEnabled'] == true || m['is_enabled'] == true || m['enabled'] == true || m['active'] == true || m['is_active'] == true || m['status'] == 'active' || m['status'] == 'enabled';
@@ -145,7 +147,91 @@ class _SecurityPrivacyScreenState extends ConsumerState<SecurityPrivacyScreen> w
                   ),
                   const SizedBox(height: 24.0),
 
-                  // --- SECTION 2: PRIVACY & PERMISSIONS ---
+                  // --- SECTION 2: PRIVACY (WHO CAN SEE MY INFO) ---
+                  _buildSectionHeader(context, 'PRIVACY CONTROLS'),
+                  Material(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      children: [
+                        _buildActionRow(
+                          context,
+                          icon: CupertinoIcons.eye,
+                          iconColor: AppColors.successGreen,
+                          title: 'Last Seen & Online',
+                          trailingText: _formatPrivacyLevel(privacyState.getLevel('LAST_SEEN')),
+                          onTap: () => _showPrivacyPicker(context, 'LAST_SEEN', 'Last Seen & Online'),
+                        ),
+                        _buildDivider(context),
+                        _buildActionRow(
+                          context,
+                          icon: CupertinoIcons.person_crop_circle,
+                          iconColor: AppColors.successGreen,
+                          title: 'Profile Photo',
+                          trailingText: _formatPrivacyLevel(privacyState.getLevel('PROFILE_PHOTO')),
+                          onTap: () => _showPrivacyPicker(context, 'PROFILE_PHOTO', 'Profile Photo'),
+                        ),
+                        _buildDivider(context),
+                        _buildActionRow(
+                          context,
+                          icon: CupertinoIcons.info_circle,
+                          iconColor: AppColors.successGreen,
+                          title: 'About / Bio',
+                          trailingText: _formatPrivacyLevel(privacyState.getLevel('BIO')),
+                          onTap: () => _showPrivacyPicker(context, 'BIO', 'About / Bio'),
+                        ),
+                        _buildDivider(context),
+                        _buildActionRow(
+                          context,
+                          icon: CupertinoIcons.phone,
+                          iconColor: AppColors.successGreen,
+                          title: 'Phone Number',
+                          trailingText: _formatPrivacyLevel(privacyState.getLevel('PHONE_NUMBER')),
+                          onTap: () => _showPrivacyPicker(context, 'PHONE_NUMBER', 'Phone Number'),
+                        ),
+                        _buildDivider(context),
+                        _buildActionRow(
+                          context,
+                          icon: CupertinoIcons.checkmark_seal,
+                          iconColor: AppColors.successGreen,
+                          title: 'Read Receipts',
+                          trailingText: _formatPrivacyLevel(privacyState.getLevel('READ_RECEIPTS')),
+                          onTap: () => _showPrivacyPicker(context, 'READ_RECEIPTS', 'Read Receipts'),
+                        ),
+                        _buildDivider(context),
+                        _buildActionRow(
+                          context,
+                          icon: CupertinoIcons.phone_fill,
+                          iconColor: AppColors.successGreen,
+                          title: 'Calls',
+                          trailingText: _formatPrivacyLevel(privacyState.getLevel('CALLS')),
+                          onTap: () => _showPrivacyPicker(context, 'CALLS', 'Calls'),
+                        ),
+                        _buildDivider(context),
+                        _buildActionRow(
+                          context,
+                          icon: CupertinoIcons.person_2,
+                          iconColor: AppColors.successGreen,
+                          title: 'Group Invites',
+                          trailingText: _formatPrivacyLevel(privacyState.getLevel('GROUP_INVITES')),
+                          onTap: () => _showPrivacyPicker(context, 'GROUP_INVITES', 'Group Invites'),
+                        ),
+                        _buildDivider(context),
+                        _buildActionRow(
+                          context,
+                          icon: CupertinoIcons.play_circle,
+                          iconColor: AppColors.successGreen,
+                          title: 'Stories',
+                          trailingText: _formatPrivacyLevel(privacyState.getLevel('STORIES')),
+                          onTap: () => _showPrivacyPicker(context, 'STORIES', 'Stories'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24.0),
+
+                  // --- SECTION 3: APP PERMISSIONS ---
                   _buildSectionHeader(context, 'APP PERMISSIONS'),
                   Material(
                     color: theme.colorScheme.surface,
@@ -551,6 +637,114 @@ class _SecurityPrivacyScreenState extends ConsumerState<SecurityPrivacyScreen> w
     }
     
     ref.invalidate(permissionStatusProvider(permission));
+  }
+
+  String _formatPrivacyLevel(String level) {
+    switch (level.toUpperCase()) {
+      case 'EVERYONE':
+        return 'Everyone';
+      case 'CONTACTS':
+        return 'My Contacts';
+      case 'NOBODY':
+        return 'Nobody';
+      default:
+        return 'Everyone';
+    }
+  }
+
+  void _showPrivacyPicker(BuildContext context, String scope, String title) {
+    final currentLevel = ref.read(privacyNotifierProvider).getLevel(scope);
+    final theme = Theme.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: theme.scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                AppText(
+                  title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                AppText(
+                  "Choose who can see your ${title.toLowerCase()}",
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildLevelTile(sheetContext, scope, 'Everyone', 'EVERYONE', currentLevel),
+                _buildLevelTile(sheetContext, scope, 'My Contacts', 'CONTACTS', currentLevel),
+                _buildLevelTile(sheetContext, scope, 'Nobody', 'NOBODY', currentLevel),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLevelTile(
+    BuildContext sheetContext,
+    String scope,
+    String label,
+    String level,
+    String currentLevel,
+  ) {
+    final isSelected = currentLevel.toUpperCase() == level.toUpperCase();
+    final theme = Theme.of(sheetContext);
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: AppText(
+        label,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          color: isSelected ? AppColors.successGreen : theme.colorScheme.onSurface,
+        ),
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check, color: AppColors.successGreen)
+          : null,
+      onTap: () async {
+        Navigator.pop(sheetContext);
+        final ok = await ref
+            .read(privacyNotifierProvider.notifier)
+            .updateScope(scope, level);
+        if (mounted) {
+          FloatingErrorBar.show(
+            context,
+            message: ok ? '$label selected' : 'Failed to update privacy setting',
+          );
+        }
+      },
+    );
   }
 
   // Helper row divider

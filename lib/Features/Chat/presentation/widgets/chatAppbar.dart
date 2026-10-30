@@ -8,6 +8,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../data/models/chat_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/direct_chat_provider.dart';
+import '../providers/in_chat_search_provider.dart';
 import 'chat_avatar.dart';
 
 const Color _kGreen = Color(0xFF082DE3);
@@ -24,19 +25,112 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final searchState = ref.watch(inChatSearchProvider);
+
+    if (searchState.isActive) {
+      return AppBar(
+        backgroundColor: activeTheme.backgroundColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: headerTextColor),
+          onPressed: () {
+            ref.read(inChatSearchProvider.notifier).deactivate();
+          },
+        ),
+        titleSpacing: 0,
+        title: _InChatSearchField(headerTextColor: headerTextColor),
+        actions: [
+          if (searchState.isLoading)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: headerTextColor,
+                ),
+              ),
+            )
+          else if (searchState.query.isNotEmpty) ...[
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Text(
+                  searchState.matchingMessageIds.isEmpty
+                      ? '0/0'
+                      : '${searchState.currentIndex + 1}/${searchState.matchingMessageIds.length}',
+                  style: TextStyle(
+                    color: headerTextColor.withOpacity(0.7),
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            IconButton(
+              icon: Icon(
+                Icons.keyboard_arrow_up,
+                color: searchState.matchingMessageIds.isNotEmpty
+                    ? headerTextColor
+                    : headerTextColor.withOpacity(0.3),
+                size: 26,
+              ),
+              tooltip: 'Previous match',
+              onPressed: searchState.matchingMessageIds.isNotEmpty
+                  ? () =>
+                      ref.read(inChatSearchProvider.notifier).previousMatch()
+                  : null,
+            ),
+            IconButton(
+              icon: Icon(
+                Icons.keyboard_arrow_down,
+                color: searchState.matchingMessageIds.isNotEmpty
+                    ? headerTextColor
+                    : headerTextColor.withOpacity(0.3),
+                size: 26,
+              ),
+              tooltip: 'Next match',
+              onPressed: searchState.matchingMessageIds.isNotEmpty
+                  ? () => ref.read(inChatSearchProvider.notifier).nextMatch()
+                  : null,
+            ),
+          ],
+          const SizedBox(width: 4),
+        ],
+      );
+    }
+
     final chatId = ref.watch(currentChatIdProvider);
 
-    final currentChat = ref.watch(chatProvider.select((chats) => chats.firstWhere((c) => c.id == chatId,
-      orElse: () => ChatModel(
-        id: '',
-        name: 'Unknown User',
-        message: '',
-        image: '',
-        time: '',
-        unreadCount: 0,
-        isOnline: false,
-      ),
-    )));
+    final currentChat = ref.watch(
+      chatProvider.select((chats) {
+        try {
+          return chats.firstWhere((c) => c.id == chatId);
+        } catch (_) {
+          return null;
+        }
+      }),
+    );
+
+    if (currentChat == null && chatId != null && chatId.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(chatProvider.notifier).ensureConversationLoaded(chatId);
+      });
+    }
+
+    final effectiveChat =
+        currentChat ??
+        ChatModel(
+          id: chatId ?? '',
+          name: '',
+          message: '',
+          image: '',
+          time: '',
+          unreadCount: 0,
+          isOnline: false,
+        );
 
     return AppBar(
       backgroundColor: activeTheme.backgroundColor,
@@ -51,16 +145,16 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
       ),
       titleSpacing: 0,
       title: GestureDetector(
-        onTap: () => context.push(AppPaths.chat_profile, extra: currentChat),
+        onTap: () => context.push(AppPaths.chat_profile, extra: effectiveChat),
         child: Row(
           children: [
             RepaintBoundary(
               child: ChatAvatar(
                 radius: 20,
-                imageUrl: currentChat.image,
-                memberAvatars: currentChat.memberAvatars,
-                isGroup: currentChat.isGroup,
-                isOnline: currentChat.isOnline && !currentChat.isGroup,
+                imageUrl: effectiveChat.image,
+                memberAvatars: effectiveChat.memberAvatars,
+                isGroup: effectiveChat.isGroup,
+                isOnline: effectiveChat.isOnline && !effectiveChat.isGroup,
                 onlineColor: _kGreen,
                 borderColor: activeTheme.backgroundColor,
               ),
@@ -72,7 +166,9 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    currentChat.name,
+                    effectiveChat.name.isNotEmpty
+                        ? effectiveChat.name
+                        : 'Conversation',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -84,9 +180,9 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
                   if (chatId != null)
                     _AppBarStatusText(
                       chatId: chatId,
-                      chatIsOnline: currentChat.isOnline,
-                      isGroup: currentChat.isGroup,
-                      lastActive: currentChat.lastActive,
+                      chatIsOnline: effectiveChat.isOnline,
+                      isGroup: effectiveChat.isGroup,
+                      lastActive: effectiveChat.lastActive,
                       headerTextColor: headerTextColor,
                     ),
                 ],
@@ -96,18 +192,17 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
         ),
       ),
       actions: [
-        // IconButton(
-        //   icon: const Icon(CupertinoIcons.phone, color: _kGreen, size: 22),
-        //   onPressed: () {},
-        // ),
-        // IconButton(
-        //   icon: const Icon(
-        //     CupertinoIcons.video_camera,
-        //     color: _kGreen,
-        //     size: 26,
-        //   ),
-        //   onPressed: () {},
-        // ),
+        IconButton(
+          icon: Icon(
+            CupertinoIcons.search,
+            color: headerTextColor,
+            size: 20,
+          ),
+          tooltip: 'Search in conversation',
+          onPressed: () {
+            ref.read(inChatSearchProvider.notifier).activate();
+          },
+        ),
         IconButton(
           icon: Icon(
             CupertinoIcons.ellipsis_vertical,
@@ -118,6 +213,71 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
         ),
         const SizedBox(width: 8),
       ],
+    );
+  }
+}
+
+class _InChatSearchField extends ConsumerStatefulWidget {
+  const _InChatSearchField({required this.headerTextColor});
+
+  final Color headerTextColor;
+
+  @override
+  ConsumerState<_InChatSearchField> createState() => _InChatSearchFieldState();
+}
+
+class _InChatSearchFieldState extends ConsumerState<_InChatSearchField> {
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(() {
+      if (mounted) setState(() {});
+      ref.read(inChatSearchProvider.notifier).onQueryChanged(_controller.text);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      focusNode: _focusNode,
+      style: TextStyle(color: widget.headerTextColor, fontSize: 16),
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: 'Search...',
+        hintStyle: TextStyle(
+          color: widget.headerTextColor.withOpacity(0.5),
+          fontSize: 16,
+        ),
+        border: InputBorder.none,
+        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        suffixIcon: _controller.text.isNotEmpty
+            ? IconButton(
+                icon: Icon(
+                  Icons.clear,
+                  color: widget.headerTextColor.withOpacity(0.7),
+                  size: 18,
+                ),
+                onPressed: () {
+                  _controller.clear();
+                  ref.read(inChatSearchProvider.notifier).onQueryChanged('');
+                },
+              )
+            : null,
+      ),
     );
   }
 }

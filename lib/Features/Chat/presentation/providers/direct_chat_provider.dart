@@ -61,6 +61,12 @@ class ChatState {
 
 final currentChatIdProvider = StateProvider<String?>((ref) => null);
 
+/// Holds target message ID that should be auto-scrolled to in the active chat
+final targetScrollMessageIdProvider = StateProvider<String?>((ref) => null);
+
+/// Holds message ID that is currently visually highlighted/pulsing
+final highlightedMessageIdProvider = StateProvider<String?>((ref) => null);
+
 final typingStatusProvider = StateProvider.family<bool, String>(
   (ref, chatId) => false,
 );
@@ -884,6 +890,27 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
       ..remove(messageId);
     final newIds = state.messageIds.where((id) => id != messageId).toList();
     state = state.copyWith(messageIds: newIds, messagesById: newById);
+  }
+
+  /// Ensures that a target message (e.g. from search result) is loaded into [state.messageIds].
+  Future<bool> ensureMessageLoaded(String messageId) async {
+    if (state.messageIds.contains(messageId)) return true;
+    if (chatId == null) return false;
+
+    // 1. Check message position in local SQLite database
+    final count = await _messageDao.getMessageIndexInChat(chatId!, messageId);
+    if (count != null && count >= 0) {
+      await loadFromDb(limitOverride: count + 30);
+      if (!mounted) return false;
+      if (state.messageIds.contains(messageId)) return true;
+    }
+
+    // 2. If not yet in state, load more pages until found or exhausted
+    for (int i = 0; i < 3; i++) {
+      if (state.messageIds.contains(messageId) || !state.hasMore) break;
+      await loadMore();
+    }
+    return state.messageIds.contains(messageId);
   }
 
   Future<void> loadFromDb({int? limitOverride}) async {

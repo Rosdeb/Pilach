@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'api_exceptions.dart';
+import '../constants/api_constants.dart';
 import '../services/api_service.dart';
 import '../providers/api_provider.dart';
 
@@ -86,6 +88,39 @@ class ChatRepository {
       return Map<String, dynamic>.from(response.data as Map);
     }
     return {'data': response.data};
+  }
+
+  /// Upload a group avatar directly
+  /// POST /api/v1/conversations/{id}/avatar
+  Future<String> uploadGroupAvatar(
+    String conversationId,
+    String filePath,
+  ) async {
+    final response = await _apiService.uploadFile(
+      '/api/v1/conversations/$conversationId/avatar',
+      filePath: filePath,
+      fieldName: 'file',
+    );
+    final data = response.data;
+    String? rawAvatarUrl;
+    if (data is Map) {
+      if (data['data'] is Map && data['data']['avatarUrl'] != null) {
+        rawAvatarUrl = data['data']['avatarUrl']?.toString();
+      } else if (data['avatarUrl'] != null) {
+        rawAvatarUrl = data['avatarUrl']?.toString();
+      }
+    }
+    if (rawAvatarUrl != null && rawAvatarUrl.isNotEmpty) {
+      if (!rawAvatarUrl.startsWith('http')) {
+        return '${ApiConstants.baseUrl}/$rawAvatarUrl';
+      }
+      return rawAvatarUrl;
+    }
+    throw ApiException(
+      data is Map && data['message'] != null
+          ? data['message'].toString()
+          : 'Failed to upload group avatar',
+    );
   }
 
   /// Adds members to an existing conversation

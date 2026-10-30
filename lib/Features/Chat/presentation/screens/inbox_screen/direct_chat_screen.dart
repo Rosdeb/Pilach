@@ -13,6 +13,7 @@ import '../../../data/models/message_model.dart';
 import '../../../data/models/chat_model.dart';
 import '../../providers/direct_chat_provider.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/in_chat_search_provider.dart';
 import '../../widgets/chatAppbar.dart';
 import '../../widgets/chat_bundle.dart';
 import '../../widgets/connection_status_banner.dart';
@@ -163,9 +164,15 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
 
     final activeTheme = ref.watch(chatThemeProvider);
     final headerTextColor = ref.watch(_headerTextColorProvider);
+    final inChatSearch = ref.watch(inChatSearchProvider);
 
     return PopScope(
+      canPop: !inChatSearch.isActive,
       onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && inChatSearch.isActive) {
+          ref.read(inChatSearchProvider.notifier).deactivate();
+          return;
+        }
         if (didPop) {
           if (!_isEditing) {
             _directChatNotifier?.saveDraft(_messageController.text);
@@ -376,13 +383,105 @@ class _MessageList extends ConsumerWidget {
   }
 }
 
-class _MessageListView extends ConsumerWidget {
-  const _MessageListView({required this.scrollController});
+class _MessageListView extends ConsumerStatefulWidget {
+  const _MessageListView({super.key, required this.scrollController});
 
   final ScrollController scrollController;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_MessageListView> createState() => _MessageListViewState();
+}
+
+class _MessageListViewState extends ConsumerState<_MessageListView> {
+  final GlobalKey _targetKey = GlobalKey();
+  String? _currentTargetId;
+  bool _isScrollingToTarget = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final initialTarget = ref.read(targetScrollMessageIdProvider);
+      if (initialTarget != null) {
+        _scrollToTarget(initialTarget);
+      }
+    });
+  }
+
+  void _scrollToTarget(String targetId) async {
+    if (_isScrollingToTarget) return;
+    _isScrollingToTarget = true;
+    setState(() {
+      _currentTargetId = targetId;
+    });
+
+    try {
+      // 1. Ensure the message is loaded into state
+      await ref.read(directChatProvider.notifier).ensureMessageLoaded(targetId);
+      if (!mounted) return;
+
+      final messageIds = ref.read(directChatProvider).messageIds;
+      final targetIndex = messageIds.indexOf(targetId);
+      if (targetIndex == -1) {
+        ref.read(targetScrollMessageIdProvider.notifier).state = null;
+        return;
+      }
+
+      // 2. Schedule scroll
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted || !widget.scrollController.hasClients) return;
+
+        final controller = widget.scrollController;
+        final maxScroll = controller.position.maxScrollExtent;
+        final avgHeight = (maxScroll > 0 && messageIds.isNotEmpty)
+            ? (maxScroll / messageIds.length).clamp(55.0, 110.0)
+            : 75.0;
+
+        final estimatedOffset = (targetIndex * avgHeight).clamp(0.0, maxScroll);
+
+        // Jump near target offset if far away so sliver builds the child
+        if ((controller.offset - estimatedOffset).abs() > 300) {
+          controller.jumpTo(estimatedOffset);
+          await Future.delayed(const Duration(milliseconds: 60));
+        }
+
+        if (!mounted) return;
+
+        final ctx = _targetKey.currentContext;
+        if (ctx != null) {
+          await Scrollable.ensureVisible(
+            ctx,
+            alignment: 0.5,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeInOutCubic,
+          );
+        } else if (controller.hasClients) {
+          controller.animateTo(
+            estimatedOffset,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeInOutCubic,
+          );
+        }
+
+        if (mounted) {
+          ref.read(targetScrollMessageIdProvider.notifier).state = null;
+        }
+      });
+    } finally {
+      if (mounted) {
+        _isScrollingToTarget = false;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<String?>(targetScrollMessageIdProvider, (previous, next) {
+      if (next != null && next != previous) {
+        _scrollToTarget(next);
+      }
+    });
+
     final messageIds = ref.watch(
       directChatProvider.select((state) => state.messageIds),
     );
@@ -399,7 +498,7 @@ class _MessageListView extends ConsumerWidget {
 
     return ListView.custom(
       reverse: true,
-      controller: scrollController,
+      controller: widget.scrollController,
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       childrenDelegate: SliverChildBuilderDelegate(
@@ -430,22 +529,24 @@ class _MessageListView extends ConsumerWidget {
               ? messageIds[index + 1]
               : null;
           final isOldest = index == messageIds.length - 1;
+          final isTarget = id == _currentTargetId;
 
           return _MessageItem(
-            key: ValueKey(id),
+            key: isTarget ? _targetKey : ValueKey(id),
             id: id,
             olderId: olderId,
             isOldest: isOldest,
           );
         },
         childCount: messageIds.length + (hasMore ? 1 : 0),
-        // Message widgets are cheap to recreate from immutable state. Avoid
-        // retaining every off-screen bubble in long conversations.
         addAutomaticKeepAlives: false,
         addRepaintBoundaries: true,
         findChildIndexCallback: (Key key) {
           if (key is ValueKey<String>) {
             return indexById[key.value];
+          }
+          if (key == _targetKey && _currentTargetId != null) {
+            return indexById[_currentTargetId!];
           }
           return null;
         },
@@ -555,12 +656,24 @@ class _BubbleById extends ConsumerWidget {
             ? msg.senderAvatar
             : currentChat.image;
 
+    final highlightedId = ref.watch(highlightedMessageIdProvider);
+    final isHighlighted = (highlightedId != null && highlightedId == id);
+
     return ChatBubble(
       key: ValueKey(id),
       message: msg,
       activeTheme: activeTheme,
       otherUserAvatar: senderAvatar,
       repliedMessage: repliedMsg,
+      isHighlighted: isHighlighted,
+      onReplyTap: repliedMsg?.id != null
+          ? () {
+              ref.read(targetScrollMessageIdProvider.notifier).state =
+                  repliedMsg!.id;
+              ref.read(highlightedMessageIdProvider.notifier).state =
+                  repliedMsg!.id;
+            }
+          : null,
       onDelete: () =>
           ref.read(directChatProvider.notifier).deleteMessage(msg.id),
       onPin: () => ref

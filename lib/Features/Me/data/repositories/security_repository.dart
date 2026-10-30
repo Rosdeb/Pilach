@@ -49,7 +49,25 @@ class SecurityRepository {
 
   Future<List<Map<String, dynamic>>> getPrivacySettings() async {
     final response = await _apiService.get(ApiConstants.privacy);
-    return _listData(response.data);
+    final data = response.data;
+    if (data is Map) {
+      if (data['data'] is Map && (data['data'] as Map)['settings'] is List) {
+        return List<Map<String, dynamic>>.from(
+          ((data['data'] as Map)['settings'] as List).whereType<Map>(),
+        );
+      }
+      if (data['settings'] is List) {
+        return List<Map<String, dynamic>>.from(
+          (data['settings'] as List).whereType<Map>(),
+        );
+      }
+      if (data['data'] is List) {
+        return List<Map<String, dynamic>>.from(
+          (data['data'] as List).whereType<Map>(),
+        );
+      }
+    }
+    return const [];
   }
 
   Future<Map<String, dynamic>> updatePrivacySetting({
@@ -62,8 +80,8 @@ class SecurityRepository {
       '${ApiConstants.privacy}/${scope.toUpperCase()}',
       data: {
         'level': level.toUpperCase(),
-        if (allowUserIds.isNotEmpty) 'allowUserIds': allowUserIds,
-        if (denyUserIds.isNotEmpty) 'denyUserIds': denyUserIds,
+        'allowUserIds': allowUserIds,
+        'denyUserIds': denyUserIds,
       },
     );
     return _mapData(response.data);

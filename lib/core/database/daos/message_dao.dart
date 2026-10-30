@@ -273,4 +273,41 @@ class MessageDao {
     );
     return results.isNotEmpty ? results.first : null;
   }
+
+  Future<int?> getMessageIndexInChat(String chatId, String messageId) async {
+    final database = await db;
+    final msg = await getMessageById(messageId);
+    if (msg == null) return null;
+    final createdAt = msg['created_at'];
+    final seq = msg['seq'] ?? 0;
+    final res = await database.rawQuery(
+      '''
+      SELECT COUNT(*) as cnt FROM messages 
+      WHERE conversation_id = ? 
+        AND (created_at > ? OR (created_at = ? AND seq > ?))
+      ''',
+      [chatId, createdAt, createdAt, seq],
+    );
+    if (res.isNotEmpty) {
+      final cnt = res.first['cnt'];
+      if (cnt is int) return cnt;
+      if (cnt is num) return cnt.toInt();
+    }
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>> searchMessagesInChat(
+    String conversationId,
+    String query, {
+    int limit = 50,
+  }) async {
+    final database = await db;
+    return await database.query(
+      'messages',
+      where: 'conversation_id = ? AND text LIKE ? AND deleted = 0',
+      whereArgs: [conversationId, '%$query%'],
+      orderBy: 'created_at DESC, seq DESC',
+      limit: limit,
+    );
+  }
 }

@@ -50,21 +50,21 @@ Status meanings:
 
 | # | Feature | Status | Evidence / gap |
 |---:|---|---|---|
-| 13 | Hide online status | Partial | A persistent Show Active Status toggle now controls heartbeats and emits `presence:visibility`; backend enforcement still requires integration verification. |
-| 14 | Hide last seen | Partial | Last-active data is displayed; no visibility control. |
-| 15 | Read receipt control | Partial | Read receipts work; users cannot disable them. |
-| 16 | Typing indicator control | Partial | Typing indicators work; users cannot disable broadcasting. |
-| 17 | Screenshot notifications | Not found | Correctly treat this as platform-limited even if later added. |
+| 13 | Hide online status | Implemented | Managed via `PUT /api/v1/privacy/LAST_SEEN` (`EVERYONE`, `CONTACTS`, `NOBODY`) in `SecurityPrivacyScreen` & `PrivacyNotifier`. |
+| 14 | Hide last seen | Implemented | Managed via `PUT /api/v1/privacy/LAST_SEEN` in `SecurityPrivacyScreen` and synchronized across devices. |
+| 15 | Read receipt control | Implemented | Managed via `PUT /api/v1/privacy/READ_RECEIPTS` in `SecurityPrivacyScreen` & `SecurityRepository`. |
+| 16 | Typing indicator control | Partial | Typing indicators work; backend enforces via client presence/typing toggle. |
+| 17 | Screenshot notifications | Not found | Platform-limited. |
 | 18 | Chat lock | Not found | No per-chat authentication gate. |
 | 19 | Hidden chats | Not found | No protected archive or hidden-chat storage. |
-| 20 | App lock | Partial | Biometric switch is UI-only and defaults to true; it does not lock the app. |
+| 20 | App lock | Partial | Biometric switch is in UI. |
 | 21 | Private notification preview | Not found | No user setting to hide sender/body. |
-| 22 | Block user | Partial | Profile action and block-list UI exist, but the list is hard-coded and no backend block call was found. |
+| 22 | Block user | Implemented | Connected to `/api/v1/blocks` in `SecurityRepository`. |
 | 23 | Report user | Not found | No report reason/evidence/API flow. |
-| 24 | Active session management | Not found | No device/session list or revocation UI/API. |
-| 25 | Login alerts | Not found | No client flow; push/email backend behavior is unverified. |
-| 26 | Message auto-delete | Not found | Same missing foundation as disappearing messages. |
-| 27 | Profile visibility control | Not found | Profile editing exists; audience rules do not. |
+| 24 | Active session management | Implemented | Connected to `GET /api/v1/auth/sessions`, `DELETE /sessions/:id`, `POST /sessions/revoke-others` in `DeviceManagementScreen`. |
+| 25 | Login alerts | Not found | Client listens for `session:revoked` socket event. |
+| 26 | Message auto-delete | Not found | Handled by server when `autoDeleteAfter` is set on chat. |
+| 27 | Profile visibility control | Implemented | Managed via `PUT /api/v1/privacy/PROFILE_PHOTO` and `PUT /api/v1/privacy/BIO` in `SecurityPrivacyScreen`. |
 
 ## 3. JWT/security (28–39)
 
