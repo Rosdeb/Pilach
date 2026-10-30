@@ -203,20 +203,6 @@ class _ChatSliverAppBar extends StatelessWidget {
       surfaceTintColor: theme.scaffoldBackgroundColor,
       elevation: 0,
       automaticallyImplyLeading: false,
-      actions: [
-        TextButton(
-          style: TextButton.styleFrom(
-            backgroundColor: const Color(0xFF34C759).withValues(alpha: 0.86),
-            shape: const CircleBorder(),
-            padding: const EdgeInsets.all(8),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          onPressed: () {},
-          child: Icon(Icons.add, color: theme.colorScheme.onSurface, size: 24),
-        ),
-        const SizedBox(width: 18),
-      ],
       flexibleSpace: ClipRect(
         child: BackdropFilter(
           // BackdropFilter is expensive — wrapping in RepaintBoundary gives
