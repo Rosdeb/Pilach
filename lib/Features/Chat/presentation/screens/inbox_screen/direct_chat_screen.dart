@@ -106,9 +106,18 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     super.dispose();
   }
 
+  DateTime? _lastSendTime;
+
   void _sendMessage() {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
+
+    final now = DateTime.now();
+    if (_lastSendTime != null &&
+        now.difference(_lastSendTime!) < const Duration(milliseconds: 500)) {
+      return;
+    }
+    _lastSendTime = now;
 
     ref.read(directChatProvider.notifier).saveDraft(null);
 

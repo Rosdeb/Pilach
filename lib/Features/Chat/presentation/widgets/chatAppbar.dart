@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/app_toast.dart';
 import '../../data/models/chat_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/direct_chat_provider.dart';
@@ -203,16 +204,159 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
             ref.read(inChatSearchProvider.notifier).activate();
           },
         ),
-        IconButton(
+        PopupMenuButton<String>(
           icon: Icon(
             CupertinoIcons.ellipsis_vertical,
             color: headerTextColor,
             size: 20,
           ),
-          onPressed: () {},
+          tooltip: 'More options',
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          color: Theme.of(context).cardColor,
+          elevation: 6,
+          onSelected: (value) async {
+            switch (value) {
+              case 'profile':
+                context.push(AppPaths.chat_profile, extra: effectiveChat);
+                break;
+              case 'search':
+                ref.read(inChatSearchProvider.notifier).activate();
+                break;
+              case 'mute':
+                final newMute = !effectiveChat.isMuted;
+                await ref.read(chatProvider.notifier).muteConversation(effectiveChat.id, newMute);
+                if (context.mounted) {
+                  AppToast.show(
+                    context,
+                    newMute ? 'Notifications muted' : 'Notifications unmuted',
+                    type: ToastType.success,
+                  );
+                }
+                break;
+              case 'wallpaper':
+                context.push(AppPaths.chat_wallpaper);
+                break;
+              case 'delete':
+                _confirmDeleteChat(context, ref, effectiveChat);
+                break;
+            }
+          },
+          itemBuilder: (BuildContext context) => [
+            PopupMenuItem(
+              value: 'profile',
+              child: Row(
+                children: [
+                  Icon(
+                    effectiveChat.isGroup
+                        ? CupertinoIcons.person_2
+                        : CupertinoIcons.person,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(effectiveChat.isGroup ? 'Group info' : 'View contact'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'search',
+              child: Row(
+                children: [
+                  Icon(
+                    CupertinoIcons.search,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  const SizedBox(width: 12),
+                  const Text('Search in chat'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'mute',
+              child: Row(
+                children: [
+                  Icon(
+                    effectiveChat.isMuted
+                        ? CupertinoIcons.bell_fill
+                        : CupertinoIcons.bell_slash_fill,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(effectiveChat.isMuted ? 'Unmute' : 'Mute'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'wallpaper',
+              child: Row(
+                children: [
+                  Icon(
+                    CupertinoIcons.photo,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  const SizedBox(width: 12),
+                  const Text('Wallpaper'),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: const [
+                  Icon(
+                    CupertinoIcons.trash,
+                    size: 18,
+                    color: Colors.redAccent,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Delete chat',
+                    style: TextStyle(color: Colors.redAccent),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         const SizedBox(width: 8),
       ],
+    );
+  }
+
+  void _confirmDeleteChat(BuildContext context, WidgetRef ref, ChatModel chat) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Chat'),
+        content: Text(
+          chat.isGroup
+              ? 'Are you sure you want to leave and delete this group conversation?'
+              : 'Are you sure you want to delete this chat and all of its messages?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await ref.read(chatProvider.notifier).deleteChat(chat.id);
+              if (context.mounted) {
+                Navigator.of(context).pop();
+                AppToast.show(context, 'Chat deleted', type: ToastType.success);
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,8 +41,11 @@ class ComposerBar extends ConsumerWidget {
                   focusNode: focusNode,
                   isEnterSend: isEnterSend,
                   onSend: onSend,
-                  onTyping: () =>
-                      ref.read(directChatProvider.notifier).emitTyping(),
+                  onTyping: () {
+                    if (messageController.text.trim().isNotEmpty) {
+                      ref.read(directChatProvider.notifier).emitTyping();
+                    }
+                  },
                   onAttach: onAttach,
                 ),
               ),
@@ -115,11 +119,21 @@ class WhatsAppInputBox extends StatelessWidget {
                 minLines: 1,
                 maxLines: 6,
                 textCapitalization: TextCapitalization.sentences,
-                onChanged: (_) => onTyping(),
+                onChanged: (val) {
+                  if (val.trim().isNotEmpty) {
+                    onTyping();
+                  }
+                },
                 textInputAction: isEnterSend
                     ? TextInputAction.send
                     : TextInputAction.newline,
-                onFieldSubmitted: isEnterSend ? (_) => onSend() : null,
+                onFieldSubmitted: isEnterSend
+                    ? (_) {
+                        if (controller.text.trim().isNotEmpty) {
+                          onSend();
+                        }
+                      }
+                    : null,
                 style: const TextStyle(fontSize: 16, height: 1.3),
                 decoration: InputDecoration(
                   hintText: "Message",
@@ -161,22 +175,52 @@ class WhatsAppInputBox extends StatelessWidget {
   }
 }
 
-class SendButton extends StatelessWidget {
+class SendButton extends StatefulWidget {
   const SendButton({
     super.key,
     required this.accentColor,
     required this.onTap,
+    this.debounceDuration = const Duration(milliseconds: 500),
   });
 
   final Color accentColor;
   final VoidCallback onTap;
+  final Duration debounceDuration;
+
+  @override
+  State<SendButton> createState() => _SendButtonState();
+}
+
+class _SendButtonState extends State<SendButton> {
+  Timer? _debounceTimer;
+  bool _canTap = true;
+
+  void _handleTap() {
+    if (!_canTap) return;
+    _canTap = false;
+    widget.onTap();
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(widget.debounceDuration, () {
+      if (mounted) {
+        setState(() {
+          _canTap = true;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: _handleTap,
       child: DecoratedBox(
-        decoration: BoxDecoration(color: accentColor, shape: BoxShape.circle),
+        decoration: BoxDecoration(color: widget.accentColor, shape: BoxShape.circle),
         child: const Padding(
           padding: EdgeInsets.all(10),
           child: Icon(

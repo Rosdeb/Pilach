@@ -2,6 +2,7 @@ import 'package:app/Features/Chat/data/models/chat_model.dart';
 import 'package:app/Features/Chat/data/models/message_model.dart';
 import 'package:app/Features/Chat/presentation/providers/chat_provider.dart';
 import 'package:app/Features/Chat/presentation/widgets/chat_bundle.dart';
+import 'package:app/Features/Chat/presentation/screens/inbox_screen/widgets/composer_bar.dart';
 import 'package:app/Features/bottom_nav_bar/presentation/widgets/nav_item.dart';
 import 'package:app/core/theme/chat_themes.dart';
 import 'package:flutter/cupertino.dart';
@@ -271,6 +272,85 @@ void main() {
       await tester.pump(const Duration(seconds: 4));
 
       expect(clipboardText, 'Copy this specific sentence');
+    });
+  });
+
+  group('Composer Bar Debounce & Empty Typing Guard Tests', () {
+    testWidgets('WhatsAppInputBox does not call onTyping when text is empty or whitespace', (tester) async {
+      int typingCallCount = 0;
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: WhatsAppInputBox(
+              controller: controller,
+              focusNode: focusNode,
+              isEnterSend: false,
+              onSend: () {},
+              onTyping: () {
+                typingCallCount++;
+              },
+              onAttach: () {},
+            ),
+          ),
+        ),
+      );
+
+      // Enter empty or whitespace
+      await tester.enterText(find.byType(TextFormField), '   ');
+      await tester.pump();
+      expect(typingCallCount, 0);
+
+      // Clear text
+      await tester.enterText(find.byType(TextFormField), '');
+      await tester.pump();
+      expect(typingCallCount, 0);
+
+      // Enter valid non-empty text
+      await tester.enterText(find.byType(TextFormField), 'Hello world');
+      await tester.pump();
+      expect(typingCallCount, 1);
+    });
+
+    testWidgets('SendButton debounces rapid repeated taps', (tester) async {
+      int sendCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SendButton(
+                accentColor: Colors.green,
+                debounceDuration: const Duration(milliseconds: 500),
+                onTap: () {
+                  sendCount++;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Tap 3 times rapidly
+      await tester.tap(find.byType(SendButton));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.byType(SendButton));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.byType(SendButton));
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Only the first tap should have fired
+      expect(sendCount, 1);
+
+      // Advance beyond debounce duration
+      await tester.pump(const Duration(milliseconds: 600));
+
+      // Now tapping again should fire
+      await tester.tap(find.byType(SendButton));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(sendCount, 2);
     });
   });
 }
