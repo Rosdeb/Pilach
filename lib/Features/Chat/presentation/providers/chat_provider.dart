@@ -36,6 +36,12 @@ final chatProvider = StateNotifierProvider<ChatNotifier, List<ChatModel>>((
   return ChatNotifier(ref, chatRepo, socketService);
 });
 
+/// Total unread message count across all conversations.
+final totalUnreadCountProvider = Provider<int>((ref) {
+  final chats = ref.watch(chatProvider);
+  return chats.fold<int>(0, (sum, chat) => sum + chat.unreadCount);
+});
+
 class ChatNotifier extends StateNotifier<List<ChatModel>> {
   final Ref _ref;
   final ChatDao _chatDao = ChatDao();

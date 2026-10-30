@@ -7,6 +7,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app/Features/Chat/presentation/screens/chat_screen.dart';
+import 'package:app/Features/Chat/presentation/providers/chat_provider.dart';
 import 'package:app/Features/Contact/presentation/screens/contact_screen.dart';
 import 'package:app/Features/Discovers/presentation/screens/discover_screen.dart';
 import 'package:app/Features/Me/presentation/screens/me_screen.dart';
@@ -47,6 +48,11 @@ class _BottomMenuWrapperState extends ConsumerState<BottomMenuWrapper> {
 
   // ── iOS: CNTabBar (true SF Symbols + native frosted glass) ───────────────
   Widget _buildIOSLayout(int currentIndex) {
+    final totalUnread = ref.watch(totalUnreadCountProvider);
+    final theme = Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final itemWidth = screenWidth / 4;
+
     return CupertinoPageScaffold(
       child: SafeArea(
         bottom: false, // CNTabBar manages home-indicator space itself
@@ -92,6 +98,52 @@ class _BottomMenuWrapperState extends ConsumerState<BottomMenuWrapper> {
                   onTap: _handleTabChange,
                 ),
               ),
+
+              // iOS Unread Count Badge with Red Number Text
+              if (totalUnread > 0)
+                Positioned(
+                  bottom: 52,
+                  left: (itemWidth / 2) + 6,
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1.5,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 17,
+                        minHeight: 17,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFFE53935),
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 2,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          totalUnread > 99 ? '99+' : totalUnread.toString(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFE53935), // Red number text
+                            height: 1.0,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
 
             ],
           ),

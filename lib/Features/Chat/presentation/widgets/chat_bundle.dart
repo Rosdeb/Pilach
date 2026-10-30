@@ -8,6 +8,7 @@ import '../../../../core/theme/chat_theme_model.dart';
 import '../../../../core/models/link_preview.dart';
 import '../../../../core/services/link_preview_service.dart';
 import '../../../../core/utils/url_launcher_utils.dart';
+import '../../../../core/utils/app_toast.dart';
 import '../../data/models/message_model.dart';
 import 'image_preview_viewer.dart';
 
@@ -24,6 +25,7 @@ class ChatBubble extends StatefulWidget {
   final VoidCallback? onRetry;
   final VoidCallback? onCancel;
   final VoidCallback? onReplyTap;
+  final VoidCallback? onCopy;
   final bool isHighlighted;
 
   const ChatBubble({
@@ -40,6 +42,7 @@ class ChatBubble extends StatefulWidget {
     this.onRetry,
     this.onCancel,
     this.onReplyTap,
+    this.onCopy,
     this.isHighlighted = false,
   });
 
@@ -864,7 +867,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
     final double bottomSafe = media.padding.bottom;
 
     const double menuWidth = 230;
-    const double estimatedMenuHeight = 170;
+    const double estimatedMenuHeight = 220;
     const double gap = 8;
 
     final double spaceBelow =
@@ -901,6 +904,11 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
       isOverlay: true,
     );
 
+    final String copyableText = widget.message.text.isNotEmpty
+        ? widget.message.text
+        : (widget.message.mediaUrl ?? '');
+    final bool canCopy = !widget.message.isDeleted && copyableText.isNotEmpty;
+
     _menuOverlay = OverlayEntry(
       builder: (_) => _MessageActionOverlay(
         isMe: widget.message.isMe,
@@ -923,6 +931,23 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                 _removeOverlay();
                 widget.onReply!();
               },
+        onCopy: canCopy
+            ? () {
+                _removeOverlay();
+                if (widget.onCopy != null) {
+                  widget.onCopy!();
+                } else {
+                  Clipboard.setData(ClipboardData(text: copyableText));
+                  AppToast.show(
+                    context,
+                    widget.message.text.isNotEmpty
+                        ? 'Message copied'
+                        : 'Link copied',
+                    type: ToastType.success,
+                  );
+                }
+              }
+            : null,
         onEdit:
             (widget.message.isMe &&
                 widget.message.type == MessageType.text &&
@@ -936,6 +961,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
           _removeOverlay();
           widget.onPin();
         },
+        isPinned: widget.message.isPinned ?? false,
         onDelete: widget.message.isMe
             ? () {
                 _removeOverlay();
@@ -1605,8 +1631,10 @@ class _MessageActionOverlay extends StatefulWidget {
   final VoidCallback onDismiss;
   final Function(String) onReact;
   final VoidCallback? onReply;
+  final VoidCallback? onCopy;
   final VoidCallback? onEdit;
   final VoidCallback onPin;
+  final bool isPinned;
   final VoidCallback? onDelete;
   final bool isFailed;
   final VoidCallback? onRetry;
@@ -1626,7 +1654,9 @@ class _MessageActionOverlay extends StatefulWidget {
     required this.onReact,
     required this.onPin,
     this.onReply,
+    this.onCopy,
     this.onEdit,
+    this.isPinned = false,
     this.onDelete,
     this.isFailed = false,
     this.onRetry,
@@ -1843,11 +1873,13 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
                   color: color ?? theme.colorScheme.onSurface,
                 ),
                 const SizedBox(width: 10),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: color ?? theme.colorScheme.onSurface,
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: color ?? theme.colorScheme.onSurface,
+                    ),
                   ),
                 ),
               ],
@@ -1877,8 +1909,15 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
     }
 
     if (widget.onReply != null) addTile(Icons.reply, 'Reply', widget.onReply!);
+    if (widget.onCopy != null) {
+      addTile(Icons.copy_rounded, 'Copy', widget.onCopy!);
+    }
     if (widget.onEdit != null) addTile(Icons.edit, 'Edit', widget.onEdit!);
-    addTile(Icons.push_pin_outlined, 'Pin Message', widget.onPin);
+    addTile(
+      widget.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+      widget.isPinned ? 'Unpin Message' : 'Pin Message',
+      widget.onPin,
+    );
     if (widget.onDelete != null) {
       addTile(
         Icons.delete_outline,
