@@ -50,6 +50,14 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
   Timer? _draftDebounce;
+  DirectChatNotifier? _directChatNotifier;
+  bool _isEditing = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _directChatNotifier = ref.read(directChatProvider.notifier);
+  }
 
   @override
   void initState() {
@@ -101,9 +109,8 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   @override
   void dispose() {
     _draftDebounce?.cancel();
-    final editingMsg = ref.read(editingMessageProvider);
-    if (editingMsg == null) {
-      ref.read(directChatProvider.notifier).saveDraft(_messageController.text);
+    if (!_isEditing) {
+      _directChatNotifier?.saveDraft(_messageController.text);
     }
     _messageController.removeListener(_onTextChanged);
     _focusNode.removeListener(_onFocusChange);
@@ -147,6 +154,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   @override
   Widget build(BuildContext context) {
     ref.listen(editingMessageProvider, (previous, next) {
+      _isEditing = next != null;
       if (next != null) {
         _messageController.text = next.text;
         _focusNode.requestFocus();
@@ -159,11 +167,8 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     return PopScope(
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) {
-          final editingMsg = ref.read(editingMessageProvider);
-          if (editingMsg == null) {
-            ref
-                .read(directChatProvider.notifier)
-                .saveDraft(_messageController.text);
+          if (!_isEditing) {
+            _directChatNotifier?.saveDraft(_messageController.text);
           }
           ref.read(currentChatIdProvider.notifier).state = null;
         }
@@ -519,7 +524,7 @@ class _BubbleById extends ConsumerWidget {
         id: '',
         name: '',
         message: '',
-        image: kAvatarUrl,
+        image: '',
         time: '',
         unreadCount: 0,
         isOnline: false,
@@ -545,11 +550,16 @@ class _BubbleById extends ConsumerWidget {
       );
     }
 
+    final String? senderAvatar =
+        (msg.senderAvatar != null && msg.senderAvatar!.trim().isNotEmpty)
+            ? msg.senderAvatar
+            : currentChat.image;
+
     return ChatBubble(
       key: ValueKey(id),
       message: msg,
       activeTheme: activeTheme,
-      otherUserAvatar: currentChat.image,
+      otherUserAvatar: senderAvatar,
       repliedMessage: repliedMsg,
       onDelete: () =>
           ref.read(directChatProvider.notifier).deleteMessage(msg.id),

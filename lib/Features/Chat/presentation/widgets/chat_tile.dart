@@ -240,7 +240,8 @@ class _ChatTileContent extends ConsumerWidget {
             RepaintBoundary(
               child: ChatAvatar(
                 imageUrl: chat.image,
-                isGroup: chat.userId == null || chat.userId!.isEmpty,
+                memberAvatars: chat.memberAvatars,
+                isGroup: chat.isGroup,
                 isOnline: chat.isOnline,
                 onlineColor: _kActiveBlue,
                 borderColor: bgColor,

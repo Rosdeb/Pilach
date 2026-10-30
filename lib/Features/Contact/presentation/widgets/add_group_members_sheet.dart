@@ -5,7 +5,6 @@ import '../../../../core/utils/app_toast.dart';
 import 'package:app/Features/Chat/presentation/providers/chat_provider.dart';
 
 import '../providers/contact_providers.dart';
-import '../providers/create_group_providers.dart';
 
 class AddGroupMembersBottomSheet extends ConsumerStatefulWidget {
   final String conversationId;
@@ -25,6 +24,7 @@ class AddGroupMembersBottomSheet extends ConsumerStatefulWidget {
 class _AddGroupMembersBottomSheetState
     extends ConsumerState<AddGroupMembersBottomSheet> {
   final _searchController = TextEditingController();
+  final Set<String> _selectedMembers = {};
   bool _isAdding = false;
   String _searchQuery = '';
 
@@ -34,10 +34,20 @@ class _AddGroupMembersBottomSheetState
     super.dispose();
   }
 
-  Future<void> _addMembers(Set<String> selectedMembers) async {
+  void _toggleMember(String id) {
+    setState(() {
+      if (_selectedMembers.contains(id)) {
+        _selectedMembers.remove(id);
+      } else {
+        _selectedMembers.add(id);
+      }
+    });
+  }
+
+  Future<void> _addMembers() async {
     if (_isAdding) return;
 
-    if (selectedMembers.isEmpty) {
+    if (_selectedMembers.isEmpty) {
       AppToast.show(
         context,
         'Please select at least one member',
@@ -52,16 +62,15 @@ class _AddGroupMembersBottomSheetState
           .read(chatProvider.notifier)
           .addMembersToConversation(
             widget.conversationId,
-            selectedMembers.toList(growable: false),
+            _selectedMembers.toList(growable: false),
           );
 
       if (!mounted) return;
 
       if (success) {
-        ref.read(selectedMembersProvider.notifier).clear();
         AppToast.show(
           context,
-          'Added ${selectedMembers.length} member(s) to ${widget.groupTitle}',
+          'Added ${_selectedMembers.length} member(s) to ${widget.groupTitle}',
           type: ToastType.success,
         );
         Navigator.of(context).pop();
@@ -82,8 +91,8 @@ class _AddGroupMembersBottomSheetState
 
   @override
   Widget build(BuildContext context) {
-    final selectedMembers = ref.watch(selectedMembersProvider);
-    final allContacts = ref.watch(masterContactsProvider);
+    final chats = ref.watch(chatProvider);
+    final allContacts = extractEligibleContacts(chats);
     final theme = Theme.of(context);
 
     // Filter contacts based on search query
@@ -100,7 +109,7 @@ class _AddGroupMembersBottomSheetState
         !allContacts.any(
           (c) => c.id.toLowerCase() == _searchQuery.trim().toLowerCase(),
         ) &&
-        !selectedMembers.contains(_searchQuery.trim());
+        !_selectedMembers.contains(_searchQuery.trim());
 
     return ConstrainedBox(
       constraints: BoxConstraints(
@@ -138,7 +147,6 @@ class _AddGroupMembersBottomSheetState
                 children: [
                   GestureDetector(
                     onTap: () {
-                      ref.read(selectedMembersProvider.notifier).clear();
                       Navigator.of(context).pop();
                     },
                     child: const Text(
@@ -157,9 +165,9 @@ class _AddGroupMembersBottomSheetState
                         ),
                       ),
                       Text(
-                        selectedMembers.isEmpty
+                        _selectedMembers.isEmpty
                             ? widget.groupTitle
-                            : '${selectedMembers.length} Selected',
+                            : '${_selectedMembers.length} Selected',
                         style: TextStyle(
                           color: theme.colorScheme.onSurface.withValues(
                             alpha: 0.6,
@@ -170,9 +178,9 @@ class _AddGroupMembersBottomSheetState
                     ],
                   ),
                   GestureDetector(
-                    onTap: selectedMembers.isEmpty || _isAdding
+                    onTap: _selectedMembers.isEmpty || _isAdding
                         ? null
-                        : () => _addMembers(selectedMembers),
+                        : _addMembers,
                     child: _isAdding
                         ? const SizedBox(
                             width: 18,
@@ -182,7 +190,7 @@ class _AddGroupMembersBottomSheetState
                         : Text(
                             'Add',
                             style: TextStyle(
-                              color: selectedMembers.isNotEmpty && !_isAdding
+                              color: _selectedMembers.isNotEmpty && !_isAdding
                                   ? const Color(0xFF34C759)
                                   : theme.colorScheme.onSurface.withValues(
                                       alpha: 0.3,
@@ -207,12 +215,12 @@ class _AddGroupMembersBottomSheetState
                 ),
                 children: [
                   // --- SELECTED MEMBERS CHIPS ---
-                  if (selectedMembers.isNotEmpty) ...[
+                  if (_selectedMembers.isNotEmpty) ...[
                     SizedBox(
                       height: 42,
                       child: ListView(
                         scrollDirection: Axis.horizontal,
-                        children: selectedMembers.map((memberId) {
+                        children: _selectedMembers.map((memberId) {
                           final match = allContacts
                               .where((c) => c.id == memberId)
                               .firstOrNull;
@@ -251,11 +259,7 @@ class _AddGroupMembersBottomSheetState
                                 ),
                                 const SizedBox(width: 6),
                                 GestureDetector(
-                                  onTap: () {
-                                    ref
-                                        .read(selectedMembersProvider.notifier)
-                                        .toggleMember(memberId);
-                                  },
+                                  onTap: () => _toggleMember(memberId),
                                   child: Icon(
                                     CupertinoIcons.clear_circled_solid,
                                     size: 16,
@@ -342,9 +346,7 @@ class _AddGroupMembersBottomSheetState
                       child: InkWell(
                         borderRadius: BorderRadius.circular(10),
                         onTap: () {
-                          ref
-                              .read(selectedMembersProvider.notifier)
-                              .toggleMember(_searchQuery.trim());
+                          _toggleMember(_searchQuery.trim());
                           _searchController.clear();
                           setState(() => _searchQuery = '');
                         },
@@ -451,15 +453,11 @@ class _AddGroupMembersBottomSheetState
                           for (int i = 0; i < filteredContacts.length; i++) ...[
                             _buildContactRow(
                               contact: filteredContacts[i],
-                              isChecked: selectedMembers.contains(
+                              isChecked: _selectedMembers.contains(
                                 filteredContacts[i].id,
                               ),
                               theme: theme,
-                              onTap: () {
-                                ref
-                                    .read(selectedMembersProvider.notifier)
-                                    .toggleMember(filteredContacts[i].id);
-                              },
+                              onTap: () => _toggleMember(filteredContacts[i].id),
                             ),
                             if (i < filteredContacts.length - 1)
                               Divider(

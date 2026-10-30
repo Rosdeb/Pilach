@@ -2,14 +2,13 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-/// Stateless avatar with image loading, Cupertino icon fallback, and online indicator.
-///
-/// Displays [imageUrl] via [CachedNetworkImage] if present; otherwise falls back
-/// to a native Cupertino icon (e.g. person or group) on a themed circular background.
+/// Stateless avatar with single image loading, Messenger-style composite group avatar,
+/// Cupertino icon fallback, and online indicator.
 class ChatAvatar extends StatelessWidget {
   const ChatAvatar({
     super.key,
     this.imageUrl,
+    this.memberAvatars = const [],
     this.isGroup = false,
     this.icon,
     this.backgroundColor,
@@ -21,6 +20,7 @@ class ChatAvatar extends StatelessWidget {
   });
 
   final String? imageUrl;
+  final List<String> memberAvatars;
   final bool isGroup;
   final IconData? icon;
   final Color? backgroundColor;
@@ -46,9 +46,8 @@ class ChatAvatar extends StatelessWidget {
 
     final Color effectiveIconColor = iconColor ?? theme.colorScheme.primary;
 
-    final hasValidImage = imageUrl != null && imageUrl!.trim().isNotEmpty;
-
-    Widget buildFallback() => Container(
+    // 1. Single fallback widget (used for individual avatars or fallback group icon)
+    Widget buildFallbackIcon() => Container(
           width: size,
           height: size,
           decoration: BoxDecoration(
@@ -63,30 +62,67 @@ class ChatAvatar extends StatelessWidget {
           ),
         );
 
+    // 2. Determine avatar display mode
+    final trimmedImg = imageUrl?.trim() ?? '';
+    final hasDedicatedImage = trimmedImg.isNotEmpty &&
+        !trimmedImg.startsWith('MEMBERS_AVATARS:') &&
+        !trimmedImg.contains('motor1.com') &&
+        trimmedImg != 'assets/images/default.png';
+
+    Widget avatarContent;
+
+    if (isGroup && !hasDedicatedImage) {
+      final validAvatars = memberAvatars
+          .map((url) => url.trim())
+          .where((url) =>
+              url.isNotEmpty &&
+              !url.contains('motor1.com') &&
+              url != 'assets/images/default.png' &&
+              url != 'null')
+          .toList();
+
+      if (validAvatars.length >= 2) {
+        // Messenger style composite group avatar
+        avatarContent = _buildMessengerGroupAvatar(
+          validAvatars: validAvatars,
+          size: size,
+          borderWidth: (size * 0.04).clamp(1.5, 3.5),
+          borderColor: borderColor,
+          bgColor: effectiveBgColor,
+          iconColor: effectiveIconColor,
+        );
+      } else {
+        // Default Cupertino group picture
+        avatarContent = buildFallbackIcon();
+      }
+    } else if (hasDedicatedImage) {
+      avatarContent = CircleAvatar(
+        radius: radius,
+        backgroundColor: effectiveBgColor,
+        child: ClipOval(
+          child: CachedNetworkImage(
+            imageUrl: trimmedImg,
+            fit: BoxFit.cover,
+            width: size,
+            height: size,
+            fadeInDuration: const Duration(milliseconds: 150),
+            placeholder: (_, _) => buildFallbackIcon(),
+            errorWidget: (_, _, _) => buildFallbackIcon(),
+          ),
+        ),
+      );
+    } else {
+      avatarContent = buildFallbackIcon();
+    }
+
     return SizedBox(
       width: size,
       height: size,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          CircleAvatar(
-            radius: radius,
-            backgroundColor: effectiveBgColor,
-            child: ClipOval(
-              child: hasValidImage
-                  ? CachedNetworkImage(
-                      imageUrl: imageUrl!.trim(),
-                      fit: BoxFit.cover,
-                      width: size,
-                      height: size,
-                      fadeInDuration: const Duration(milliseconds: 150),
-                      placeholder: (_, _) => buildFallback(),
-                      errorWidget: (_, _, _) => buildFallback(),
-                    )
-                  : buildFallback(),
-            ),
-          ),
-          if (isOnline)
+          avatarContent,
+          if (isOnline && !isGroup)
             Positioned(
               bottom: 1,
               right: 1,
@@ -94,6 +130,155 @@ class ChatAvatar extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+
+  /// Builds a Facebook Messenger / iOS style overlapping circular composite avatar
+  /// for 2 or 3+ group members.
+  Widget _buildMessengerGroupAvatar({
+    required List<String> validAvatars,
+    required double size,
+    required double borderWidth,
+    required Color borderColor,
+    required Color bgColor,
+    required Color iconColor,
+  }) {
+    if (validAvatars.length == 2) {
+      final childSize = size * 0.65;
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Top-right circle (first member)
+            Positioned(
+              top: 0,
+              right: 0,
+              child: _buildMiniAvatar(
+                url: validAvatars[0],
+                childSize: childSize,
+                borderWidth: borderWidth,
+                borderColor: borderColor,
+                bgColor: bgColor,
+                iconColor: iconColor,
+              ),
+            ),
+            // Bottom-left circle (second member) overlapping with cutout border
+            Positioned(
+              bottom: 0,
+              left: 0,
+              child: _buildMiniAvatar(
+                url: validAvatars[1],
+                childSize: childSize,
+                borderWidth: borderWidth,
+                borderColor: borderColor,
+                bgColor: bgColor,
+                iconColor: iconColor,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // 3 or more members
+      final childSize = size * 0.52;
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Top-center circle (first member)
+            Positioned(
+              top: 0,
+              left: (size - childSize) / 2,
+              child: _buildMiniAvatar(
+                url: validAvatars[0],
+                childSize: childSize,
+                borderWidth: borderWidth,
+                borderColor: borderColor,
+                bgColor: bgColor,
+                iconColor: iconColor,
+              ),
+            ),
+            // Bottom-left circle (second member)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              child: _buildMiniAvatar(
+                url: validAvatars[1],
+                childSize: childSize,
+                borderWidth: borderWidth,
+                borderColor: borderColor,
+                bgColor: bgColor,
+                iconColor: iconColor,
+              ),
+            ),
+            // Bottom-right circle (third member)
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: _buildMiniAvatar(
+                url: validAvatars[2],
+                childSize: childSize,
+                borderWidth: borderWidth,
+                borderColor: borderColor,
+                bgColor: bgColor,
+                iconColor: iconColor,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Widget _buildMiniAvatar({
+    required String url,
+    required double childSize,
+    required double borderWidth,
+    required Color borderColor,
+    required Color bgColor,
+    required Color iconColor,
+  }) {
+    final innerContent = ClipOval(
+      child: CachedNetworkImage(
+        imageUrl: url.trim(),
+        fit: BoxFit.cover,
+        width: childSize,
+        height: childSize,
+        fadeInDuration: const Duration(milliseconds: 150),
+        placeholder: (_, _) => Container(
+          color: bgColor,
+          alignment: Alignment.center,
+          child: Icon(
+            CupertinoIcons.person_fill,
+            color: iconColor,
+            size: childSize * 0.55,
+          ),
+        ),
+        errorWidget: (_, _, _) => Container(
+          color: bgColor,
+          alignment: Alignment.center,
+          child: Icon(
+            CupertinoIcons.person_fill,
+            color: iconColor,
+            size: childSize * 0.55,
+          ),
+        ),
+      ),
+    );
+
+    return Container(
+      width: childSize,
+      height: childSize,
+      decoration: BoxDecoration(
+        color: borderColor,
+        shape: BoxShape.circle,
+      ),
+      padding: EdgeInsets.all(borderWidth),
+      child: innerContent,
     );
   }
 }

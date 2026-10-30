@@ -199,16 +199,8 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (!widget.message.isMe &&
-                      widget.otherUserAvatar != null) ...[
-                    CircleAvatar(
-                      radius: 12,
-                      backgroundImage:
-                          widget.otherUserAvatar!.startsWith('http')
-                          ? CachedNetworkImageProvider(widget.otherUserAvatar!)
-                          : AssetImage(widget.otherUserAvatar!)
-                                as ImageProvider,
-                    ),
+                  if (!widget.message.isMe) ...[
+                    _buildIncomingAvatar(context),
                     const SizedBox(width: 8),
                   ],
                   Flexible(
@@ -356,6 +348,72 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
       case MessageStatus.seen:
         return const Icon(Icons.done_all, size: 14, color: Color(0xFF34C759));
     }
+  }
+
+  Widget _buildIncomingAvatar(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final String? avatar = widget.otherUserAvatar?.trim();
+    final bool hasImage = avatar != null &&
+        avatar.isNotEmpty &&
+        !avatar.contains('motor1.com') &&
+        avatar != 'assets/images/default.png';
+
+    final Color bgColor = isDark
+        ? theme.colorScheme.primary.withValues(alpha: 0.20)
+        : theme.colorScheme.primary.withValues(alpha: 0.12);
+    final Color iconColor = theme.colorScheme.primary;
+
+    Widget buildFallback() => Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: bgColor,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Icon(
+            CupertinoIcons.person_fill,
+            size: 13,
+            color: iconColor,
+          ),
+        );
+
+    if (!hasImage) {
+      return buildFallback();
+    }
+
+    if (avatar.startsWith('http')) {
+      return SizedBox(
+        width: 24,
+        height: 24,
+        child: ClipOval(
+          child: CachedNetworkImage(
+            imageUrl: avatar,
+            fit: BoxFit.cover,
+            width: 24,
+            height: 24,
+            fadeInDuration: const Duration(milliseconds: 100),
+            placeholder: (_, _) => buildFallback(),
+            errorWidget: (_, _, _) => buildFallback(),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: 24,
+      height: 24,
+      child: ClipOval(
+        child: Image.asset(
+          avatar,
+          fit: BoxFit.cover,
+          width: 24,
+          height: 24,
+          errorBuilder: (_, _, _) => buildFallback(),
+        ),
+      ),
+    );
   }
 
   Widget _buildBubbleContent(

@@ -13,6 +13,7 @@ class ChatModel {
   final bool isPinned;
   final String? lastActive;
   final String type;
+  final List<String> memberAvatars;
 
   bool get isGroup => type.toUpperCase() == 'GROUP';
 
@@ -31,6 +32,7 @@ class ChatModel {
     this.isPinned = false,
     this.lastActive,
     this.type = 'PRIVATE',
+    this.memberAvatars = const [],
   });
 
   ChatModel copyWith({
@@ -49,6 +51,7 @@ class ChatModel {
     bool? isPinned,
     String? lastActive,
     String? type,
+    List<String>? memberAvatars,
   }) {
     return ChatModel(
       id: id ?? this.id,
@@ -65,6 +68,7 @@ class ChatModel {
       isPinned: isPinned ?? this.isPinned,
       lastActive: lastActive ?? this.lastActive,
       type: type ?? this.type,
+      memberAvatars: memberAvatars ?? this.memberAvatars,
     );
   }
 
@@ -84,7 +88,18 @@ class ChatModel {
         other.isRead == isRead &&
         other.draft == draft &&
         other.isPinned == isPinned &&
-        other.lastActive == lastActive;
+        other.lastActive == lastActive &&
+        other.type == type &&
+        _listEquals(other.memberAvatars, memberAvatars);
+  }
+
+  static bool _listEquals(List<String> a, List<String> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   @override
@@ -102,5 +117,7 @@ class ChatModel {
     draft,
     isPinned,
     lastActive,
+    type,
+    Object.hashAll(memberAvatars),
   );
 }

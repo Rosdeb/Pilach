@@ -54,6 +54,37 @@ String? _memberLastActive(dynamic member) {
       ?.toString();
 }
 
+List<String> _extractMemberAvatars(List<dynamic>? members) {
+  if (members == null || members.isEmpty) return const [];
+  final avatars = <String>[];
+  for (final member in members) {
+    if (member is! Map) continue;
+    final userMap = member['user'] as Map?;
+    final profile =
+        (userMap?['profile'] as Map?) ?? (member['profile'] as Map?);
+
+    String? avatar = profile?['avatarUrl']?.toString() ??
+        profile?['avatar']?.toString() ??
+        userMap?['avatarUrl']?.toString() ??
+        userMap?['avatar']?.toString() ??
+        member['avatarUrl']?.toString() ??
+        member['avatar']?.toString();
+
+    if (avatar != null) {
+      avatar = avatar.trim();
+      if (avatar.isNotEmpty &&
+          avatar != 'null' &&
+          avatar != 'assets/images/default.png' &&
+          !avatar.contains('motor1.com')) {
+        if (!avatars.contains(avatar)) {
+          avatars.add(avatar);
+        }
+      }
+    }
+  }
+  return avatars;
+}
+
 class ChatDto {
   final String id;
   final String type;
@@ -148,8 +179,19 @@ class ChatDto {
     bool? isOnline;
     String? lastActive;
 
-    // PRIVATE chat: other member-এর info নাও
-    if (type == 'PRIVATE' && members != null && members!.isNotEmpty) {
+    if (type == 'GROUP') {
+      if (avatarUrl == null ||
+          avatarUrl!.isEmpty ||
+          avatarUrl!.contains('motor1.com') ||
+          avatarUrl == 'assets/images/default.png') {
+        final memberAvatars = _extractMemberAvatars(members);
+        if (memberAvatars.isNotEmpty) {
+          displayAvatar = 'MEMBERS_AVATARS:${memberAvatars.take(3).join(',')}';
+        } else {
+          displayAvatar = null;
+        }
+      }
+    } else if (type == 'PRIVATE' && members != null && members!.isNotEmpty) {
       final otherMember = _selectOtherMember(members!, currentUserId);
 
       if (otherMember is Map) {
@@ -243,9 +285,17 @@ extension ChatDtoMapper on ChatDto {
     String? otherUserId;
     bool isOnline = false;
     String? lastActive;
+    List<String> memberAvatars = const [];
 
-    // Fallback for PRIVATE chats
-    if (type == 'PRIVATE' && members != null && members!.isNotEmpty) {
+    if (type == 'GROUP') {
+      memberAvatars = _extractMemberAvatars(members);
+      if (displayAvatar == null ||
+          displayAvatar.isEmpty ||
+          displayAvatar.contains('motor1.com') ||
+          displayAvatar == 'assets/images/default.png') {
+        displayAvatar = '';
+      }
+    } else if (type == 'PRIVATE' && members != null && members!.isNotEmpty) {
       final otherMember = _selectOtherMember(members!, currentUserId);
 
       if (otherMember is Map) {
@@ -259,6 +309,11 @@ extension ChatDtoMapper on ChatDto {
         isOnline = _memberIsOnline(otherMember);
         lastActive = _memberLastActive(otherMember);
       }
+      if (displayAvatar != null &&
+          (displayAvatar.contains('motor1.com') ||
+              displayAvatar == 'assets/images/default.png')) {
+        displayAvatar = '';
+      }
     }
 
     final String? previewMessage = _resolveLastMessagePreview();
@@ -268,11 +323,9 @@ extension ChatDtoMapper on ChatDto {
       userId: otherUserId,
       name:
           displayTitle ??
-          'Unknown User', // Handle PRIVATE chats with null title
+          (type == 'GROUP' ? 'Group Chat' : 'Unknown User'),
       message: previewMessage ?? 'New Chat',
-      image:
-          displayAvatar ??
-          'https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp',
+      image: displayAvatar ?? '',
       time: formattedTime,
       unreadCount: unreadCount,
       isOnline: isOnline,
@@ -281,6 +334,7 @@ extension ChatDtoMapper on ChatDto {
       isPinned: false,
       lastActive: lastActive,
       type: type,
+      memberAvatars: memberAvatars,
     );
   }
 }
@@ -297,10 +351,27 @@ extension ChatSqliteMapper on Map<String, dynamic> {
     }
 
     final sqliteAvatar = this['avatar_url'] as String?;
-    String resolvedAvatar =
-        (sqliteAvatar == null || sqliteAvatar == 'assets/images/default.png')
-        ? 'https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp'
-        : sqliteAvatar;
+    final String chatType =
+        (this['type'] as String?)?.toUpperCase() ?? 'PRIVATE';
+    List<String> memberAvatars = const [];
+    String resolvedAvatar = '';
+
+    if (sqliteAvatar != null && sqliteAvatar.startsWith('MEMBERS_AVATARS:')) {
+      final rawList = sqliteAvatar.substring('MEMBERS_AVATARS:'.length);
+      if (rawList.isNotEmpty) {
+        memberAvatars = rawList
+            .split(',')
+            .map((u) => u.trim())
+            .where((u) => u.isNotEmpty && !u.contains('motor1.com'))
+            .toList();
+      }
+      resolvedAvatar = '';
+    } else if (sqliteAvatar != null &&
+        sqliteAvatar.trim().isNotEmpty &&
+        sqliteAvatar != 'assets/images/default.png' &&
+        !sqliteAvatar.contains('motor1.com')) {
+      resolvedAvatar = sqliteAvatar.trim();
+    }
 
     // ✅ সরাসরি URL ব্যবহার করো — আলাদা cache-busting দরকার নেই
     // যুক্তি: conversation.updated_at প্রতিটা message-এ পরিবর্তন হয়
@@ -312,11 +383,13 @@ extension ChatSqliteMapper on Map<String, dynamic> {
     final String resolvedName =
         (rawTitle != null && rawTitle.trim().isNotEmpty && rawTitle != 'null')
         ? rawTitle.trim()
-        : (otherUid != null && otherUid.isNotEmpty
-              ? (otherUid.length > 8
+        : (chatType == 'GROUP'
+            ? 'Group Chat'
+            : (otherUid != null && otherUid.isNotEmpty
+                ? (otherUid.length > 8
                     ? 'User ${otherUid.substring(0, 8)}'
                     : 'User $otherUid')
-              : 'Chat');
+                : 'Chat'));
 
     return ChatModel(
       id: this['id'] as String,
@@ -332,7 +405,8 @@ extension ChatSqliteMapper on Map<String, dynamic> {
       isPinned: (this['is_pinned'] as num?)?.toInt() == 1,
       draft: this['draft']?.toString(),
       lastActive: this['last_active_at'] as String?,
-      type: (this['type'] as String?) ?? 'PRIVATE',
+      type: chatType,
+      memberAvatars: memberAvatars,
     );
   }
 }

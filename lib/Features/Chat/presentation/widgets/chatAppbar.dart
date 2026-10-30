@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,13 +8,13 @@ import '../../../../core/constants/app_constants.dart';
 import '../../data/models/chat_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/direct_chat_provider.dart';
+import 'chat_avatar.dart';
 
-const String kAvatarUrl = 'https://cdn.motor1.com/images/mgl/bglVnv/239:0:1438:1080/best-new-cars-coming-out-in-2025.webp';
 const Color _kGreen = Color(0xFF082DE3);
 
 
 class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
-  const ChatAppBar({required this.activeTheme, required this.headerTextColor});
+  const ChatAppBar({super.key, required this.activeTheme, required this.headerTextColor});
 
   final dynamic activeTheme;
   final Color headerTextColor;
@@ -32,7 +31,7 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
         id: '',
         name: 'Unknown User',
         message: '',
-        image: kAvatarUrl,
+        image: '',
         time: '',
         unreadCount: 0,
         isOnline: false,
@@ -56,31 +55,14 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
         child: Row(
           children: [
             RepaintBoundary(
-              child: Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundImage: currentChat.image.startsWith('http')
-                        ? CachedNetworkImageProvider(currentChat.image)
-                        : AssetImage(currentChat.image) as ImageProvider,
-                  ),
-                  if (currentChat.isOnline && !currentChat.isGroup)
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: _kGreen,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Theme.of(context).scaffoldBackgroundColor,
-                            width: 1.5,
-                          ),
-                        ),
-                        child: const SizedBox(width: 10, height: 10),
-                      ),
-                    ),
-                ],
+              child: ChatAvatar(
+                radius: 20,
+                imageUrl: currentChat.image,
+                memberAvatars: currentChat.memberAvatars,
+                isGroup: currentChat.isGroup,
+                isOnline: currentChat.isOnline && !currentChat.isGroup,
+                onlineColor: _kGreen,
+                borderColor: activeTheme.backgroundColor,
               ),
             ),
             const SizedBox(width: 10),

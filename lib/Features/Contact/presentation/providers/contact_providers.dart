@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../../../Chat/data/models/chat_model.dart';
 import '../../../Chat/presentation/providers/chat_provider.dart';
 
 class ContactItem {
@@ -32,8 +33,7 @@ final contactSearchProvider = StateProvider<String>((ref) => '');
 // 2. Backend-derived contacts from user's conversation list.
 // For private conversations, the other user is an eligible contact/group member.
 // Their member ID is chat.userId (or chat.id if userId is not populated).
-final masterContactsProvider = Provider<List<ContactItem>>((ref) {
-  final chats = ref.watch(chatProvider);
+List<ContactItem> extractEligibleContacts(List<ChatModel> chats) {
   final contactsByMemberId = <String, ContactItem>{};
 
   for (final chat in chats) {
@@ -70,6 +70,11 @@ final masterContactsProvider = Provider<List<ContactItem>>((ref) {
   final contacts = contactsByMemberId.values.toList(growable: false);
   contacts.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   return contacts;
+}
+
+final masterContactsProvider = Provider<List<ContactItem>>((ref) {
+  final chats = ref.watch(chatProvider);
+  return extractEligibleContacts(chats);
 });
 
 // 3. Filtered & Sorted Grouped Contacts Provider

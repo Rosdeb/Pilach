@@ -1,15 +1,16 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app/components/AppText/appText.dart';
+import 'package:app/core/constants/app_paths.dart';
 import '../../../data/models/chat_model.dart';
+import '../../widgets/chat_avatar.dart';
 import '../../../../Contact/presentation/widgets/add_group_members_sheet.dart';
 
 class ChatProfileScreen extends StatelessWidget {
   final ChatModel chat;
 
-  const ChatProfileScreen({Key? key, required this.chat}) : super(key: key);
+  const ChatProfileScreen({super.key, required this.chat});
 
   void _showAddMemberSheet(BuildContext context) {
     showModalBottomSheet(
@@ -47,25 +48,14 @@ class ChatProfileScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 // --- Avatar & Identity ---
                 Center(
-                  child: Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundImage: chat.image.startsWith('http')
-                            ? CachedNetworkImageProvider(chat.image)
-                            : AssetImage(chat.image) as ImageProvider,
-                      ),
-                      Container(
-                        width: 18,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          color: chat.isOnline ? const Color(0xFF34C759) : Colors.grey,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: theme.scaffoldBackgroundColor, width: 3),
-                        ),
-                      ),
-                    ],
+                  child: ChatAvatar(
+                    radius: 50,
+                    imageUrl: chat.image,
+                    memberAvatars: chat.memberAvatars,
+                    isGroup: chat.isGroup,
+                    isOnline: chat.isOnline && !chat.isGroup,
+                    onlineColor: const Color(0xFF34C759),
+                    borderColor: theme.scaffoldBackgroundColor,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -82,7 +72,7 @@ class ChatProfileScreen extends StatelessWidget {
                   chat.isGroup ? 'Group Conversation' : 'Active now',
                   style: TextStyle(
                     fontSize: 14,
-                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -91,8 +81,6 @@ class ChatProfileScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildActionButton(context, CupertinoIcons.phone_fill, 'Audio', () {}),
-                    _buildActionButton(context, CupertinoIcons.video_camera_solid, 'Video', () {}),
                     if (chat.isGroup)
                       _buildActionButton(
                         context,
@@ -101,8 +89,18 @@ class ChatProfileScreen extends StatelessWidget {
                         () => _showAddMemberSheet(context),
                       )
                     else
-                      _buildActionButton(context, CupertinoIcons.person_solid, 'Profile', () {}),
-                    _buildActionButton(context, CupertinoIcons.bell_slash_fill, 'Mute', () {}),
+                      _buildActionButton(
+                        context,
+                        CupertinoIcons.search,
+                        'Search',
+                        () => context.push(AppPaths.chat_search),
+                      ),
+                    _buildActionButton(
+                      context,
+                      CupertinoIcons.bell_slash_fill,
+                      'Mute',
+                      () {},
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -165,7 +163,7 @@ class ChatProfileScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: theme.colorScheme.onSurface.withOpacity(0.06),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.06),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, size: 24, color: theme.colorScheme.onSurface),
@@ -228,9 +226,9 @@ class ChatProfileScreen extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (trailing != null)
-            AppText(trailing, style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.5))),
+            AppText(trailing, style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
           if (trailing != null) const SizedBox(width: 8),
-          Icon(Icons.arrow_forward_ios, size: 14, color: theme.colorScheme.onSurface.withOpacity(0.3)),
+          Icon(Icons.arrow_forward_ios, size: 14, color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
         ],
       ),
       onTap: onTap ?? () {},

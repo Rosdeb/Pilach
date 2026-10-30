@@ -8,7 +8,6 @@ import 'package:app/Features/Chat/presentation/providers/chat_provider.dart';
 import 'package:app/Features/Chat/presentation/providers/direct_chat_provider.dart';
 
 import '../providers/contact_providers.dart';
-import '../providers/create_group_providers.dart';
 
 class CreateGroupBottomSheet extends ConsumerStatefulWidget {
   const CreateGroupBottomSheet({super.key});
@@ -20,6 +19,7 @@ class CreateGroupBottomSheet extends ConsumerStatefulWidget {
 class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet> {
   final _groupNameController = TextEditingController();
   final _searchController = TextEditingController();
+  final Set<String> _selectedMembers = {};
   bool _isCreating = false;
   String _searchQuery = '';
 
@@ -30,7 +30,17 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
     super.dispose();
   }
 
-  Future<void> _createGroup(Set<String> selectedMembers) async {
+  void _toggleMember(String id) {
+    setState(() {
+      if (_selectedMembers.contains(id)) {
+        _selectedMembers.remove(id);
+      } else {
+        _selectedMembers.add(id);
+      }
+    });
+  }
+
+  Future<void> _createGroup() async {
     final groupTitle = _groupNameController.text.trim();
     if (_isCreating) return;
 
@@ -39,7 +49,7 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
       return;
     }
 
-    if (selectedMembers.isEmpty) {
+    if (_selectedMembers.isEmpty) {
       AppToast.show(context, 'Please select at least one member', type: ToastType.warning);
       return;
     }
@@ -51,7 +61,7 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
           .read(chatProvider.notifier)
           .createGroupConversation(
             title: groupTitle,
-            userIds: selectedMembers.toList(growable: false),
+            userIds: _selectedMembers.toList(growable: false),
           );
       if (newChatId == null || newChatId.isEmpty) {
         throw Exception('The server did not return the new group');
@@ -59,7 +69,6 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
       if (!mounted) return;
 
       ref.read(currentChatIdProvider.notifier).state = newChatId;
-      ref.read(selectedMembersProvider.notifier).clear();
       Navigator.of(context).pop();
       router.push(AppPaths.chat);
     } catch (error) {
@@ -76,8 +85,8 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
 
   @override
   Widget build(BuildContext context) {
-    final selectedMembers = ref.watch(selectedMembersProvider);
-    final allContacts = ref.watch(masterContactsProvider);
+    final chats = ref.watch(chatProvider);
+    final allContacts = extractEligibleContacts(chats);
     final theme = Theme.of(context);
 
     // Filter contacts based on search query
@@ -91,7 +100,7 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
 
     final isManualIdEligible = _searchQuery.trim().isNotEmpty &&
         !allContacts.any((c) => c.id.toLowerCase() == _searchQuery.trim().toLowerCase()) &&
-        !selectedMembers.contains(_searchQuery.trim());
+        !_selectedMembers.contains(_searchQuery.trim());
 
     return ConstrainedBox(
       constraints: BoxConstraints(
@@ -129,7 +138,6 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                 children: [
                   GestureDetector(
                     onTap: () {
-                      ref.read(selectedMembersProvider.notifier).clear();
                       Navigator.of(context).pop();
                     },
                     child: const Text(
@@ -147,9 +155,9 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      if (selectedMembers.isNotEmpty)
+                      if (_selectedMembers.isNotEmpty)
                         Text(
-                          '${selectedMembers.length} Selected',
+                          '${_selectedMembers.length} Selected',
                           style: TextStyle(
                             color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                             fontSize: 11,
@@ -161,11 +169,11 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                     valueListenable: _groupNameController,
                     builder: (context, value, _) {
                       final hasTitle = value.text.trim().isNotEmpty;
-                      final hasMembers = selectedMembers.isNotEmpty;
+                      final hasMembers = _selectedMembers.isNotEmpty;
                       final enabled = !_isCreating && hasTitle && hasMembers;
 
                       return GestureDetector(
-                        onTap: () => _createGroup(selectedMembers),
+                        onTap: _createGroup,
                         child: _isCreating
                             ? const SizedBox(
                                 width: 18,
@@ -247,13 +255,13 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                   ),
 
                   // --- SELECTED MEMBERS CHIPS (WHEN ANY SELECTED) ---
-                  if (selectedMembers.isNotEmpty) ...[
+                  if (_selectedMembers.isNotEmpty) ...[
                     const SizedBox(height: 12.0),
                     SizedBox(
                       height: 42,
                       child: ListView(
                         scrollDirection: Axis.horizontal,
-                        children: selectedMembers.map((memberId) {
+                        children: _selectedMembers.map((memberId) {
                           final match = allContacts.where((c) => c.id == memberId).firstOrNull;
                           final displayName = match?.name ??
                               (memberId.length > 10 ? '${memberId.substring(0, 8)}…' : memberId);
@@ -281,11 +289,7 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                                 ),
                                 const SizedBox(width: 6),
                                 GestureDetector(
-                                  onTap: () {
-                                    ref
-                                        .read(selectedMembersProvider.notifier)
-                                        .toggleMember(memberId);
-                                  },
+                                  onTap: () => _toggleMember(memberId),
                                   child: Icon(
                                     CupertinoIcons.clear_circled_solid,
                                     size: 16,
@@ -363,9 +367,7 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                       child: InkWell(
                         borderRadius: BorderRadius.circular(10),
                         onTap: () {
-                          ref
-                              .read(selectedMembersProvider.notifier)
-                              .toggleMember(_searchQuery.trim());
+                          _toggleMember(_searchQuery.trim());
                           _searchController.clear();
                           setState(() => _searchQuery = '');
                         },
@@ -458,13 +460,9 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                           for (int i = 0; i < filteredContacts.length; i++) ...[
                             _buildContactRow(
                               contact: filteredContacts[i],
-                              isChecked: selectedMembers.contains(filteredContacts[i].id),
+                              isChecked: _selectedMembers.contains(filteredContacts[i].id),
                               theme: theme,
-                              onTap: () {
-                                ref
-                                    .read(selectedMembersProvider.notifier)
-                                    .toggleMember(filteredContacts[i].id);
-                              },
+                              onTap: () => _toggleMember(filteredContacts[i].id),
                             ),
                             if (i < filteredContacts.length - 1)
                               Divider(
