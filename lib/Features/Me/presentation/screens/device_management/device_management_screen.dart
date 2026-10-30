@@ -8,6 +8,7 @@ import 'package:app/components/AppText/appText.dart';
 import 'package:app/core/constants/app_paths.dart';
 import 'package:app/core/utils/app_toast.dart';
 import 'package:app/Features/Me/data/models/device_session_model.dart';
+import 'package:app/Features/Me/data/repositories/security_repository.dart';
 import 'package:app/Features/Me/presentation/providers/device_session_provider.dart';
 
 class DeviceManagementScreen extends ConsumerStatefulWidget {
@@ -127,222 +128,16 @@ class _DeviceManagementScreenState
   }
 
   void _showSessionDetailsSheet(DeviceSessionModel session) {
-    final theme = Theme.of(context);
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          color: theme.scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Pill indicator
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Header Row
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor: theme.colorScheme.primary.withValues(
-                    alpha: 0.12,
-                  ),
-                  child: Icon(
-                    _getDeviceIcon(session.platformType),
-                    color: theme.colorScheme.primary,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              session.deviceName,
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.onSurface,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (session.isCurrentDevice) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFF34C759,
-                                ).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'THIS DEVICE',
-                                style: TextStyle(
-                                  color: Color(0xFF34C759),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        session.clientName,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.6,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 20),
-
-            // Metadata card
-            Container(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: [
-                  _buildDetailRow(
-                    context,
-                    label: 'Status',
-                    value: session.lastActive,
-                    isHighlight: session.isCurrentDevice,
-                  ),
-                  _buildDetailDivider(theme),
-                  _buildDetailRow(
-                    context,
-                    label: 'Application',
-                    value: session.appVersion,
-                  ),
-                  _buildDetailDivider(theme),
-                  _buildDetailRow(
-                    context,
-                    label: 'Operating System',
-                    value: session.osVersion,
-                  ),
-                  _buildDetailDivider(theme),
-                  _buildDetailRow(
-                    context,
-                    label: 'IP Address',
-                    value: session.ipAddress,
-                    trailingWidget: GestureDetector(
-                      onTap: () {
-                        Clipboard.setData(
-                          ClipboardData(text: session.ipAddress),
-                        );
-                        AppToast.show(
-                          context,
-                          'IP Address copied',
-                          type: ToastType.success,
-                        );
-                      },
-                      child: Icon(
-                        Icons.copy_rounded,
-                        size: 16,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                  _buildDetailDivider(theme),
-                  _buildDetailRow(
-                    context,
-                    label: 'Location',
-                    value: session.location,
-                  ),
-                  _buildDetailDivider(theme),
-                  _buildDetailRow(
-                    context,
-                    label: 'Signed In',
-                    value: session.loginDate,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Terminate action button
-            if (!session.isCurrentDevice) ...[
-              SizedBox(
-                width: double.infinity,
-                child: CupertinoButton(
-                  color: const Color(0xFFFF3B30),
-                  borderRadius: BorderRadius.circular(12),
-                  onPressed: () {
-                    Navigator.of(sheetContext).pop();
-                    _showTerminateSingleDialog(session);
-                  },
-                  child: const Text(
-                    'Terminate This Session',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-
-            SizedBox(
-              width: double.infinity,
-              child: CupertinoButton(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                onPressed: () => Navigator.of(sheetContext).pop(),
-                child: Text(
-                  'Close',
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
+      builder: (sheetContext) => _SessionDetailsSheetContent(
+        initialSession: session,
+        onTerminate: () {
+          Navigator.of(sheetContext).pop();
+          _showTerminateSingleDialog(session);
+        },
       ),
     );
   }
@@ -1041,5 +836,339 @@ class _DeviceManagementScreenState
         ),
       ),
     );
+  }
+}
+
+class _SessionDetailsSheetContent extends ConsumerStatefulWidget {
+  final DeviceSessionModel initialSession;
+  final VoidCallback onTerminate;
+
+  const _SessionDetailsSheetContent({
+    required this.initialSession,
+    required this.onTerminate,
+  });
+
+  @override
+  ConsumerState<_SessionDetailsSheetContent> createState() =>
+      _SessionDetailsSheetContentState();
+}
+
+class _SessionDetailsSheetContentState
+    extends ConsumerState<_SessionDetailsSheetContent> {
+  late DeviceSessionModel session;
+  bool _isLoadingFresh = false;
+
+  @override
+  void initState() {
+    super.initState();
+    session = widget.initialSession;
+    _fetchFreshDetails();
+  }
+
+  void _fetchFreshDetails() async {
+    if (widget.initialSession.id.isEmpty) return;
+    setState(() => _isLoadingFresh = true);
+    try {
+      final repo = ref.read(securityRepositoryProvider);
+      final raw = await repo.getSession(widget.initialSession.id);
+      if (mounted && raw.isNotEmpty) {
+        setState(() {
+          session = DeviceSessionModel.fromJson(raw);
+          _isLoadingFresh = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingFresh = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Pill indicator
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Header Row
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: theme.colorScheme.primary.withValues(
+                  alpha: 0.12,
+                ),
+                child: Icon(
+                  _getDeviceIcon(session.platformType),
+                  color: theme.colorScheme.primary,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            session.deviceName,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.onSurface,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (session.isCurrentDevice) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF34C759,
+                              ).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'THIS DEVICE',
+                              style: TextStyle(
+                                color: Color(0xFF34C759),
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      session.clientName,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_isLoadingFresh)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // Metadata card
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                _buildDetailRow(
+                  context,
+                  label: 'Status',
+                  value: session.lastActive,
+                  isHighlight: session.isCurrentDevice,
+                ),
+                _buildDetailDivider(theme),
+                _buildDetailRow(
+                  context,
+                  label: 'Application',
+                  value: session.appVersion,
+                ),
+                _buildDetailDivider(theme),
+                _buildDetailRow(
+                  context,
+                  label: 'Operating System',
+                  value: session.osVersion,
+                ),
+                _buildDetailDivider(theme),
+                _buildDetailRow(
+                  context,
+                  label: 'IP Address',
+                  value: session.ipAddress,
+                  trailingWidget: GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(
+                        ClipboardData(text: session.ipAddress),
+                      );
+                      AppToast.show(
+                        context,
+                        'IP Address copied',
+                        type: ToastType.success,
+                      );
+                    },
+                    child: Icon(
+                      Icons.copy_rounded,
+                      size: 16,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                _buildDetailDivider(theme),
+                _buildDetailRow(
+                  context,
+                  label: 'Location',
+                  value: session.location,
+                ),
+                _buildDetailDivider(theme),
+                _buildDetailRow(
+                  context,
+                  label: 'Signed In',
+                  value: session.loginDate,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Terminate action button
+          if (!session.isCurrentDevice) ...[
+            SizedBox(
+              width: double.infinity,
+              child: CupertinoButton(
+                color: const Color(0xFFFF3B30),
+                borderRadius: BorderRadius.circular(12),
+                onPressed: widget.onTerminate,
+                child: const Text(
+                  'Terminate This Session',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          SizedBox(
+            width: double.infinity,
+            child: CupertinoButton(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Close',
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(
+    BuildContext context, {
+    required String label,
+    required String value,
+    bool isHighlight = false,
+    Widget? trailingWidget,
+  }) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          Row(
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isHighlight
+                      ? const Color(0xFF34C759)
+                      : theme.colorScheme.onSurface,
+                ),
+              ),
+              if (trailingWidget != null) ...[
+                const SizedBox(width: 8),
+                trailingWidget,
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailDivider(ThemeData theme) {
+    return Divider(
+      height: 1,
+      thickness: 1,
+      indent: 16,
+      endIndent: 16,
+      color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
+    );
+  }
+
+  IconData _getDeviceIcon(DevicePlatformType type) {
+    switch (type) {
+      case DevicePlatformType.ios:
+        return Icons.phone_iphone_rounded;
+      case DevicePlatformType.android:
+        return Icons.phone_android_rounded;
+      case DevicePlatformType.macos:
+        return Icons.laptop_mac_rounded;
+      case DevicePlatformType.windows:
+        return Icons.desktop_windows_rounded;
+      case DevicePlatformType.linux:
+        return Icons.computer_rounded;
+      case DevicePlatformType.tablet:
+        return Icons.tablet_mac_rounded;
+    }
   }
 }

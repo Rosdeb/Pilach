@@ -114,5 +114,57 @@ void main() {
       expect(container.read(deviceSessionsProvider).length, 5);
       expect(container.read(isMaxDevicesReachedProvider), isTrue);
     });
+
+    test('resolveOS and fromJson accurately identify operating system without raw unknown', () {
+      // 1. Current device with null os from server resolves to real local OS
+      final currentSession = DeviceSessionModel.fromJson({
+        'id': 'sess-1',
+        'deviceLabel': null,
+        'platform': 'unknown',
+        'os': null,
+        'browser': null,
+        'isCurrent': true,
+      });
+      expect(currentSession.isCurrentDevice, isTrue);
+      expect(currentSession.osVersion, isNot('unknown'));
+      expect(currentSession.osVersion, isNot('—'));
+      expect(currentSession.deviceName, isNot('unknown'));
+
+      // 2. Another session with deviceLabel "Chrome on Windows" infers Windows
+      final windowsSession = DeviceSessionModel.fromJson({
+        'id': 'sess-2',
+        'deviceLabel': 'Chrome on Windows',
+        'platform': 'desktop',
+        'os': 'unknown',
+        'browser': 'Chrome 130',
+        'isCurrent': false,
+      });
+      expect(windowsSession.osVersion, 'Windows');
+
+      // 3. Another session with "Safari on iOS" infers iOS
+      final iosSession = DeviceSessionModel.fromJson({
+        'id': 'sess-3',
+        'deviceLabel': 'Safari on iOS',
+        'platform': 'mobile',
+        'os': null,
+        'browser': 'Mobile Safari',
+        'isCurrent': false,
+      });
+      expect(iosSession.osVersion, 'iOS');
+
+      // 4. Session where server sent internal "Dart" tokens is sanitized
+      final dartSession = DeviceSessionModel.fromJson({
+        'id': 'sess-dart',
+        'deviceLabel': 'Dart',
+        'platform': 'unknown',
+        'os': 'Dart on unknown',
+        'browser': 'Dart/3.5',
+        'isCurrent': true,
+      });
+      expect(dartSession.deviceName.toLowerCase(), isNot(contains('dart')));
+      expect(dartSession.clientName.toLowerCase(), isNot(contains('dart')));
+      expect(dartSession.osVersion.toLowerCase(), isNot(contains('dart')));
+      expect(dartSession.osVersion.toLowerCase(), isNot('unknown'));
+    });
   });
 }

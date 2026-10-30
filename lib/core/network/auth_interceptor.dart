@@ -120,7 +120,16 @@ class AuthInterceptor extends Interceptor {
 
   Future<String?> _performRefresh(String currentRefreshToken) async {
     try {
-      final refreshDio = Dio(BaseOptions(baseUrl: ApiConstants.baseUrl));
+      final refreshDio = Dio(
+        BaseOptions(
+          baseUrl: ApiConstants.baseUrl,
+          headers: {
+            if (dio.options.headers['User-Agent'] != null)
+              'User-Agent': dio.options.headers['User-Agent'],
+            'X-Auth-Transport': 'bearer',
+          },
+        ),
+      );
       final response = await refreshDio.post(
         ApiConstants.refreshToken,
         data: {"refreshToken": currentRefreshToken},

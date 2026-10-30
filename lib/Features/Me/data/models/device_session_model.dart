@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+
 enum DevicePlatformType {
   ios,
   android,
@@ -36,29 +39,145 @@ class DeviceSessionModel {
     this.isPrimary = false,
   });
 
+  /// Detects the current device OS cleanly without raw "unknown"
+  static String getCurrentDeviceOS() {
+    if (kIsWeb) return 'Web Client';
+    try {
+      if (Platform.isIOS) {
+        final version = Platform.operatingSystemVersion;
+        final match = RegExp(r'Version\s+([\d\.]+)').firstMatch(version);
+        final verStr = match != null ? match.group(1) : '';
+        return verStr != null && verStr.isNotEmpty ? 'iOS $verStr' : 'iOS';
+      } else if (Platform.isAndroid) {
+        final version = Platform.operatingSystemVersion;
+        return version.isNotEmpty ? 'Android $version' : 'Android';
+      } else if (Platform.isMacOS) {
+        final version = Platform.operatingSystemVersion;
+        final match = RegExp(r'Version\s+([\d\.]+)').firstMatch(version);
+        final verStr = match != null ? match.group(1) : '';
+        return verStr != null && verStr.isNotEmpty ? 'macOS $verStr' : 'macOS';
+      } else if (Platform.isWindows) {
+        return 'Windows';
+      } else if (Platform.isLinux) {
+        return 'Linux';
+      }
+      return Platform.operatingSystem;
+    } catch (_) {
+      return 'Mobile Device';
+    }
+  }
+
+  /// Detects current device name cleanly
+  static String getCurrentDeviceName() {
+    if (kIsWeb) return 'Web Client';
+    try {
+      if (Platform.isIOS) return 'Apple iPhone';
+      if (Platform.isAndroid) return 'Android Phone';
+      if (Platform.isMacOS) return 'MacBook / Mac';
+      if (Platform.isWindows) return 'Windows PC';
+      if (Platform.isLinux) return 'Linux PC';
+    } catch (_) {}
+    return 'This Device';
+  }
+
+  /// Resolves the Operating System name and version from all available session metadata
+  static String resolveOS({
+    required String? rawOs,
+    required String? deviceLabel,
+    required String? browser,
+    required String? platform,
+    required bool isCurrent,
+  }) {
+    final cleanOs = (rawOs ?? '').trim();
+    final osLower = cleanOs.toLowerCase();
+    final isOsUnknown = cleanOs.isEmpty ||
+        osLower == 'unknown' ||
+        osLower == 'null' ||
+        osLower == '—' ||
+        osLower.contains('dart');
+
+    // 1. If this is current device and server OS is unknown or Dart, use local runtime OS
+    if (isCurrent && isOsUnknown) {
+      return getCurrentDeviceOS();
+    }
+
+    // 2. If server provided a valid OS string, format and return it
+    if (!isOsUnknown) {
+      return cleanOs;
+    }
+
+    // 3. Infer from deviceLabel and browser headers (e.g. "Chrome on Windows", "Safari on iOS")
+    final combined =
+        '${deviceLabel ?? ''} ${browser ?? ''} ${platform ?? ''}'.toLowerCase();
+    if (combined.contains('ipad') || combined.contains('ipados')) {
+      return 'iPadOS';
+    }
+    if (combined.contains('ios') || combined.contains('iphone')) {
+      return 'iOS';
+    }
+    if (combined.contains('android')) {
+      return 'Android';
+    }
+    if (combined.contains('mac') ||
+        combined.contains('macos') ||
+        combined.contains('darwin') ||
+        combined.contains('macintosh')) {
+      return 'macOS';
+    }
+    if (combined.contains('win') || combined.contains('windows')) {
+      return 'Windows';
+    }
+    if (combined.contains('linux')) {
+      return 'Linux';
+    }
+
+    // 4. Fallback based on platform category
+    final p = (platform ?? '').toLowerCase();
+    if (p == 'mobile') return 'Mobile OS';
+    if (p == 'tablet') return 'Tablet OS';
+    if (p == 'desktop') return 'Desktop OS';
+
+    return isCurrent ? getCurrentDeviceOS() : 'Not detected';
+  }
+
   factory DeviceSessionModel.fromJson(Map<String, dynamic> json) {
     final platformStr = json['platform']?.toString().toLowerCase() ?? '';
-    final rawOs = json['os']?.toString() ?? '';
-    final osStr = rawOs.toLowerCase();
-    final browser = json['browser']?.toString() ?? '';
+    final rawOs = json['os']?.toString();
+    final rawBrowser = json['browser']?.toString()?.trim() ?? '';
+    final browserLower = rawBrowser.toLowerCase();
+    final isBrowserDartOrUnknown = browserLower.isEmpty ||
+        browserLower.contains('dart') ||
+        browserLower == 'unknown' ||
+        browserLower == 'null';
+    final cleanBrowser = isBrowserDartOrUnknown ? '' : rawBrowser;
+
     final isCurrent = json['isCurrent'] == true || json['current'] == true;
     final isPrimary = json['isPrimary'] == true;
 
+    final resolvedOs = resolveOS(
+      rawOs: rawOs,
+      deviceLabel: json['deviceLabel']?.toString(),
+      browser: cleanBrowser,
+      platform: platformStr,
+      isCurrent: isCurrent,
+    );
+
     // 1. Determine platform type
+    final osLower = resolvedOs.toLowerCase();
     DevicePlatformType platformType;
-    if (osStr.contains('ipad') || (platformStr == 'tablet' && osStr.contains('ios'))) {
+    if (osLower.contains('ipad')) {
       platformType = DevicePlatformType.tablet;
-    } else if (osStr.contains('ios') || platformStr == 'ios') {
+    } else if (osLower.contains('ios') || platformStr == 'ios') {
       platformType = DevicePlatformType.ios;
-    } else if (platformStr == 'tablet' || osStr.contains('tablet')) {
+    } else if (platformStr == 'tablet' || osLower.contains('tablet')) {
       platformType = DevicePlatformType.tablet;
-    } else if (osStr.contains('android') || platformStr == 'android') {
+    } else if (osLower.contains('android') || platformStr == 'android') {
       platformType = DevicePlatformType.android;
-    } else if (osStr.contains('mac') || platformStr == 'macos') {
+    } else if (osLower.contains('mac') || platformStr == 'macos') {
       platformType = DevicePlatformType.macos;
-    } else if (osStr.contains('win') || platformStr == 'windows') {
+    } else if (osLower.contains('win') || platformStr == 'windows') {
       platformType = DevicePlatformType.windows;
-    } else if (osStr.contains('linux') || platformStr == 'linux') {
+    } else if (osLower.contains('linux') || platformStr == 'linux') {
       platformType = DevicePlatformType.linux;
     } else if (platformStr == 'mobile') {
       platformType = DevicePlatformType.ios;
@@ -66,22 +185,28 @@ class DeviceSessionModel {
       platformType = DevicePlatformType.linux;
     }
 
-    // 2. Resolve a user-friendly device name
-    String? rawLabel = json['deviceLabel']?.toString();
-    if (rawLabel == null ||
-        rawLabel.trim().isEmpty ||
-        rawLabel.trim().toLowerCase() == 'unknown' ||
-        rawLabel.trim().toLowerCase() == 'unknown device') {
+    // 2. Resolve a user-friendly device name (filter out internal Dart/unknown tokens)
+    String? rawLabel = json['deviceLabel']?.toString()?.trim();
+    final labelLower = (rawLabel ?? '').toLowerCase();
+    if (labelLower.isEmpty ||
+        labelLower.contains('dart') ||
+        labelLower == 'unknown' ||
+        labelLower == 'unknown device' ||
+        labelLower == 'null') {
       rawLabel = null;
     }
 
     String deviceName;
-    if (rawLabel != null) {
+    if (isCurrent && rawLabel == null) {
+      deviceName = getCurrentDeviceName();
+    } else if (rawLabel != null) {
       deviceName = rawLabel;
-    } else if (rawOs.isNotEmpty && browser.isNotEmpty) {
-      deviceName = '$rawOs ($browser)';
-    } else if (rawOs.isNotEmpty) {
-      deviceName = switch (osStr) {
+    } else if (resolvedOs.isNotEmpty &&
+        resolvedOs != 'Not detected' &&
+        cleanBrowser.isNotEmpty) {
+      deviceName = '$resolvedOs ($cleanBrowser)';
+    } else if (resolvedOs.isNotEmpty && resolvedOs != 'Not detected') {
+      deviceName = switch (osLower) {
         final s when s.contains('ipad') => 'Apple iPad',
         final s when s.contains('ios') => 'Apple iPhone',
         final s when s.contains('android') =>
@@ -89,7 +214,7 @@ class DeviceSessionModel {
         final s when s.contains('mac') => 'MacBook / Mac',
         final s when s.contains('win') => 'Windows PC',
         final s when s.contains('linux') => 'Linux PC',
-        _ => rawOs,
+        _ => resolvedOs,
       };
     } else if (platformStr.isNotEmpty && platformStr != 'unknown') {
       deviceName = switch (platformStr) {
@@ -99,26 +224,31 @@ class DeviceSessionModel {
         _ => 'Connected Device',
       };
     } else {
-      deviceName = isCurrent ? 'This Device' : 'Connected Device';
+      deviceName = isCurrent ? getCurrentDeviceName() : 'Connected Device';
     }
 
-    // 3. Resolve client / app name
-    final clientName = browser.isNotEmpty
-        ? browser
-        : (platformStr == 'mobile' ||
-                platformType == DevicePlatformType.ios ||
-                platformType == DevicePlatformType.android
-            ? 'Pilach for Mobile'
-            : 'Pilach Client');
+    // 3. Resolve client / app name without ever displaying "Dart"
+    final clientName = cleanBrowser.isNotEmpty
+        ? cleanBrowser
+        : (platformType == DevicePlatformType.ios
+            ? 'Pilach for iOS'
+            : platformType == DevicePlatformType.android
+                ? 'Pilach for Android'
+                : platformType == DevicePlatformType.macos
+                    ? 'Pilach Desktop for macOS'
+                    : platformType == DevicePlatformType.windows
+                        ? 'Pilach Desktop for Windows'
+                        : platformType == DevicePlatformType.tablet
+                            ? 'Pilach for iPadOS'
+                            : 'Pilach Client');
 
     return DeviceSessionModel(
       id: json['id']?.toString() ?? '',
       deviceName: deviceName,
       platformType: platformType,
       clientName: clientName,
-      appVersion: json['appVersion']?.toString() ?? '—',
-      osVersion:
-          rawOs.isNotEmpty ? rawOs : (platformStr.isNotEmpty ? platformStr : '—'),
+      appVersion: json['appVersion']?.toString() ?? 'v1.0.0',
+      osVersion: resolvedOs,
       location: json['location']?.toString() ?? 'IP location unavailable',
       ipAddress: json['ipAddress']?.toString() ?? '—',
       lastActive: isCurrent
