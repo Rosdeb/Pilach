@@ -1,13 +1,26 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../../../Chat/presentation/providers/chat_provider.dart';
+
 class ContactItem {
   final String id;
   final String name;
   final String status;
   final String? avatarUrl;
+  final String? lastMessage;
+  final String? conversationId;
+  final bool isOnline;
 
-  ContactItem({required this.id, required this.name, required this.status, this.avatarUrl});
+  ContactItem({
+    required this.id,
+    required this.name,
+    required this.status,
+    this.avatarUrl,
+    this.lastMessage,
+    this.conversationId,
+    this.isOnline = false,
+  });
 
   // Helper to extract the first letter uppercase for alphabetical clustering
   String get firstLetter => name.isNotEmpty ? name[0].toUpperCase() : '#';
@@ -16,20 +29,47 @@ class ContactItem {
 // 1. Search Query Provider
 final contactSearchProvider = StateProvider<String>((ref) => '');
 
-// 2. Master Contact List Provider
-class ContactListNotifier extends StateNotifier<List<ContactItem>> {
-  ContactListNotifier() : super([
-    ContactItem(id: '1', name: 'Alex Rivera', status: 'Hey there! Using Koch Chat.', avatarUrl: 'https://i.pravatar.cc/150?img=60'),
-    ContactItem(id: '2', name: 'Amara Okafor', status: 'Working remotely 🏡', avatarUrl: 'https://i.pravatar.cc/150?img=47'),
-    ContactItem(id: '3', name: 'Ben Kingston', status: 'Available for calls', avatarUrl: null), // Will show initials background
-    ContactItem(id: '4', name: 'Caleb Wright', status: 'In a meeting', avatarUrl: 'https://i.pravatar.cc/150?img=33'),
-    ContactItem(id: '5', name: 'Chloe Wang', status: 'Busy 💻', avatarUrl: null),
-    ContactItem(id: '6', name: 'Diana Prince', status: 'Always learning!', avatarUrl: 'https://i.pravatar.cc/150?img=41'),
-  ]);
-}
+// 2. Backend-derived contacts from user's conversation list.
+// For private conversations, the other user is an eligible contact/group member.
+// Their member ID is chat.userId (or chat.id if userId is not populated).
+final masterContactsProvider = Provider<List<ContactItem>>((ref) {
+  final chats = ref.watch(chatProvider);
+  final contactsByMemberId = <String, ContactItem>{};
 
-final masterContactsProvider = StateNotifierProvider<ContactListNotifier, List<ContactItem>>((ref) {
-  return ContactListNotifier();
+  for (final chat in chats) {
+    if (chat.isGroup) continue;
+
+    // Use chat.userId if available; fallback to chat.id
+    final memberId = (chat.userId != null && chat.userId!.trim().isNotEmpty)
+        ? chat.userId!.trim()
+        : chat.id.trim();
+    if (memberId.isEmpty) continue;
+
+    final displayName = chat.name.trim().isNotEmpty
+        ? chat.name.trim()
+        : (memberId.length > 8
+            ? 'User ${memberId.substring(0, 8)}'
+            : 'User $memberId');
+
+    final lastMsg = chat.message.trim();
+    final statusText = lastMsg.isNotEmpty
+        ? lastMsg
+        : (chat.isOnline ? 'Online' : (chat.lastActive ?? 'Available'));
+
+    contactsByMemberId[memberId] = ContactItem(
+      id: memberId,
+      name: displayName,
+      status: statusText,
+      avatarUrl: chat.image,
+      lastMessage: lastMsg.isNotEmpty ? lastMsg : null,
+      conversationId: chat.id,
+      isOnline: chat.isOnline,
+    );
+  }
+
+  final contacts = contactsByMemberId.values.toList(growable: false);
+  contacts.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  return contacts;
 });
 
 // 3. Filtered & Sorted Grouped Contacts Provider
@@ -40,7 +80,8 @@ final groupedContactsProvider = Provider<Map<String, List<ContactItem>>>((ref) {
   // Filter based on search query
   final filteredList = contacts.where((contact) {
     return contact.name.toLowerCase().contains(searchQuery) ||
-        contact.status.toLowerCase().contains(searchQuery);
+        contact.status.toLowerCase().contains(searchQuery) ||
+        contact.id.toLowerCase().contains(searchQuery);
   }).toList();
 
   // Sort alphabetically

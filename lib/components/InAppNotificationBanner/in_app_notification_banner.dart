@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:app/core/services/native_notifier.dart';
 
 class InAppNotificationBanner extends StatefulWidget {
   final String title;
   final String message;
+  final String? timeLabel;
   final String? avatarUrl;
   final VoidCallback? onTap;
   final Duration duration;
@@ -15,6 +15,7 @@ class InAppNotificationBanner extends StatefulWidget {
     super.key,
     required this.title,
     required this.message,
+    this.timeLabel,
     this.avatarUrl,
     this.onTap,
     this.duration = const Duration(seconds: 4),
@@ -36,6 +37,7 @@ class InAppNotificationBanner extends StatefulWidget {
     required OverlayState overlayState,
     required String title,
     required String message,
+    String? timeLabel,
     String? avatarUrl,
     VoidCallback? onTap,
     Duration duration = const Duration(seconds: 4),
@@ -56,6 +58,7 @@ class InAppNotificationBanner extends StatefulWidget {
       builder: (_) => InAppNotificationBanner(
         title: title,
         message: message,
+        timeLabel: timeLabel,
         avatarUrl: avatarUrl,
         onTap: onTap,
         duration: duration,
@@ -64,6 +67,10 @@ class InAppNotificationBanner extends StatefulWidget {
             entry.remove();
           } catch (_) {
             // Already removed
+          } finally {
+            if (identical(_currentEntry, entry)) {
+              _currentEntry = null;
+            }
           }
         },
       ),
@@ -73,7 +80,8 @@ class InAppNotificationBanner extends StatefulWidget {
   }
 
   @override
-  State<InAppNotificationBanner> createState() => _InAppNotificationBannerState();
+  State<InAppNotificationBanner> createState() =>
+      _InAppNotificationBannerState();
 }
 
 class _InAppNotificationBannerState extends State<InAppNotificationBanner>
@@ -82,6 +90,7 @@ class _InAppNotificationBannerState extends State<InAppNotificationBanner>
   late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
   Timer? _timer;
+  bool _isDismissing = false;
 
   @override
   void initState() {
@@ -95,11 +104,12 @@ class _InAppNotificationBannerState extends State<InAppNotificationBanner>
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, -1.5),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
 
-    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
-    );
+    _fadeAnimation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
 
     _controller.forward();
 
@@ -107,7 +117,8 @@ class _InAppNotificationBannerState extends State<InAppNotificationBanner>
   }
 
   void _dismiss() {
-    if (!mounted) return;
+    if (!mounted || _isDismissing) return;
+    _isDismissing = true;
     _controller.reverse().then((_) {
       widget.onDismissRequested?.call();
     });
@@ -126,9 +137,9 @@ class _InAppNotificationBannerState extends State<InAppNotificationBanner>
     final isDark = theme.brightness == Brightness.dark;
 
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 10,
-      left: 12,
-      right: 12,
+      top: MediaQuery.of(context).padding.top + 8,
+      left: 8,
+      right: 8,
       child: GestureDetector(
         onVerticalDragUpdate: (details) {
           if (details.primaryDelta! < -10) {
@@ -147,113 +158,90 @@ class _InAppNotificationBannerState extends State<InAppNotificationBanner>
               color: Colors.transparent,
               child: Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isDark
-                        ? [
-                            const Color(0xFF1E1E2C).withOpacity(0.95),
-                            const Color(0xFF0F0F16).withOpacity(0.95)
-                          ]
-                        : [
-                            Colors.white.withOpacity(0.95),
-                            const Color(0xFFF5F5FA).withOpacity(0.95)
-                          ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(20),
+                  color: isDark
+                      ? const Color(0xFF202124)
+                      : const Color(0xFFFFFFFF),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: isDark
-                        ? Colors.white.withOpacity(0.08)
-                        : Colors.black.withOpacity(0.05),
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : Colors.black.withValues(alpha: 0.05),
                     width: 1,
                   ),
                   boxShadow: [
                     BoxShadow(
                       color: isDark
-                          ? Colors.black.withOpacity(0.4)
-                          : const Color(0xFF4A4A6A).withOpacity(0.15),
-                      blurRadius: 24,
-                      offset: const Offset(0, 10),
+                          ? Colors.black.withValues(alpha: 0.28)
+                          : Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(10),
                   child: Padding(
-                    padding: const EdgeInsets.all(12.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Avatar
                         _buildAvatar(),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         // Content
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      widget.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? Colors.white
+                                            : Colors.black87,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  if (widget.timeLabel != null) ...[
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      widget.timeLabel!,
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? Colors.white54
+                                            : Colors.black45,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 3),
                               Text(
-                                widget.title,
+                                widget.message,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: isDark ? Colors.white : Colors.black87,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                widget.message,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
                                   color: isDark
-                                      ? Colors.white.withOpacity(0.7)
+                                      ? Colors.white.withValues(alpha: 0.7)
                                       : Colors.black54,
                                   fontSize: 13,
-                                  height: 1.3,
+                                  height: 1.2,
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Dismiss Indicator or Swipe Handle
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            GestureDetector(
-                              onTap: _dismiss,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: isDark
-                                      ? Colors.white.withOpacity(0.05)
-                                      : Colors.black.withOpacity(0.03),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.close_rounded,
-                                  color: isDark ? Colors.white54 : Colors.black45,
-                                  size: 16,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Container(
-                              width: 24,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? Colors.white.withOpacity(0.15)
-                                    : Colors.black.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ],
                         ),
                       ],
                     ),
@@ -271,7 +259,7 @@ class _InAppNotificationBannerState extends State<InAppNotificationBanner>
     if (widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty) {
       if (widget.avatarUrl!.startsWith('http')) {
         return CircleAvatar(
-          radius: 20,
+          radius: 17,
           backgroundImage: NetworkImage(widget.avatarUrl!),
         );
       }
@@ -279,8 +267,8 @@ class _InAppNotificationBannerState extends State<InAppNotificationBanner>
 
     // Gradient Fallback Avatar
     return Container(
-      width: 40,
-      height: 40,
+      width: 34,
+      height: 34,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: const LinearGradient(
@@ -290,16 +278,16 @@ class _InAppNotificationBannerState extends State<InAppNotificationBanner>
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6C63FF).withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            color: const Color(0xFF6C63FF).withValues(alpha: 0.3),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: const Icon(
         Icons.notifications_active_rounded,
         color: Colors.white,
-        size: 20,
+        size: 18,
       ),
     );
   }

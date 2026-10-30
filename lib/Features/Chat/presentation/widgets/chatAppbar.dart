@@ -64,7 +64,7 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
                         ? CachedNetworkImageProvider(currentChat.image)
                         : AssetImage(currentChat.image) as ImageProvider,
                   ),
-                  if (currentChat.isOnline)
+                  if (currentChat.isOnline && !currentChat.isGroup)
                     Positioned(
                       right: 0,
                       bottom: 0,
@@ -103,6 +103,7 @@ class ChatAppBar extends ConsumerWidget implements PreferredSizeWidget {
                     _AppBarStatusText(
                       chatId: chatId,
                       chatIsOnline: currentChat.isOnline,
+                      isGroup: currentChat.isGroup,
                       lastActive: currentChat.lastActive,
                       headerTextColor: headerTextColor,
                     ),
@@ -144,12 +145,14 @@ class _AppBarStatusText extends ConsumerStatefulWidget {
   const _AppBarStatusText({
     required this.chatId,
     required this.chatIsOnline,
+    this.isGroup = false,
     required this.lastActive,
     required this.headerTextColor,
   });
 
   final String chatId;
   final bool chatIsOnline;
+  final bool isGroup;
   final String? lastActive;
   final Color headerTextColor;
 
@@ -229,16 +232,27 @@ class _AppBarStatusTextState extends ConsumerState<_AppBarStatusText> {
   @override
   Widget build(BuildContext context) {
     final isTyping = ref.watch(typingStatusProvider(widget.chatId));
-    final statusText = isTyping
-        ? 'Typing...'
-        : (widget.chatIsOnline
-            ? 'Online'
-            : _formatLastActive(widget.lastActive));
+    final typingUser = ref.watch(typingUserNameProvider(widget.chatId));
+
+    final String statusText;
+    if (isTyping) {
+      statusText = typingUser != null && typingUser.isNotEmpty
+          ? '$typingUser is typing...'
+          : 'Typing...';
+    } else if (widget.isGroup) {
+      statusText = 'Group';
+    } else if (widget.chatIsOnline) {
+      statusText = 'Online';
+    } else {
+      statusText = _formatLastActive(widget.lastActive);
+    }
 
     return Text(
       statusText,
       style: TextStyle(
-        color: isTyping || widget.chatIsOnline ? _kGreen : Colors.grey.shade400,
+        color: isTyping || (!widget.isGroup && widget.chatIsOnline)
+            ? _kGreen
+            : Colors.grey.shade400,
         fontSize: 12,
         fontWeight: FontWeight.w500,
       ),

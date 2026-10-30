@@ -1,12 +1,12 @@
 // message_model.dart
 
 enum MessageStatus {
-  queued,   // Persisted locally and waiting for a connection
-  sending,  // Message is being sent
-  sent,     // Message sent to server
+  queued, // Persisted locally and waiting for a connection
+  sending, // Message is being sent
+  sent, // Message sent to server
   delivered, // Message delivered to recipient
-  seen,     // Message seen by recipient
-  failed,   // Message failed to send
+  seen, // Message seen by recipient
+  failed, // Message failed to send
 }
 
 class ReplyMessageModel {
@@ -14,8 +14,8 @@ class ReplyMessageModel {
   final String text;
   final String? senderId;
   final bool isDeleted;
-  final String? type;       // e.g. 'IMAGE', 'VIDEO', 'AUDIO', 'FILE', 'TEXT'
-  final String? mediaUrl;   // thumbnail URL for image/video replies
+  final String? type; // e.g. 'IMAGE', 'VIDEO', 'AUDIO', 'FILE', 'TEXT'
+  final String? mediaUrl; // thumbnail URL for image/video replies
 
   ReplyMessageModel({
     required this.id,
@@ -31,7 +31,9 @@ class ReplyMessageModel {
     String? mediaUrl = json['mediaUrl']?.toString();
     if (mediaUrl == null) {
       final attachments = json['attachments'];
-      if (attachments is List && attachments.isNotEmpty && attachments.first is Map) {
+      if (attachments is List &&
+          attachments.isNotEmpty &&
+          attachments.first is Map) {
         mediaUrl = attachments.first['url']?.toString();
       }
     }
@@ -70,14 +72,15 @@ class ReplyMessageModel {
   }
 
   @override
-  int get hashCode => Object.hash(id, text, senderId, isDeleted, type, mediaUrl);
+  int get hashCode =>
+      Object.hash(id, text, senderId, isDeleted, type, mediaUrl);
 }
 
 class MessageModel {
   final String id;
   final String text;
-  final String time;           // Display time (e.g., "Now", "1 min ago", "10:48 AM")
-  final DateTime timestamp;    // Actual timestamp for calculations
+  final String time; // Display time (e.g., "Now", "1 min ago", "10:48 AM")
+  final DateTime timestamp; // Actual timestamp for calculations
   final bool isMe;
   final MessageStatus status;
 
@@ -85,7 +88,7 @@ class MessageModel {
   final String? senderId;
   final String? senderName;
   final String? senderAvatar;
-  final MessageType type;      // text, image, video, file, etc.
+  final MessageType type; // text, image, video, file, etc.
   final String? mediaUrl;
   final bool isEdited;
   final bool isDeleted;
@@ -102,7 +105,7 @@ class MessageModel {
     required this.time,
     required this.timestamp,
     required this.isMe,
-    this.status = MessageStatus.sent,  // ✅ Default value
+    this.status = MessageStatus.sent, // ✅ Default value
     this.senderId,
     this.senderName,
     this.senderAvatar,
@@ -190,7 +193,9 @@ class MessageModel {
 
   // Create from JSON
   factory MessageModel.fromJson(Map<String, dynamic> json) {
-    final parsedTimestamp = DateTime.tryParse(json['timestamp']?.toString() ?? '');
+    final parsedTimestamp = DateTime.tryParse(
+      json['timestamp']?.toString() ?? '',
+    );
     return MessageModel(
       id: json['id']?.toString() ?? '',
       text: json['text']?.toString() ?? '',
@@ -198,7 +203,7 @@ class MessageModel {
       timestamp: (parsedTimestamp ?? DateTime.now()).toLocal(),
       isMe: json['isMe'] as bool? ?? false,
       status: MessageStatus.values.firstWhere(
-            (e) => e.name == json['status'],
+        (e) => e.name == json['status'],
         orElse: () => MessageStatus.sent,
       ),
       senderId: json['senderId']?.toString(),
@@ -214,8 +219,8 @@ class MessageModel {
       replyToMessage: json['replyToMessage'] != null
           ? ReplyMessageModel.fromJson(json['replyToMessage'])
           : null,
-      reactions: json['reactions'] != null 
-          ? List<Map<String, dynamic>>.from(json['reactions']) 
+      reactions: json['reactions'] != null
+          ? List<Map<String, dynamic>>.from(json['reactions'])
           : null,
       seq: json['seq'] as int?,
     );
@@ -229,21 +234,59 @@ class MessageModel {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is MessageModel && 
-           other.id == id && 
-           other.status == status && 
-           other.text == text && 
-           other.isDeleted == isDeleted && 
-           other.isEdited == isEdited &&
-           other.isMe == isMe &&
-           other.time == time &&
-           other.timestamp == timestamp &&
-           other.senderId == senderId &&
-           other.seq == seq &&
-           _reactionsEqual(other.reactions, reactions);
+    return other is MessageModel &&
+        other.id == id &&
+        other.status == status &&
+        other.text == text &&
+        other.isDeleted == isDeleted &&
+        other.isEdited == isEdited &&
+        other.isMe == isMe &&
+        other.time == time &&
+        other.timestamp == timestamp &&
+        other.senderId == senderId &&
+        other.senderName == senderName &&
+        other.senderAvatar == senderAvatar &&
+        other.type == type &&
+        other.mediaUrl == mediaUrl &&
+        other.isPinned == isPinned &&
+        other.pinnedAt == pinnedAt &&
+        other.replyToMessageId == replyToMessageId &&
+        other.replyToMessage == replyToMessage &&
+        other.seq == seq &&
+        _reactionsEqual(other.reactions, reactions);
   }
 
-  bool _reactionsEqual(List<Map<String, dynamic>>? a, List<Map<String, dynamic>>? b) {
+  @override
+  int get hashCode => Object.hashAll([
+    id,
+    text,
+    time,
+    timestamp,
+    isMe,
+    status,
+    senderId,
+    senderName,
+    senderAvatar,
+    type,
+    mediaUrl,
+    isEdited,
+    isDeleted,
+    isPinned,
+    pinnedAt,
+    replyToMessageId,
+    replyToMessage,
+    seq,
+    ...?reactions?.map(
+      (reaction) => Object.hashAllUnordered(
+        reaction.entries.map((entry) => Object.hash(entry.key, entry.value)),
+      ),
+    ),
+  ]);
+
+  bool _reactionsEqual(
+    List<Map<String, dynamic>>? a,
+    List<Map<String, dynamic>>? b,
+  ) {
     if (identical(a, b)) return true;
     if (a == null && b == null) return true;
     if (a == null || b == null) return false;
@@ -259,9 +302,6 @@ class MessageModel {
     }
     return true;
   }
-
-  @override
-  int get hashCode => Object.hash(id, status, text, isDeleted, isEdited, isMe, time, timestamp, senderId, seq, reactions?.toString());
 }
 
 // Message types for future features
@@ -286,21 +326,37 @@ enum MessageType {
 
 MessageType messageTypeFromWire(String? value) {
   switch (value?.toUpperCase()) {
-    case 'TEXT': return MessageType.text;
-    case 'IMAGE': return MessageType.image;
-    case 'VIDEO': return MessageType.video;
-    case 'GIF': return MessageType.gif;
-    case 'AUDIO': return MessageType.audio;
-    case 'VOICE': return MessageType.voice;
-    case 'FILE': return MessageType.file;
-    case 'POLL': return MessageType.poll;
-    case 'SYSTEM': return MessageType.system;
-    case 'DELETED': return MessageType.deleted;
-    case 'EDITED': return MessageType.edited;
-    case 'REPLY': return MessageType.reply;
-    case 'LOCATION': return MessageType.location;
-    case 'CONTACT': return MessageType.contact;
-    case 'STICKER': return MessageType.sticker;
-    default: return MessageType.unknown;
+    case 'TEXT':
+      return MessageType.text;
+    case 'IMAGE':
+      return MessageType.image;
+    case 'VIDEO':
+      return MessageType.video;
+    case 'GIF':
+      return MessageType.gif;
+    case 'AUDIO':
+      return MessageType.audio;
+    case 'VOICE':
+      return MessageType.voice;
+    case 'FILE':
+      return MessageType.file;
+    case 'POLL':
+      return MessageType.poll;
+    case 'SYSTEM':
+      return MessageType.system;
+    case 'DELETED':
+      return MessageType.deleted;
+    case 'EDITED':
+      return MessageType.edited;
+    case 'REPLY':
+      return MessageType.reply;
+    case 'LOCATION':
+      return MessageType.location;
+    case 'CONTACT':
+      return MessageType.contact;
+    case 'STICKER':
+      return MessageType.sticker;
+    default:
+      return MessageType.unknown;
   }
 }

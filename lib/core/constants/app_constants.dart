@@ -47,6 +47,7 @@ class AppPaths {
   static const String two_factor_sms_verify = '/two_factor_sms_verify_screen';
   static const String chat_wallpaper = '/chat_wallpaper_screen';
   static const String event_screen = '/event_screen';
+  static const String devices = '/device_management_screen';
 }
 
 class AppRoutes {
@@ -81,7 +82,7 @@ class AppRoutes {
   static const String market_screen = 'market_screen';
   static const String news_screen = 'news_screen';
   static const String donate_screen = 'donate_screen';
-
+  static const String devices = 'device_management_screen';
 
 }
 

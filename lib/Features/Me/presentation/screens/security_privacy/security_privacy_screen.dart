@@ -12,6 +12,7 @@ import 'package:app/components/FloatingErrorBar/floatingbar.dart';
 import 'package:app/Features/auth/presentation/providers/auth_provider.dart';
 import '../../providers/security_privacy_providers.dart';
 import '../../providers/two_factor_provider.dart';
+import '../../providers/device_session_provider.dart';
 
 class SecurityPrivacyScreen extends ConsumerStatefulWidget {
   const SecurityPrivacyScreen({Key? key}) : super(key: key);
@@ -118,6 +119,17 @@ class _SecurityPrivacyScreenState extends ConsumerState<SecurityPrivacyScreen> w
                           trailingText: isTwoFactorEnabled ? 'Enabled' : 'Disabled',
                           onTap: () {
                             context.push(AppPaths.two_factor_settings);
+                          },
+                        ),
+                        _buildDivider(context),
+                        _buildActionRow(
+                          context,
+                          icon: CupertinoIcons.device_laptop,
+                          iconColor: AppColors.successGreen,
+                          title: 'Devices & Active Sessions',
+                          trailingText: '${ref.watch(deviceSessionsProvider).length} Active',
+                          onTap: () {
+                            context.push(AppPaths.devices);
                           },
                         ),
                         _buildDivider(context),

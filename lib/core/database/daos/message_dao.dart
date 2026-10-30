@@ -15,13 +15,21 @@ class MessageDao {
 
   Future<bool> isChatUpToDate(String chatId) async {
     final database = await db;
-    final chatRes = await database.query('chats', columns: ['last_message_seq'], where: 'id = ?', whereArgs: [chatId]);
+    final chatRes = await database.query(
+      'chats',
+      columns: ['last_message_seq'],
+      where: 'id = ?',
+      whereArgs: [chatId],
+    );
     if (chatRes.isEmpty) return false;
     final lastSeqInChat = chatRes.first['last_message_seq'] as int? ?? 0;
-    
-    final msgRes = await database.rawQuery('SELECT MAX(seq) as max_seq FROM messages WHERE conversation_id = ?', [chatId]);
+
+    final msgRes = await database.rawQuery(
+      'SELECT MAX(seq) as max_seq FROM messages WHERE conversation_id = ?',
+      [chatId],
+    );
     final maxSeqInMessages = msgRes.first['max_seq'] as int? ?? 0;
-    
+
     return maxSeqInMessages >= lastSeqInChat && maxSeqInMessages > 0;
   }
 
@@ -35,7 +43,9 @@ class MessageDao {
     return val == null ? 0 : (val as int);
   }
 
-  Future<void> insertOrUpdateMessages(List<Map<String, dynamic>> messages) async {
+  Future<void> insertOrUpdateMessages(
+    List<Map<String, dynamic>> messages,
+  ) async {
     final database = await db;
     final batch = database.batch();
     for (var msg in messages) {
@@ -68,14 +78,15 @@ class MessageDao {
           END,
           created_at = excluded.created_at,
           edited_at = excluded.edited_at,
-          deleted = excluded.deleted,
+          -- A deletion is a tombstone. Stale data from another device must
+          -- never resurrect it during a later cache/sync upsert.
+          deleted = CASE
+            WHEN messages.deleted = 1 THEN 1
+            ELSE excluded.deleted
+          END,
           reply_to_id = excluded.reply_to_id,
           reply_to_json = excluded.reply_to_json,
-          reactions_json = CASE 
-            WHEN excluded.reactions_json IS NOT NULL AND excluded.reactions_json <> '' AND excluded.reactions_json <> '[]' 
-              THEN excluded.reactions_json 
-            ELSE messages.reactions_json 
-          END,
+          reactions_json = COALESCE(excluded.reactions_json, messages.reactions_json),
           attachments_json = COALESCE(excluded.attachments_json, messages.attachments_json),
           is_pinned = COALESCE(excluded.is_pinned, messages.is_pinned),
           pinned_at = COALESCE(excluded.pinned_at, messages.pinned_at)
@@ -123,7 +134,12 @@ class MessageDao {
     );
   }
 
-  Future<List<Map<String, dynamic>>> getMessagesForChat(String conversationId, {int limit = 30, int offset = 0, int? beforeSeq}) async {
+  Future<List<Map<String, dynamic>>> getMessagesForChat(
+    String conversationId, {
+    int limit = 30,
+    int offset = 0,
+    int? beforeSeq,
+  }) async {
     final database = await db;
     String whereClause = 'conversation_id = ?';
     List<dynamic> whereArgs = [conversationId];
@@ -143,7 +159,12 @@ class MessageDao {
     );
   }
 
-  Future<void> updateMessageStatusByClientId(String clientMsgId, String status, {int? seq, String? serverId}) async {
+  Future<void> updateMessageStatusByClientId(
+    String clientMsgId,
+    String status, {
+    int? seq,
+    String? serverId,
+  }) async {
     final database = await db;
     Map<String, dynamic> updateData = {'status': status};
     if (seq != null) updateData['seq'] = seq;
@@ -195,7 +216,11 @@ class MessageDao {
     );
   }
 
-  Future<void> updateMessageText(String id, String text, {String? editedAt}) async {
+  Future<void> updateMessageText(
+    String id,
+    String text, {
+    String? editedAt,
+  }) async {
     final database = await db;
     await database.update(
       'messages',
@@ -205,14 +230,15 @@ class MessageDao {
     );
   }
 
-  Future<void> updateMessagePinned(String id, bool isPinned, {String? pinnedAt}) async {
+  Future<void> updateMessagePinned(
+    String id,
+    bool isPinned, {
+    String? pinnedAt,
+  }) async {
     final database = await db;
     await database.update(
       'messages',
-      {
-        'is_pinned': isPinned ? 1 : 0,
-        'pinned_at': isPinned ? pinnedAt : null,
-      },
+      {'is_pinned': isPinned ? 1 : 0, 'pinned_at': isPinned ? pinnedAt : null},
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -247,6 +273,4 @@ class MessageDao {
     );
     return results.isNotEmpty ? results.first : null;
   }
-
 }
-

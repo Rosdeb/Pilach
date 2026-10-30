@@ -1,10 +1,7 @@
-import 'dart:async';
 import 'dart:ui';
 
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app/core/constants/app_constants.dart';
 
@@ -14,144 +11,39 @@ import '../providers/chat_provider.dart';
 import '../widgets/chat_tile.dart';
 import '../widgets/custom_fad.dart';
 import '../widgets/search_bar_widget.dart';
-import '../../../../core/providers/api_provider.dart';
-import '../../../../core/services/socket_service.dart';
+import '../providers/connection_banner_provider.dart';
 
-final _chatCountProvider = Provider<int>((ref) => ref.watch(chatProvider).length);
+final _chatCountProvider = Provider<int>(
+  (ref) => ref.watch(chatProvider).length,
+);
 
-final _chatAtIndexProvider = Provider.family<ChatModel, int>((ref, index) => ref.watch(chatProvider)[index],);
+final _chatAtIndexProvider = Provider.autoDispose.family<ChatModel?, int>(
+  (ref, index) => ref.watch(
+    chatProvider.select((chats) => index < chats.length ? chats[index] : null),
+  ),
+);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Connection banner provider & notifier
-// Checks actual network connectivity before displaying any offline status.
-// Uses a 2.5s debounce on startup/reconnect to prevent flickering banners.
-// ─────────────────────────────────────────────────────────────────────────────
-
-enum ConnectionBannerStatus {
-  hidden,
-  offline,
-  connecting,
-  reconnecting,
-}
-
-final connectionBannerProvider = StateNotifierProvider.autoDispose<
-    ConnectionBannerNotifier, ConnectionBannerStatus>((ref) {
-  final socketService = ref.watch(socketServiceProvider);
-  return ConnectionBannerNotifier(socketService);
-});
-
-class ConnectionBannerNotifier extends StateNotifier<ConnectionBannerStatus> {
-  final SocketService _socketService;
-  Timer? _debounceTimer;
-  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
-  StreamSubscription<SocketConnectionState>? _socketSub;
-  bool _isNetworkOnline = true;
-  SocketConnectionState _currentSocketState = SocketConnectionState.disconnected;
-
-  ConnectionBannerNotifier(this._socketService)
-      : super(ConnectionBannerStatus.hidden) {
-    _init();
-  }
-
-  Future<void> _init() async {
-    // 1. Initial check of network connectivity
-    try {
-      final results = await Connectivity().checkConnectivity();
-      _isNetworkOnline = !results.every((r) => r == ConnectivityResult.none);
-    } catch (_) {
-      _isNetworkOnline = true;
-    }
-
-    _currentSocketState = _socketService.connectionState;
-
-    // Evaluate initial state without flashing banner if network is online
-    _evaluate(isInitial: true);
-
-    // 2. Listen to connectivity changes
-    _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
-      final online = !results.every((r) => r == ConnectivityResult.none);
-      if (_isNetworkOnline != online) {
-        _isNetworkOnline = online;
-        _evaluate();
-      }
-    });
-
-    // 3. Listen to socket state changes
-    _socketSub = _socketService.connectionStates.listen((socketState) {
-      if (_currentSocketState != socketState) {
-        _currentSocketState = socketState;
-        _evaluate();
-      }
-    });
-  }
-
-  void _evaluate({bool isInitial = false}) {
-    if (!mounted) return;
-
-    // If genuine network loss, show offline immediately
-    if (!_isNetworkOnline) {
-      _debounceTimer?.cancel();
-      _debounceTimer = null;
-      state = ConnectionBannerStatus.offline;
-      return;
-    }
-
-    // Network is online
-    if (_currentSocketState == SocketConnectionState.connected) {
-      _debounceTimer?.cancel();
-      _debounceTimer = null;
-      state = ConnectionBannerStatus.hidden;
-      return;
-    }
-
-    // Network is online, but socket is connecting / reconnecting / disconnected.
-    // Debounce to give the socket 2.5s to establish connection without flashing banners.
-    if (isInitial || state == ConnectionBannerStatus.hidden) {
-      _debounceTimer ??= Timer(const Duration(milliseconds: 2500), () {
-        _debounceTimer = null;
-        if (!mounted) return;
-        if (!_isNetworkOnline) {
-          state = ConnectionBannerStatus.offline;
-        } else if (_currentSocketState == SocketConnectionState.connecting ||
-            _currentSocketState == SocketConnectionState.disconnected) {
-          state = ConnectionBannerStatus.connecting;
-        } else if (_currentSocketState == SocketConnectionState.reconnecting) {
-          state = ConnectionBannerStatus.reconnecting;
-        } else {
-          state = ConnectionBannerStatus.hidden;
-        }
-      });
-    } else {
-      // Banner is already showing; update label according to socket state
-      if (_currentSocketState == SocketConnectionState.reconnecting) {
-        state = ConnectionBannerStatus.reconnecting;
-      } else {
-        state = ConnectionBannerStatus.connecting;
-      }
-    }
-  }
+class ChatScreen extends ConsumerStatefulWidget {
+  const ChatScreen({super.key});
 
   @override
-  void dispose() {
-    _debounceTimer?.cancel();
-    _connectivitySub?.cancel();
-    _socketSub?.cancel();
-    super.dispose();
-  }
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class ChatScreen extends ConsumerWidget {
-  ChatScreen({super.key});
-
+class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final count = ref.watch(_chatCountProvider);
     final theme = Theme.of(context);
     final isEmpty = count == 0;
-    final bannerStatus = ref.watch(connectionBannerProvider);
-
     return Scaffold(
       resizeToAvoidBottomInset: false,
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -159,7 +51,9 @@ class ChatScreen extends ConsumerWidget {
         children: [
           RefreshIndicator(
             onRefresh: () async {
-              await ref.read(chatProvider.notifier).fetchFromServer(isManualRefresh: true);
+              await ref
+                  .read(chatProvider.notifier)
+                  .fetchFromServer(isManualRefresh: true);
             },
             color: theme.colorScheme.primary,
             backgroundColor: theme.cardColor,
@@ -167,15 +61,12 @@ class ChatScreen extends ConsumerWidget {
             displacement: 80.0,
             child: CustomScrollView(
               physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics()
+                parent: AlwaysScrollableScrollPhysics(),
               ),
               slivers: [
                 const _ChatSliverAppBar(),
 
-                if (bannerStatus != ConnectionBannerStatus.hidden)
-                  SliverToBoxAdapter(
-                    child: _ConnectionStatusBanner(status: bannerStatus),
-                  ),
+                const SliverToBoxAdapter(child: _InboxConnectionBanner()),
 
                 // ── Search bar ────────────────────────────────────────────────
                 SliverToBoxAdapter(
@@ -197,23 +88,25 @@ class ChatScreen extends ConsumerWidget {
                       child: Text(
                         'No conversations yet',
                         style: TextStyle(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.6,
+                          ),
                         ),
                       ),
                     ),
                   )
                 else
-                   SliverList(
-                    
-                      delegate: SliverChildBuilderDelegate((context, index) => _ChatTileRow(
-                          key: ValueKey(ref.read(chatProvider)[index].id),
-                          index: index,
-                          isLast: index == count - 1,
-                        ),
-                        childCount: count,
-                        addAutomaticKeepAlives: false,
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => _ChatTileRow(
+                        key: ValueKey(ref.read(chatProvider)[index].id),
+                        index: index,
+                        isLast: index == count - 1,
                       ),
+                      childCount: count,
+                      addAutomaticKeepAlives: false,
                     ),
+                  ),
 
                 const SliverToBoxAdapter(child: SizedBox(height: 100)),
               ],
@@ -223,9 +116,7 @@ class ChatScreen extends ConsumerWidget {
           Positioned(
             bottom: 130,
             right: 25,
-            child: GlassFab(
-              onPressed: () => _showActionMenu(context),
-            ),
+            child: GlassFab(onPressed: () => _showActionMenu(context)),
           ),
         ],
       ),
@@ -242,13 +133,12 @@ class ChatScreen extends ConsumerWidget {
   }
 }
 
-class _ConnectionStatusBanner extends StatelessWidget {
-  const _ConnectionStatusBanner({required this.status});
-
-  final ConnectionBannerStatus status;
+class _InboxConnectionBanner extends ConsumerWidget {
+  const _InboxConnectionBanner();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(connectionBannerProvider);
     if (status == ConnectionBannerStatus.hidden) {
       return const SizedBox.shrink();
     }
@@ -267,10 +157,11 @@ class _ConnectionStatusBanner extends StatelessWidget {
         'Reconnecting…',
         const Color(0xFFD97706),
       ),
-      ConnectionBannerStatus.hidden => (
-        '',
-        Colors.transparent,
+      ConnectionBannerStatus.connected => (
+        'Connected',
+        const Color(0xFF34C759),
       ),
+      ConnectionBannerStatus.hidden => ('', Colors.transparent),
     };
 
     return AnimatedSize(
@@ -322,11 +213,7 @@ class _ChatSliverAppBar extends StatelessWidget {
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
           onPressed: () {},
-          child: Icon(
-            Icons.add,
-            color: theme.colorScheme.onSurface,
-            size: 24,
-          ),
+          child: Icon(Icons.add, color: theme.colorScheme.onSurface, size: 24),
         ),
         const SizedBox(width: 18),
       ],
@@ -354,11 +241,7 @@ class _ChatSliverAppBar extends StatelessWidget {
 }
 
 class _ChatTileRow extends ConsumerWidget {
-  const _ChatTileRow({
-    super.key,
-    required this.index,
-    required this.isLast,
-  });
+  const _ChatTileRow({super.key, required this.index, required this.isLast});
 
   final int index;
   final bool isLast;
@@ -366,6 +249,7 @@ class _ChatTileRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final chat = ref.watch(_chatAtIndexProvider(index));
+    if (chat == null) return const SizedBox.shrink();
 
     return Column(
       mainAxisSize: MainAxisSize.min,

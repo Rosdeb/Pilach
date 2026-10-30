@@ -33,6 +33,7 @@ import 'package:app/Features/auth/presentation/screens/two_factor_verify_screen.
 import 'package:app/Features/auth/presentation/screens/two_factor_email_verify_screen.dart';
 import 'package:app/Features/auth/presentation/screens/two_factor_sms_verify_screen.dart';
 import 'package:app/Features/Me/presentation/screens/security_privacy/two_factor_settings_screen.dart';
+import 'package:app/Features/Me/presentation/screens/device_management/device_management_screen.dart';
 import 'package:app/Features/auth/presentation/providers/auth_provider.dart';
 import 'package:app/Features/Me/presentation/providers/profile_provider.dart';
 import 'package:app/Features/Chat/presentation/providers/chat_provider.dart';
@@ -342,6 +343,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoutes.security_privacy,
         pageBuilder: (c, s) =>
             _slidePage(key: s.pageKey, child: SecurityPrivacyScreen()),
+      ),
+      GoRoute(
+        path: AppPaths.devices,
+        name: AppRoutes.devices,
+        pageBuilder: (c, s) =>
+            _slidePage(key: s.pageKey, child: const DeviceManagementScreen()),
       ),
       GoRoute(
         path: AppPaths.two_factor_settings,

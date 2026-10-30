@@ -6,11 +6,28 @@ class ChatDao {
 
   Future<void> insertOrUpdateChat(Map<String, dynamic> chat) async {
     final database = await db;
-    await database.insert(
-      'chats',
-      chat,
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await database.transaction((txn) async {
+      final values = Map<String, dynamic>.from(chat);
+      // REPLACE deletes and recreates the row. Preserve the device-local draft
+      // when refreshing conversation metadata from the server.
+      if (!values.containsKey('draft') && values['id'] != null) {
+        final existing = await txn.query(
+          'chats',
+          columns: ['draft'],
+          where: 'id = ?',
+          whereArgs: [values['id']],
+          limit: 1,
+        );
+        if (existing.isNotEmpty) {
+          values['draft'] = existing.first['draft'];
+        }
+      }
+      await txn.insert(
+        'chats',
+        values,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    });
   }
 
   Future<void> insertOrUpdateChats(List<Map<String, dynamic>> chats) async {
@@ -153,6 +170,29 @@ class ChatDao {
     await database.update(
       'chats',
       {'is_muted': isMuted ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<String?> getDraft(String id) async {
+    final database = await db;
+    final rows = await database.query(
+      'chats',
+      columns: ['draft'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    return rows.isEmpty ? null : rows.first['draft']?.toString();
+  }
+
+  Future<void> updateDraft(String id, String? draft) async {
+    final database = await db;
+    final normalized = draft?.trim();
+    await database.update(
+      'chats',
+      {'draft': normalized == null || normalized.isEmpty ? null : draft},
       where: 'id = ?',
       whereArgs: [id],
     );

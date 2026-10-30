@@ -7,7 +7,7 @@ class BoolPreferenceNotifier extends StateNotifier<bool> {
   final String prefKey;
 
   BoolPreferenceNotifier(this.prefs, this.prefKey, bool defaultValue)
-      : super(prefs.getBool(prefKey) ?? defaultValue);
+    : super(prefs.getBool(prefKey) ?? defaultValue);
 
   Future<void> update(bool value) async {
     state = value;
@@ -16,9 +16,24 @@ class BoolPreferenceNotifier extends StateNotifier<bool> {
 }
 
 // Provider to manage Push Notifications state
-final pushNotificationsProvider = StateNotifierProvider<BoolPreferenceNotifier, bool>((ref) {
-  return BoolPreferenceNotifier(ref.watch(sharedPreferencesProvider), 'push_notifications', false);
-});
+final pushNotificationsProvider =
+    StateNotifierProvider<BoolPreferenceNotifier, bool>((ref) {
+      return BoolPreferenceNotifier(
+        ref.watch(sharedPreferencesProvider),
+        'push_notifications',
+        false,
+      );
+    });
+
+// Controls whether this account publishes live online/last-seen presence.
+final showActiveStatusProvider =
+    StateNotifierProvider<BoolPreferenceNotifier, bool>((ref) {
+      return BoolPreferenceNotifier(
+        ref.watch(sharedPreferencesProvider),
+        'show_active_status',
+        true,
+      );
+    });
 
 // Provider to manage Dark Mode state (legacy wrapper)
 final darkModeProvider = StateProvider<bool>((ref) {
@@ -27,21 +42,32 @@ final darkModeProvider = StateProvider<bool>((ref) {
 });
 
 // Provider to manage Save to Photos state
-final saveToPhotosProvider = StateNotifierProvider<BoolPreferenceNotifier, bool>((ref) {
-  return BoolPreferenceNotifier(ref.watch(sharedPreferencesProvider), 'save_to_photos', true);
-});
+final saveToPhotosProvider =
+    StateNotifierProvider<BoolPreferenceNotifier, bool>((ref) {
+      return BoolPreferenceNotifier(
+        ref.watch(sharedPreferencesProvider),
+        'save_to_photos',
+        true,
+      );
+    });
 
 // Provider to manage Enter is Send state
-final enterIsSendProvider = StateNotifierProvider<BoolPreferenceNotifier, bool>((ref) {
-  return BoolPreferenceNotifier(ref.watch(sharedPreferencesProvider), 'enter_is_send', false);
-});
+final enterIsSendProvider = StateNotifierProvider<BoolPreferenceNotifier, bool>(
+  (ref) {
+    return BoolPreferenceNotifier(
+      ref.watch(sharedPreferencesProvider),
+      'enter_is_send',
+      false,
+    );
+  },
+);
 
 class StringPreferenceNotifier extends StateNotifier<String?> {
   final SharedPreferences prefs;
   final String prefKey;
 
   StringPreferenceNotifier(this.prefs, this.prefKey, String? defaultValue)
-      : super(prefs.getString(prefKey) ?? defaultValue);
+    : super(prefs.getString(prefKey) ?? defaultValue);
 
   Future<void> update(String? value) async {
     state = value;
@@ -54,11 +80,12 @@ class StringPreferenceNotifier extends StateNotifier<String?> {
 }
 
 // Provider to manage Chat Wallpaper URL
-final chatWallpaperProvider = StateNotifierProvider<StringPreferenceNotifier, String?>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  final saved = prefs.getString('chat_wallpaper');
-  if (saved != null && (saved.contains('brunty.me') || saved.isEmpty)) {
-    prefs.remove('chat_wallpaper');
-  }
-  return StringPreferenceNotifier(prefs, 'chat_wallpaper', null);
-});
+final chatWallpaperProvider =
+    StateNotifierProvider<StringPreferenceNotifier, String?>((ref) {
+      final prefs = ref.watch(sharedPreferencesProvider);
+      final saved = prefs.getString('chat_wallpaper');
+      if (saved != null && (saved.contains('brunty.me') || saved.isEmpty)) {
+        prefs.remove('chat_wallpaper');
+      }
+      return StringPreferenceNotifier(prefs, 'chat_wallpaper', null);
+    });

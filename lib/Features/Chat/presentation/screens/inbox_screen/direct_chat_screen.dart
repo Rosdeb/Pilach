@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -6,8 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:go_router/go_router.dart';
-import 'package:app/core/constants/app_constants.dart';
 import 'package:app/Features/Me/presentation/providers/chat_theme_provider.dart';
 import 'package:app/Features/Me/presentation/providers/setting_providers.dart';
 import '../../../data/models/message_model.dart';
@@ -16,11 +15,11 @@ import '../../providers/direct_chat_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../widgets/chatAppbar.dart';
 import '../../widgets/chat_bundle.dart';
+import '../../widgets/connection_status_banner.dart';
 import 'package:app/core/utils/date_formatter.dart';
 import 'package:app/core/models/link_preview.dart';
 import 'package:app/core/services/link_preview_service.dart';
 import 'package:app/core/utils/url_launcher_utils.dart';
-
 
 final _chatReadyProvider = StateProvider.autoDispose<bool>((_) => false);
 
@@ -29,10 +28,15 @@ final _headerTextColorProvider = Provider.autoDispose<Color>((ref) {
   return bg.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
 });
 
-final replyingToProvider = StateProvider.autoDispose<MessageModel?>((ref) => null);
-final editingMessageProvider = StateProvider.autoDispose<MessageModel?>((ref) => null);
-final showAttachmentMenuProvider = StateProvider.autoDispose<bool>((_) => false);
-
+final replyingToProvider = StateProvider.autoDispose<MessageModel?>(
+  (ref) => null,
+);
+final editingMessageProvider = StateProvider.autoDispose<MessageModel?>(
+  (ref) => null,
+);
+final showAttachmentMenuProvider = StateProvider.autoDispose<bool>(
+  (_) => false,
+);
 
 class DirectChatScreen extends ConsumerStatefulWidget {
   const DirectChatScreen({super.key});
@@ -45,18 +49,45 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
+  Timer? _draftDebounce;
 
   @override
   void initState() {
     super.initState();
     _focusNode.addListener(_onFocusChange);
+    _messageController.addListener(_onTextChanged);
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ref.read(_chatReadyProvider.notifier).state = true;
         final chatId = ref.read(currentChatIdProvider);
         if (chatId != null) {
           ref.read(chatProvider.notifier).clearUnreadCount(chatId);
+          // Restore draft message if present
+          ref.read(directChatProvider.notifier).getDraft().then((savedDraft) {
+            if (mounted &&
+                savedDraft != null &&
+                savedDraft.isNotEmpty &&
+                _messageController.text.isEmpty) {
+              _messageController.text = savedDraft;
+              _messageController.selection = TextSelection.collapsed(
+                offset: savedDraft.length,
+              );
+            }
+          });
         }
+      }
+    });
+  }
+
+  void _onTextChanged() {
+    final editingMsg = ref.read(editingMessageProvider);
+    if (editingMsg != null) return;
+    _draftDebounce?.cancel();
+    _draftDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        ref
+            .read(directChatProvider.notifier)
+            .saveDraft(_messageController.text);
       }
     });
   }
@@ -69,6 +100,12 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
 
   @override
   void dispose() {
+    _draftDebounce?.cancel();
+    final editingMsg = ref.read(editingMessageProvider);
+    if (editingMsg == null) {
+      ref.read(directChatProvider.notifier).saveDraft(_messageController.text);
+    }
+    _messageController.removeListener(_onTextChanged);
     _focusNode.removeListener(_onFocusChange);
     _messageController.dispose();
     _focusNode.dispose();
@@ -80,13 +117,17 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
+    ref.read(directChatProvider.notifier).saveDraft(null);
+
     final editingMsg = ref.read(editingMessageProvider);
     if (editingMsg != null) {
       ref.read(directChatProvider.notifier).editMessage(editingMsg.id, text);
       ref.read(editingMessageProvider.notifier).state = null;
     } else {
       final replyTo = ref.read(replyingToProvider);
-      ref.read(directChatProvider.notifier).sendMessage(text, replyToId: replyTo?.id);
+      ref
+          .read(directChatProvider.notifier)
+          .sendMessage(text, replyToId: replyTo?.id);
       ref.read(replyingToProvider.notifier).state = null;
     }
 
@@ -111,70 +152,77 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
         _focusNode.requestFocus();
       }
     });
-    
+
     final activeTheme = ref.watch(chatThemeProvider);
     final headerTextColor = ref.watch(_headerTextColorProvider);
 
     return PopScope(
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) {
+          final editingMsg = ref.read(editingMessageProvider);
+          if (editingMsg == null) {
+            ref
+                .read(directChatProvider.notifier)
+                .saveDraft(_messageController.text);
+          }
           ref.read(currentChatIdProvider.notifier).state = null;
         }
       },
       child: Scaffold(
-      resizeToAvoidBottomInset: false,
-      backgroundColor: activeTheme.backgroundColor,
-      appBar: ChatAppBar(
-        activeTheme: activeTheme,
-        headerTextColor: headerTextColor,
-      ),
-      body: SafeArea(
-        child: AnimatedPadding(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: Column(
-            children: [
-              Expanded(
-                child: _ReadyGate(
-                  scrollController: _scrollController,
+        resizeToAvoidBottomInset: false,
+        backgroundColor: activeTheme.backgroundColor,
+        appBar: ChatAppBar(
+          activeTheme: activeTheme,
+          headerTextColor: headerTextColor,
+        ),
+        body: SafeArea(
+          child: AnimatedPadding(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: Column(
+              children: [
+                const ConnectionStatusBanner(),
+                Expanded(
+                  child: _ReadyGate(scrollController: _scrollController),
                 ),
-              ),
-              const _EditPreviewBar(),
-              const _ReplyPreviewBar(),
-              _ComposerBar(
-                messageController: _messageController,
-                focusNode: _focusNode,
-                activeTheme: activeTheme,
-                onSend: _sendMessage,
-                onAttach: () async {
-                  final current = ref.read(showAttachmentMenuProvider);
-                  if (current) {
-                    ref.read(showAttachmentMenuProvider.notifier).state = false;
-                    _focusNode.requestFocus();
-                  } else {
-                    final wasKeyboardOpen = _focusNode.hasFocus;
-                    FocusScope.of(context).unfocus();
+                const _EditPreviewBar(),
+                const _ReplyPreviewBar(),
+                _ComposerBar(
+                  messageController: _messageController,
+                  focusNode: _focusNode,
+                  activeTheme: activeTheme,
+                  onSend: _sendMessage,
+                  onAttach: () async {
+                    final current = ref.read(showAttachmentMenuProvider);
+                    if (current) {
+                      ref.read(showAttachmentMenuProvider.notifier).state =
+                          false;
+                      _focusNode.requestFocus();
+                    } else {
+                      final wasKeyboardOpen = _focusNode.hasFocus;
+                      FocusScope.of(context).unfocus();
 
-                    if (wasKeyboardOpen) {
-                      await Future.delayed(const Duration(milliseconds: 260));
-                      if (!mounted) return;
+                      if (wasKeyboardOpen) {
+                        await Future.delayed(const Duration(milliseconds: 260));
+                        if (!mounted) return;
+                      }
+
+                      ref.read(showAttachmentMenuProvider.notifier).state =
+                          true;
                     }
-
-                    ref.read(showAttachmentMenuProvider.notifier).state = true;
-                  }
-                },
-              ),
-              const _AttachmentDrawerSection(),
-
-            ],
+                  },
+                ),
+                const _AttachmentDrawerSection(),
+              ],
+            ),
           ),
         ),
       ),
-    ),
     );
   }
-
 }
 
 class _AttachmentDrawerOverlay extends ConsumerWidget {
@@ -195,12 +243,9 @@ class _AttachmentDrawerOverlay extends ConsumerWidget {
   }
 }
 
-
-
 class _ReadyGate extends ConsumerWidget {
-  const _ReadyGate({
-    required ScrollController scrollController,
-  }) : _scrollController = scrollController;
+  const _ReadyGate({required ScrollController scrollController})
+    : _scrollController = scrollController;
 
   final ScrollController _scrollController;
 
@@ -211,9 +256,7 @@ class _ReadyGate extends ConsumerWidget {
     return Column(
       children: [
         const _PinnedMessageBar(),
-        Expanded(
-          child: _MessageList(scrollController: _scrollController),
-        ),
+        Expanded(child: _MessageList(scrollController: _scrollController)),
         const _TypingIndicatorWidget(),
       ],
     );
@@ -225,13 +268,17 @@ class _PinnedMessageBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final pinnedMessage = ref.watch(directChatProvider.select((state) {
-      try {
-        return state.messagesById.values.firstWhere((m) => m.isPinned == true);
-      } catch (_) {
-        return null;
-      }
-    }));
+    final pinnedMessage = ref.watch(
+      directChatProvider.select((state) {
+        try {
+          return state.messagesById.values.firstWhere(
+            (m) => m.isPinned == true,
+          );
+        } catch (_) {
+          return null;
+        }
+      }),
+    );
 
     if (pinnedMessage == null) return const SizedBox.shrink();
 
@@ -243,7 +290,9 @@ class _PinnedMessageBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: theme.backgroundColor.withOpacity(0.95),
-        border: Border(bottom: BorderSide(color: headerTextColor.withOpacity(0.1))),
+        border: Border(
+          bottom: BorderSide(color: headerTextColor.withOpacity(0.1)),
+        ),
       ),
       child: Row(
         children: [
@@ -274,28 +323,30 @@ class _PinnedMessageBar extends ConsumerWidget {
                   pinnedMessage.text,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: headerTextColor,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: headerTextColor, fontSize: 14),
                 ),
               ],
             ),
           ),
           GestureDetector(
             onTap: () {
-               if (pinnedMessage.id != null) {
-                 ref.read(directChatProvider.notifier).pinMessage(pinnedMessage.id!, false);
-               }
+              if (pinnedMessage.id != null) {
+                ref
+                    .read(directChatProvider.notifier)
+                    .pinMessage(pinnedMessage.id!, false);
+              }
             },
-            child: Icon(Icons.close, size: 20, color: headerTextColor.withOpacity(0.6)),
+            child: Icon(
+              Icons.close,
+              size: 20,
+              color: headerTextColor.withOpacity(0.6),
+            ),
           ),
         ],
       ),
     );
   }
 }
-
 
 class _MessageList extends ConsumerWidget {
   const _MessageList({required this.scrollController});
@@ -315,9 +366,7 @@ class _MessageList extends ConsumerWidget {
               )
             : null,
       ),
-      child: _MessageListView(
-        scrollController: scrollController,
-      ),
+      child: _MessageListView(scrollController: scrollController),
     );
   }
 }
@@ -329,9 +378,19 @@ class _MessageListView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final messageIds = ref.watch(directChatProvider.select((state) => state.messageIds));
-    final isLoadingMore = ref.watch(directChatProvider.select((state) => state.isLoadingMore));
-    final hasMore = ref.watch(directChatProvider.select((state) => state.hasMore));
+    final messageIds = ref.watch(
+      directChatProvider.select((state) => state.messageIds),
+    );
+    final isLoadingMore = ref.watch(
+      directChatProvider.select((state) => state.isLoadingMore),
+    );
+    final hasMore = ref.watch(
+      directChatProvider.select((state) => state.hasMore),
+    );
+    final indexById = <String, int>{
+      for (var index = 0; index < messageIds.length; index++)
+        messageIds[index]: index,
+    };
 
     return ListView.custom(
       reverse: true,
@@ -362,7 +421,9 @@ class _MessageListView extends ConsumerWidget {
           }
 
           final id = messageIds[index];
-          final olderId = (index + 1 < messageIds.length) ? messageIds[index + 1] : null;
+          final olderId = (index + 1 < messageIds.length)
+              ? messageIds[index + 1]
+              : null;
           final isOldest = index == messageIds.length - 1;
 
           return _MessageItem(
@@ -373,12 +434,13 @@ class _MessageListView extends ConsumerWidget {
           );
         },
         childCount: messageIds.length + (hasMore ? 1 : 0),
-        addAutomaticKeepAlives: true,
+        // Message widgets are cheap to recreate from immutable state. Avoid
+        // retaining every off-screen bubble in long conversations.
+        addAutomaticKeepAlives: false,
         addRepaintBoundaries: true,
         findChildIndexCallback: (Key key) {
           if (key is ValueKey<String>) {
-            final index = messageIds.indexOf(key.value);
-            return index == -1 ? null : index;
+            return indexById[key.value];
           }
           return null;
         },
@@ -406,7 +468,9 @@ class _MessageItem extends ConsumerWidget {
     );
     final olderTimestamp = olderId != null
         ? ref.watch(
-            directChatProvider.select((state) => state.messagesById[olderId]?.timestamp),
+            directChatProvider.select(
+              (state) => state.messagesById[olderId]?.timestamp,
+            ),
           )
         : null;
 
@@ -439,7 +503,9 @@ class _BubbleById extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final activeTheme = ref.watch(chatThemeProvider);
-    final msg = ref.watch(directChatProvider.select((state) => state.messagesById[id]));
+    final msg = ref.watch(
+      directChatProvider.select((state) => state.messagesById[id]),
+    );
 
     if (msg == null) {
       return const SizedBox.shrink();
@@ -472,7 +538,11 @@ class _BubbleById extends ConsumerWidget {
         mediaUrl: msg.replyToMessage!.mediaUrl,
       );
     } else if (msg.replyToMessageId != null) {
-      repliedMsg = ref.watch(directChatProvider.select((state) => state.messagesById[msg.replyToMessageId]));
+      repliedMsg = ref.watch(
+        directChatProvider.select(
+          (state) => state.messagesById[msg.replyToMessageId],
+        ),
+      );
     }
 
     return ChatBubble(
@@ -481,13 +551,20 @@ class _BubbleById extends ConsumerWidget {
       activeTheme: activeTheme,
       otherUserAvatar: currentChat.image,
       repliedMessage: repliedMsg,
-      onDelete: () => ref.read(directChatProvider.notifier).deleteMessage(msg.id),
-      onPin: () => ref.read(directChatProvider.notifier).pinMessage(msg.id, !(msg.isPinned ?? false)),
-      onReact: (emoji) => ref.read(directChatProvider.notifier).reactToMessage(msg.id, emoji),
+      onDelete: () =>
+          ref.read(directChatProvider.notifier).deleteMessage(msg.id),
+      onPin: () => ref
+          .read(directChatProvider.notifier)
+          .pinMessage(msg.id, !(msg.isPinned ?? false)),
+      onReact: (emoji) =>
+          ref.read(directChatProvider.notifier).reactToMessage(msg.id, emoji),
       onReply: () => ref.read(replyingToProvider.notifier).state = msg,
       onEdit: () {
         ref.read(editingMessageProvider.notifier).state = msg;
       },
+      onRetry: () => ref.read(directChatProvider.notifier).retryMessage(msg.id),
+      onCancel: () =>
+          ref.read(directChatProvider.notifier).cancelFailedMessage(msg.id),
     );
   }
 }
@@ -498,7 +575,9 @@ class _TypingIndicatorWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final chatId = ref.watch(currentChatIdProvider);
-    final isTyping = chatId != null ? ref.watch(typingStatusProvider(chatId)) : false;
+    final isTyping = chatId != null
+        ? ref.watch(typingStatusProvider(chatId))
+        : false;
     if (!isTyping) return const SizedBox.shrink();
     return const _TypingBubble();
   }
@@ -511,7 +590,8 @@ class _TypingBubble extends ConsumerStatefulWidget {
   ConsumerState<_TypingBubble> createState() => _TypingBubbleState();
 }
 
-class _TypingBubbleState extends ConsumerState<_TypingBubble> with SingleTickerProviderStateMixin {
+class _TypingBubbleState extends ConsumerState<_TypingBubble>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
   @override
@@ -538,7 +618,7 @@ class _TypingBubbleState extends ConsumerState<_TypingBubble> with SingleTickerP
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4.0,horizontal: 25),
+        margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 25),
         padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
         decoration: BoxDecoration(
           color: activeTheme.receivedMessageColor,
@@ -594,7 +674,6 @@ class _TypingBubbleState extends ConsumerState<_TypingBubble> with SingleTickerP
   }
 }
 
-
 class _DateChip extends StatelessWidget {
   const _DateChip({required this.label});
 
@@ -606,7 +685,7 @@ class _DateChip extends StatelessWidget {
     return Center(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        margin: const EdgeInsets.symmetric(vertical: 16,),
+        margin: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           color: theme.dividerColor.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(10),
@@ -637,11 +716,17 @@ class _EditPreviewBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: theme.scaffoldBackgroundColor,
-        border: Border(top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.2))),
+        border: Border(
+          top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.2)),
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.edit, color: activeTheme.accentColor ?? Colors.green, size: 20),
+          Icon(
+            Icons.edit,
+            color: activeTheme.accentColor ?? Colors.green,
+            size: 20,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -691,7 +776,8 @@ class _ReplyPreviewBar extends ConsumerWidget {
     final theme = Theme.of(context);
     final accentColor = activeTheme.accentColor ?? Colors.green;
 
-    final bool isImageType = replyTo.type == MessageType.image ||
+    final bool isImageType =
+        replyTo.type == MessageType.image ||
         replyTo.type == MessageType.gif ||
         replyTo.type == MessageType.video;
     final bool showMediaThumb =
@@ -754,24 +840,31 @@ class _ReplyPreviewBar extends ConsumerWidget {
           Expanded(
             child: url != null
                 ? FutureBuilder<LinkPreview?>(
-                    future: LinkPreviewService.instance.previewForText(replyTo.text),
+                    future: LinkPreviewService.instance.previewForText(
+                      replyTo.text,
+                    ),
                     builder: (context, snapshot) {
                       final preview = snapshot.data;
                       final parsedUri = Uri.tryParse(url);
-                      final fallbackHost =
-                          parsedUri?.host.isNotEmpty == true ? parsedUri!.host : url;
-                      final title = (preview != null && preview.title.isNotEmpty)
+                      final fallbackHost = parsedUri?.host.isNotEmpty == true
+                          ? parsedUri!.host
+                          : url;
+                      final title =
+                          (preview != null && preview.title.isNotEmpty)
                           ? preview.title
                           : fallbackHost;
-                      final domain = (preview != null && preview.host.isNotEmpty)
+                      final domain =
+                          (preview != null && preview.host.isNotEmpty)
                           ? preview.host
                           : fallbackHost;
                       final hasImage =
-                          preview?.imageUrl != null && preview!.imageUrl!.isNotEmpty;
+                          preview?.imageUrl != null &&
+                          preview!.imageUrl!.isNotEmpty;
 
                       return InkWell(
                         onTap: () => UrlLauncherUtils.openUrl(context, url),
-                        onLongPress: () => UrlLauncherUtils.showLinkOptions(context, url),
+                        onLongPress: () =>
+                            UrlLauncherUtils.showLinkOptions(context, url),
                         borderRadius: BorderRadius.circular(6),
                         child: Row(
                           children: [
@@ -787,24 +880,42 @@ class _ReplyPreviewBar extends ConsumerWidget {
                                       placeholder: (_, __) => Container(
                                         width: 40,
                                         height: 40,
-                                        color: theme.dividerColor.withValues(alpha: 0.15),
+                                        color: theme.dividerColor.withValues(
+                                          alpha: 0.15,
+                                        ),
                                         alignment: Alignment.center,
-                                        child: Icon(Icons.public, size: 18, color: accentColor),
+                                        child: Icon(
+                                          Icons.public,
+                                          size: 18,
+                                          color: accentColor,
+                                        ),
                                       ),
                                       errorWidget: (_, __, ___) => Container(
                                         width: 40,
                                         height: 40,
-                                        color: theme.dividerColor.withValues(alpha: 0.15),
+                                        color: theme.dividerColor.withValues(
+                                          alpha: 0.15,
+                                        ),
                                         alignment: Alignment.center,
-                                        child: Icon(Icons.public, size: 18, color: accentColor),
+                                        child: Icon(
+                                          Icons.public,
+                                          size: 18,
+                                          color: accentColor,
+                                        ),
                                       ),
                                     )
                                   : Container(
                                       width: 40,
                                       height: 40,
-                                      color: theme.dividerColor.withValues(alpha: 0.15),
+                                      color: theme.dividerColor.withValues(
+                                        alpha: 0.15,
+                                      ),
                                       alignment: Alignment.center,
-                                      child: Icon(Icons.public, size: 20, color: accentColor),
+                                      child: Icon(
+                                        Icons.public,
+                                        size: 20,
+                                        color: accentColor,
+                                      ),
                                     ),
                             ),
                             const SizedBox(width: 10),
@@ -827,7 +938,11 @@ class _ReplyPreviewBar extends ConsumerWidget {
                                   const SizedBox(height: 2),
                                   Row(
                                     children: [
-                                      Icon(Icons.link_rounded, size: 12, color: accentColor),
+                                      Icon(
+                                        Icons.link_rounded,
+                                        size: 12,
+                                        color: accentColor,
+                                      ),
                                       const SizedBox(width: 3),
                                       Expanded(
                                         child: Text(
@@ -835,7 +950,8 @@ class _ReplyPreviewBar extends ConsumerWidget {
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
-                                            color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                                            color: theme.colorScheme.onSurface
+                                                .withValues(alpha: 0.65),
                                             fontSize: 11,
                                           ),
                                         ),
@@ -844,7 +960,8 @@ class _ReplyPreviewBar extends ConsumerWidget {
                                       Icon(
                                         Icons.open_in_new_rounded,
                                         size: 11,
-                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                        color: theme.colorScheme.onSurface
+                                            .withValues(alpha: 0.5),
                                       ),
                                     ],
                                   ),
@@ -871,13 +988,21 @@ class _ReplyPreviewBar extends ConsumerWidget {
                               width: 40,
                               height: 40,
                               color: theme.dividerColor,
-                              child: const Icon(Icons.image, size: 18, color: Colors.white54),
+                              child: const Icon(
+                                Icons.image,
+                                size: 18,
+                                color: Colors.white54,
+                              ),
                             ),
                             errorWidget: (_, __, ___) => Container(
                               width: 40,
                               height: 40,
                               color: theme.dividerColor,
-                              child: const Icon(Icons.broken_image, size: 18, color: Colors.white54),
+                              child: const Icon(
+                                Icons.broken_image,
+                                size: 18,
+                                color: Colors.white54,
+                              ),
                             ),
                           ),
                         ),
@@ -890,7 +1015,9 @@ class _ReplyPreviewBar extends ConsumerWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              replyTo.isMe ? 'Replying to yourself' : 'Replying to message',
+                              replyTo.isMe
+                                  ? 'Replying to yourself'
+                                  : 'Replying to message',
                               style: TextStyle(
                                 color: accentColor,
                                 fontSize: 12,
@@ -903,7 +1030,9 @@ class _ReplyPreviewBar extends ConsumerWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.8,
+                                ),
                                 fontSize: 13,
                               ),
                             ),
@@ -961,7 +1090,8 @@ class _ComposerBar extends ConsumerWidget {
                   focusNode: focusNode,
                   isEnterSend: isEnterSend,
                   onSend: onSend,
-                  onTyping: () => ref.read(directChatProvider.notifier).emitTyping(),
+                  onTyping: () =>
+                      ref.read(directChatProvider.notifier).emitTyping(),
                   onAttach: onAttach,
                 ),
               ),
@@ -1042,7 +1172,9 @@ class _WhatsAppInputBox extends StatelessWidget {
                 style: const TextStyle(fontSize: 16, height: 1.3),
                 decoration: InputDecoration(
                   hintText: "Message",
-                  hintStyle: TextStyle(color: theme.hintColor.withValues(alpha: 0.6)),
+                  hintStyle: TextStyle(
+                    color: theme.hintColor.withValues(alpha: 0.6),
+                  ),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   fillColor: theme.colorScheme.surface,
@@ -1117,15 +1249,24 @@ class _AttachmentDrawerSection extends ConsumerWidget {
 class _AttachmentDrawer extends ConsumerWidget {
   const _AttachmentDrawer();
 
-  Future<void> _pickAndSendImage(BuildContext context, WidgetRef ref, ImageSource source) async {
+  Future<void> _pickAndSendImage(
+    BuildContext context,
+    WidgetRef ref,
+    ImageSource source,
+  ) async {
     try {
       final picker = ImagePicker();
-      final XFile? file = await picker.pickImage(source: source, imageQuality: 85);
+      final XFile? file = await picker.pickImage(
+        source: source,
+        imageQuality: 85,
+      );
       if (file != null) {
         ref.read(showAttachmentMenuProvider.notifier).state = false;
         final chatId = ref.read(currentChatIdProvider);
         if (chatId != null) {
-          await ref.read(directChatProvider.notifier).sendImageAttachment(file.path);
+          await ref
+              .read(directChatProvider.notifier)
+              .sendImageAttachment(file.path);
         }
       }
     } catch (e) {
@@ -1142,7 +1283,7 @@ class _AttachmentDrawer extends ConsumerWidget {
         crossAxisCount: 3,
         physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
-          children: [
+        children: [
           _AttachmentIcon(
             icon: Icons.insert_drive_file,
             color: Colors.indigo,
@@ -1161,9 +1302,21 @@ class _AttachmentDrawer extends ConsumerWidget {
             label: 'Gallery',
             onTap: () => _pickAndSendImage(context, ref, ImageSource.gallery),
           ),
-          const _AttachmentIcon(icon: Icons.headset, color: Colors.orange, label: 'Audio'),
-          const _AttachmentIcon(icon: Icons.location_on, color: Colors.green, label: 'Location'),
-          const _AttachmentIcon(icon: Icons.person, color: Colors.blue, label: 'Contact'),
+          const _AttachmentIcon(
+            icon: Icons.headset,
+            color: Colors.orange,
+            label: 'Audio',
+          ),
+          const _AttachmentIcon(
+            icon: Icons.location_on,
+            color: Colors.green,
+            label: 'Location',
+          ),
+          const _AttachmentIcon(
+            icon: Icons.person,
+            color: Colors.blue,
+            label: 'Contact',
+          ),
         ],
       ),
     );
@@ -1175,11 +1328,12 @@ class _AttachmentDrawer extends ConsumerWidget {
       if (result != null && result.files.isNotEmpty) {
         final path = result.files.single.path;
         if (path != null) {
-
           ref.read(showAttachmentMenuProvider.notifier).state = false;
           final chatId = ref.read(currentChatIdProvider);
           if (chatId != null) {
-            await ref.read(directChatProvider.notifier).sendFileAttachment(path);
+            await ref
+                .read(directChatProvider.notifier)
+                .sendFileAttachment(path);
           }
         }
       }
@@ -1190,7 +1344,12 @@ class _AttachmentDrawer extends ConsumerWidget {
 }
 
 class _AttachmentIcon extends StatelessWidget {
-  const _AttachmentIcon({required this.icon, required this.color, required this.label, this.onTap});
+  const _AttachmentIcon({
+    required this.icon,
+    required this.color,
+    required this.label,
+    this.onTap,
+  });
 
   final IconData icon;
   final Color color;

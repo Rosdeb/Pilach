@@ -10,9 +10,12 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:app/core/providers/api_provider.dart';
 import 'package:app/core/services/notification_service.dart';
 import 'package:app/core/services/outbox_processor.dart';
+import 'package:app/core/services/sync_engine.dart';
 import 'package:app/Features/Chat/presentation/providers/direct_chat_provider.dart';
 import 'package:app/core/constants/app_paths.dart';
 import 'package:app/core/widgets/global_keyboard_dismiss.dart';
+import 'package:app/Features/bottom_nav_bar/presentation/providers/bottom_nav_provider.dart';
+import 'package:app/Features/Me/presentation/providers/setting_providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,11 +38,29 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     final themeState = ref.watch(themeProvider);
-    ref.watch(socketServiceProvider);
+    final socketService = ref.watch(socketServiceProvider);
+    final showActiveStatus = ref.watch(showActiveStatusProvider);
+    socketService.setPresenceVisibility(showActiveStatus);
     ref.watch(outboxProcessorProvider);
+    ref.watch(syncEngineProvider);
     final notificationService = ref.watch(notificationServiceProvider);
     notificationService.configureNavigation(
-      activeChatId: () => ref.read(currentChatIdProvider),
+      activeChatId: () {
+        final currentPath = router.routerDelegate.currentConfiguration.uri.path;
+        return currentPath == AppPaths.chat
+            ? ref.read(currentChatIdProvider)
+            : null;
+      },
+      isMessageSurfaceVisible: () {
+        final currentPath = router.routerDelegate.currentConfiguration.uri.path;
+        if (currentPath == AppPaths.chat ||
+            currentPath == AppPaths.chat_search ||
+            currentPath == AppPaths.chat_profile) {
+          return true;
+        }
+        return currentPath == AppPaths.bottom_manu &&
+            ref.read(bottomNavProvider) == 0;
+      },
       openChat: (chatId) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ref.read(currentChatIdProvider.notifier).state = chatId;

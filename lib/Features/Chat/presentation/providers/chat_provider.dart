@@ -542,6 +542,21 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     await _chatDao.clearUnreadCount(id);
   }
 
+  Future<void> setDraft(String chatId, String? draft) async {
+    final cleanDraft = draft == null || draft.trim().isEmpty ? null : draft;
+    await _chatDao.updateDraft(chatId, cleanDraft);
+    if (!mounted) return;
+    state = state.map((c) {
+      if (c.id == chatId) {
+        return c.copyWith(
+          draft: cleanDraft,
+          clearDraft: cleanDraft == null,
+        );
+      }
+      return c;
+    }).toList();
+  }
+
   Future<void> updateLastMessage(
     String chatId,
     String message,
@@ -990,50 +1005,110 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     required String title,
     required List<String> userIds,
   }) async {
+    final cleanTitle = title.trim();
+    if (cleanTitle.isEmpty) {
+      throw Exception('Group name is required');
+    }
+
+    if (_currentUserId.isEmpty) {
+      final authId = _ref.read(authProvider).id;
+      if (authId != null && authId.isNotEmpty && authId != '***') {
+        _currentUserId = authId;
+      } else {
+        final prefs = await SharedPreferences.getInstance();
+        _currentUserId = prefs.getString('user_id') ?? '';
+      }
+    }
+
+    final memberIds = userIds
+        .map((id) => id.trim())
+        .where(
+          (id) =>
+              id.isNotEmpty &&
+              (_currentUserId.isEmpty || id != _currentUserId),
+        )
+        .toSet()
+        .toList(growable: false);
+    if (memberIds.isEmpty) {
+      throw Exception('Select at least one member');
+    }
+
     try {
       final res = await _chatRepository.createConversation(
         type: 'GROUP',
-        title: title,
-        userIds: userIds,
+        title: cleanTitle,
+        userIds: memberIds,
       );
 
       Logger.log('Create group API response: $res');
 
-      String? conversationId;
       Map<String, dynamic>? conversationData;
-
-      if (res['data'] is Map) {
-        conversationData = Map<String, dynamic>.from(res['data'] as Map);
-        conversationId =
-            conversationData['id']?.toString() ??
-            conversationData['_id']?.toString();
+      final rawData = res['data'];
+      if (rawData is Map && rawData['conversation'] is Map) {
+        conversationData = Map<String, dynamic>.from(
+          rawData['conversation'] as Map,
+        );
+      } else if (rawData is Map) {
+        conversationData = Map<String, dynamic>.from(rawData);
+      } else if (res['conversation'] is Map) {
+        conversationData = Map<String, dynamic>.from(
+          res['conversation'] as Map,
+        );
       } else if (res['id'] != null || res['_id'] != null) {
         conversationData = Map<String, dynamic>.from(res);
-        conversationId = res['id']?.toString() ?? res['_id']?.toString();
       }
 
-      if (conversationData != null && _currentUserId.isNotEmpty) {
-        try {
-          final dto = ChatDto.fromJson(conversationData);
-          await _chatDao.insertOrUpdateChat(dto.toSqliteMap(_currentUserId));
-          await loadFromDb();
-        } catch (e) {
-          Logger.log('Could not persist created group dto: $e');
+      final conversationId =
+          conversationData?['id']?.toString() ??
+          conversationData?['_id']?.toString() ??
+          conversationData?['conversationId']?.toString() ??
+          (rawData is Map ? rawData['conversationId']?.toString() : null) ??
+          res['conversationId']?.toString();
+      if (conversationId == null || conversationId.isEmpty) {
+        throw Exception('Server created no usable group conversation');
+      }
+
+      try {
+        final now = DateTime.now().toIso8601String();
+        final sqliteMap = conversationData != null
+            ? ChatDto.fromJson(conversationData).toSqliteMap(_currentUserId)
+            : <String, dynamic>{
+                'id': conversationId,
+                'type': 'GROUP',
+                'title': cleanTitle,
+                'avatar_url': null,
+                'unread_count': 0,
+                'last_message_seq': 0,
+                'last_message_preview': 'New Group',
+                'last_message_at': now,
+                'created_at': now,
+                'updated_at': now,
+                'is_online': 0,
+              };
+        sqliteMap['id'] = conversationId;
+        sqliteMap['type'] = 'GROUP';
+        sqliteMap['title'] ??= cleanTitle;
+        sqliteMap['last_message_preview'] ??= 'New Group';
+        sqliteMap['last_message_at'] ??= now;
+        sqliteMap['created_at'] ??= now;
+        sqliteMap['updated_at'] ??= now;
+        await _chatDao.insertOrUpdateChat(sqliteMap);
+        await loadFromDb();
+      } catch (error) {
+        Logger.log('Could not persist created group: $error', type: 'error');
+      }
+
+      if (!state.any((c) => c.id == conversationId)) {
+        final localRow = await _chatDao.getChatById(conversationId);
+        if (localRow != null) {
+          state = [localRow.toChatModel(), ...state];
         }
       }
+      _socketService.joinConversation(conversationId);
 
-      await fetchFromServer(forceUpdate: true);
-
-      if (conversationId != null) {
-        if (!state.any((c) => c.id == conversationId)) {
-          final localRow = await _chatDao.getChatById(conversationId);
-          if (localRow != null) {
-            state = [localRow.toChatModel(), ...state];
-          }
-        }
-        _socketService.joinConversation(conversationId);
-        _socketService.forceReconnect();
-      }
+      // Reconcile richer member/creator metadata without delaying navigation
+      // or forcing a socket reconnect that could interrupt active frames.
+      unawaited(fetchFromServer(forceUpdate: true));
 
       return conversationId;
     } catch (e, st) {

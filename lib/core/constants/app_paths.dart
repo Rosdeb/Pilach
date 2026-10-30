@@ -41,4 +41,5 @@ class AppPaths {
   static const String market_screen = '/market_screen';
   static const String news_screen = '/news_screen';
   static const String donate_screen = '/donate_screen';
+  static const String devices = '/device_management_screen';
 }

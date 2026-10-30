@@ -2,15 +2,26 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
-import 'package:app/core/utils/app_colour.dart';
 import 'package:app/components/AppText/appText.dart';
-import 'package:app/core/constants/app_constants.dart';
 import '../../../data/models/chat_model.dart';
+import '../../../../Contact/presentation/widgets/add_group_members_sheet.dart';
 
 class ChatProfileScreen extends StatelessWidget {
   final ChatModel chat;
 
   const ChatProfileScreen({Key? key, required this.chat}) : super(key: key);
+
+  void _showAddMemberSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AddGroupMembersBottomSheet(
+        conversationId: chat.id,
+        groupTitle: chat.name,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +79,7 @@ class ChatProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 AppText(
-                  'Active now',
+                  chat.isGroup ? 'Group Conversation' : 'Active now',
                   style: TextStyle(
                     fontSize: 14,
                     color: theme.colorScheme.onSurface.withOpacity(0.6),
@@ -82,7 +93,15 @@ class ChatProfileScreen extends StatelessWidget {
                   children: [
                     _buildActionButton(context, CupertinoIcons.phone_fill, 'Audio', () {}),
                     _buildActionButton(context, CupertinoIcons.video_camera_solid, 'Video', () {}),
-                    _buildActionButton(context, CupertinoIcons.person_solid, 'Profile', () {}),
+                    if (chat.isGroup)
+                      _buildActionButton(
+                        context,
+                        CupertinoIcons.person_badge_plus,
+                        'Add Member',
+                        () => _showAddMemberSheet(context),
+                      )
+                    else
+                      _buildActionButton(context, CupertinoIcons.person_solid, 'Profile', () {}),
                     _buildActionButton(context, CupertinoIcons.bell_slash_fill, 'Mute', () {}),
                   ],
                 ),
@@ -90,6 +109,20 @@ class ChatProfileScreen extends StatelessWidget {
               ],
             ),
           ),
+
+          // --- Group Management (If Group) ---
+          if (chat.isGroup)
+            SliverToBoxAdapter(
+              child: _buildSectionGroup(context, [
+                _buildSettingTile(
+                  context,
+                  CupertinoIcons.person_badge_plus,
+                  'Add Members',
+                  const Color(0xFF34C759),
+                  onTap: () => _showAddMemberSheet(context),
+                ),
+              ]),
+            ),
 
           // --- Customization Settings ---
           SliverToBoxAdapter(
@@ -166,7 +199,15 @@ class ChatProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSettingTile(BuildContext context, IconData icon, String title, Color iconColor, {String? trailing, bool isDestructive = false}) {
+  Widget _buildSettingTile(
+    BuildContext context,
+    IconData icon,
+    String title,
+    Color iconColor, {
+    String? trailing,
+    bool isDestructive = false,
+    VoidCallback? onTap,
+  }) {
     final theme = Theme.of(context);
     final textColor = isDestructive ? Colors.red : theme.colorScheme.onSurface;
     
@@ -192,7 +233,7 @@ class ChatProfileScreen extends StatelessWidget {
           Icon(Icons.arrow_forward_ios, size: 14, color: theme.colorScheme.onSurface.withOpacity(0.3)),
         ],
       ),
-      onTap: () {},
+      onTap: onTap ?? () {},
     );
   }
 }

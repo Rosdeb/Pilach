@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
@@ -20,7 +22,7 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 7,
+      version: 8,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -61,6 +63,9 @@ class AppDatabase {
         if (oldVersion < 7) {
           await _createLinkPreviewsTable(db);
         }
+        if (oldVersion < 8) {
+          await db.execute('ALTER TABLE chats ADD COLUMN draft TEXT');
+        }
       },
     );
   }
@@ -83,7 +88,8 @@ class AppDatabase {
         is_pinned INTEGER DEFAULT 0,
         is_muted INTEGER DEFAULT 0,
         is_online INTEGER DEFAULT 0,
-        last_active_at TEXT
+        last_active_at TEXT,
+        draft TEXT
       )
     ''');
 
@@ -185,5 +191,12 @@ class AppDatabase {
       await txn.delete('sync_state');
       await txn.delete('link_previews');
     });
+    final supportDirectory = await getApplicationSupportDirectory();
+    final pendingUploads = Directory(
+      join(supportDirectory.path, 'pending_message_uploads'),
+    );
+    if (await pendingUploads.exists()) {
+      await pendingUploads.delete(recursive: true);
+    }
   }
 }

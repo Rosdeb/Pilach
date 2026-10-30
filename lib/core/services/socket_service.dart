@@ -4,7 +4,7 @@ import 'dart:math';
 import 'package:app/core/utils/app_logger.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:socket_io_client/socket_io_client.dart' as socket_io;
 
 enum SocketConnectionState { connecting, connected, reconnecting, disconnected }
 
@@ -20,7 +20,7 @@ class SocketService extends WidgetsBindingObserver {
     );
   }
 
-  IO.Socket? _socket;
+  socket_io.Socket? _socket;
   final String baseUrl;
   Future<String?> Function()? onTokenRefreshRequested;
 
@@ -121,11 +121,27 @@ class SocketService extends WidgetsBindingObserver {
   bool _isConnecting = false;
   bool _shouldBeConnected = false;
   bool _isSuspended = false;
+  bool _presenceVisible = true;
   bool _disposed = false;
   bool _refreshAttemptedForCurrentToken = false;
   int _reconnectAttempt = 0;
 
   bool get isConnected => _socket?.connected == true;
+
+  /// Publishes the user's active-status preference without disconnecting chat.
+  /// The server must honor `presence:visibility` when broadcasting presence.
+  void setPresenceVisibility(bool visible) {
+    if (_presenceVisible == visible) return;
+    _presenceVisible = visible;
+    _presenceHeartbeatTimer?.cancel();
+
+    if (!isConnected) return;
+    _socket?.emit('presence:visibility', {'visible': visible});
+    if (visible) {
+      _startPresenceHeartbeat();
+    }
+    Logger.log('Presence visibility changed: $visible', type: 'socket');
+  }
 
   /// True once we have had at least one successful connection with the
   /// current token. Used to distinguish a first-time connect from a
@@ -339,9 +355,9 @@ class SocketService extends WidgetsBindingObserver {
       type: 'socket',
     );
 
-    final socket = IO.io(
+    final socket = socket_io.io(
       baseUrl,
-      IO.OptionBuilder()
+      socket_io.OptionBuilder()
           .setTransports(['websocket'])
           .setAuth({'token': token})
           .setExtraHeaders({
@@ -382,7 +398,8 @@ class SocketService extends WidgetsBindingObserver {
         type: 'socket',
       );
       _startHealthCheck();
-      _startPresenceHeartbeat();
+      socket.emit('presence:visibility', {'visible': _presenceVisible});
+      if (_presenceVisible) _startPresenceHeartbeat();
 
       // Re-emit room join events for active rooms
       for (final roomId in _activeRooms) {
@@ -433,7 +450,7 @@ class SocketService extends WidgetsBindingObserver {
     socket.connect();
   }
 
-  void _registerListeners(IO.Socket socket) {
+  void _registerListeners(socket_io.Socket socket) {
     void listen(
       String event,
       StreamController<Map<String, dynamic>> controller,
@@ -558,6 +575,7 @@ class SocketService extends WidgetsBindingObserver {
 
   void _startPresenceHeartbeat() {
     _presenceHeartbeatTimer?.cancel();
+    if (!_presenceVisible) return;
     _emitPresenceHeartbeat();
     _presenceHeartbeatTimer = Timer.periodic(
       const Duration(seconds: 25),
@@ -566,7 +584,7 @@ class SocketService extends WidgetsBindingObserver {
   }
 
   void _emitPresenceHeartbeat() {
-    if (!isConnected) return;
+    if (!isConnected || !_presenceVisible) return;
     _socket?.emit('presence:heartbeat', <String, dynamic>{});
   }
 

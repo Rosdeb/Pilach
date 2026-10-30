@@ -25,7 +25,8 @@ class MeScreen extends ConsumerStatefulWidget {
   ConsumerState<MeScreen> createState() => _MeScreenState();
 }
 
-class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver {
+class _MeScreenState extends ConsumerState<MeScreen>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
@@ -52,7 +53,9 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
 
   Future<void> _syncNotificationPermissionState() async {
     final permissionService = ref.read(permissionServiceProvider);
-    final status = await permissionService.checkPermission(Permission.notification);
+    final status = await permissionService.checkPermission(
+      Permission.notification,
+    );
 
     if (status.isGranted) {
       // Permission is granted — reflect whatever the user last saved
@@ -70,11 +73,14 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
     final permissionService = ref.read(permissionServiceProvider);
 
     if (enable) {
-      PermissionStatus status =
-          await permissionService.checkPermission(Permission.notification);
+      PermissionStatus status = await permissionService.checkPermission(
+        Permission.notification,
+      );
 
       if (status.isDenied) {
-        status = await permissionService.requestPermission(Permission.notification);
+        status = await permissionService.requestPermission(
+          Permission.notification,
+        );
       }
 
       if (status.isPermanentlyDenied) {
@@ -84,7 +90,8 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
             builder: (c) => CupertinoAlertDialog(
               title: const Text('Permission Required'),
               content: const Text(
-                  'Please enable push notifications in your device settings.'),
+                'Please enable push notifications in your device settings.',
+              ),
               actions: [
                 CupertinoDialogAction(
                   child: const Text('Cancel'),
@@ -200,7 +207,8 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(
-                  horizontal: AppSizes.paddingMedium),
+                horizontal: AppSizes.paddingMedium,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -214,35 +222,47 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
                         final authState = ref.watch(authProvider);
                         return ListTile(
                           contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           leading: CircleAvatar(
                             radius: 30,
                             backgroundColor: theme.colorScheme.primary
                                 .withValues(alpha: 0.1),
                             backgroundImage: authState.profileImage != null
                                 ? CachedNetworkImageProvider(
-                                    authState.profileImage!)
+                                    authState.profileImage!,
+                                  )
                                 : null,
                             child: authState.profileImage == null
-                                ? Icon(Icons.person,
+                                ? Icon(
+                                    Icons.person,
                                     size: 30,
-                                    color: theme.colorScheme.primary)
+                                    color: theme.colorScheme.primary,
+                                  )
                                 : null,
                           ),
                           title: AppText(
                             authState.name ?? 'Guest User',
                             style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 18),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
                           ),
                           subtitle: AppText(
                             authState.email ?? 'No email available',
                             style: TextStyle(
-                                color: theme.colorScheme.onSurface
-                                    .withValues(alpha: 0.6),
-                                fontSize: 14),
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.6,
+                              ),
+                              fontSize: 14,
+                            ),
                           ),
-                          trailing: Icon(Icons.qr_code_scanner,
-                              size: 20, color: theme.colorScheme.onSurface),
+                          trailing: Icon(
+                            Icons.qr_code_scanner,
+                            size: 20,
+                            color: theme.colorScheme.onSurface,
+                          ),
                           onTap: () {
                             context.push(AppPaths.qr_screen);
                           },
@@ -287,8 +307,9 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
                     Consumer(
                       builder: (context, ref, child) {
                         // Watch the provider — rebuilds automatically when value changes
-                        final isPushEnabled =
-                            ref.watch(pushNotificationsProvider);
+                        final isPushEnabled = ref.watch(
+                          pushNotificationsProvider,
+                        );
                         return _buildSwitchTile(
                           context,
                           icon: Icons.notifications_none,
@@ -307,12 +328,38 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
                   // --- PRIVACY SECTION ---
                   _buildSectionHeader('PRIVACY'),
                   _buildSectionCard(context, [
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final showActiveStatus = ref.watch(
+                          showActiveStatusProvider,
+                        );
+                        return _buildSwitchTile(
+                          context,
+                          icon: Icons.circle_outlined,
+                          iconColor: AppColors.successGreen,
+                          title: 'Show Active Status',
+                          value: showActiveStatus,
+                          onChanged: (enabled) => ref
+                              .read(showActiveStatusProvider.notifier)
+                              .update(enabled),
+                        );
+                      },
+                    ),
+                    _buildDivider(context),
                     _buildListTile(
                       context,
                       icon: Icons.security,
                       iconColor: AppColors.successGreen,
                       title: 'Security & Privacy',
                       onTap: () => context.push(AppPaths.security_privacy),
+                    ),
+                    _buildDivider(context),
+                    _buildListTile(
+                      context,
+                      icon: Icons.devices_other_rounded,
+                      iconColor: AppColors.successGreen,
+                      title: 'Devices & Sessions',
+                      onTap: () => context.push(AppPaths.devices),
                     ),
                     _buildDivider(context),
                     _buildListTile(
@@ -393,8 +440,9 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
                           context: context,
                           builder: (context) => CupertinoAlertDialog(
                             title: const Text('Log Out'),
-                            content:
-                                const Text('Are you sure you want to log out?'),
+                            content: const Text(
+                              'Are you sure you want to log out?',
+                            ),
                             actions: [
                               CupertinoDialogAction(
                                 child: const Text('Cancel'),
@@ -415,7 +463,9 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
                       child: const AppText(
                         'Log Out',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -428,17 +478,21 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
                         AppText(
                           'Terms of Service • Privacy Policy',
                           style: TextStyle(
-                              color: theme.colorScheme.onSurface
-                                  .withOpacity(0.6),
-                              fontSize: 12),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
+                            fontSize: 12,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         AppText(
                           '©2026 Pilach Chat Inc.',
                           style: TextStyle(
-                              color: theme.colorScheme.onSurface
-                                  .withOpacity(0.6),
-                              fontSize: 12),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -484,9 +538,10 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
     return Padding(
       padding: const EdgeInsets.only(left: 56.0),
       child: Divider(
-          height: 1,
-          thickness: 0.5,
-          color: Theme.of(context).dividerColor),
+        height: 1,
+        thickness: 0.5,
+        color: Theme.of(context).dividerColor,
+      ),
     );
   }
 
@@ -506,7 +561,7 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
       leading: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: iconColor.withOpacity(0.1),
+          color: iconColor.withValues(alpha: 0.1),
           shape: BoxShape.circle,
         ),
         child: Icon(icon, color: iconColor, size: 20),
@@ -514,9 +569,10 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
       title: Text(
         title,
         style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w400,
-            color: theme.colorScheme.onSurface),
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: theme.colorScheme.onSurface,
+        ),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -525,14 +581,17 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
             Text(
               trailingText,
               style: TextStyle(
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
-                  fontSize: 16),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                fontSize: 16,
+              ),
             ),
           if (trailingText != null && showArrow) const SizedBox(width: 8),
           if (showArrow)
-            Icon(Icons.arrow_forward_ios,
-                size: 14,
-                color: theme.colorScheme.onSurface.withOpacity(0.3)),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 14,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+            ),
         ],
       ),
       onTap: onTap,
@@ -553,7 +612,7 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
       leading: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: iconColor.withOpacity(0.1),
+          color: iconColor.withValues(alpha: 0.1),
           shape: BoxShape.circle,
         ),
         child: Icon(icon, color: iconColor, size: 20),
@@ -561,18 +620,20 @@ class _MeScreenState extends ConsumerState<MeScreen> with WidgetsBindingObserver
       title: Text(
         title,
         style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w400,
-            color: theme.colorScheme.onSurface),
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: theme.colorScheme.onSurface,
+        ),
       ),
       trailing: Transform.scale(
         scaleX: 0.85,
         scaleY: 0.85,
         child: AdvancedSwitch(
+          key: ValueKey('${title}_$value'),
           initialValue: value,
           onChanged: (val) => onChanged(val),
           activeColor: const Color(0xFF34C759),
-          inactiveColor: theme.colorScheme.onSurface.withOpacity(0.15),
+          inactiveColor: theme.colorScheme.onSurface.withValues(alpha: 0.15),
         ),
       ),
     );

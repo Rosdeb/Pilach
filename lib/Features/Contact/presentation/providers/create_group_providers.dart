@@ -1,4 +1,3 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 class SelectedMembersNotifier extends StateNotifier<Set<String>> {
@@ -12,11 +11,19 @@ class SelectedMembersNotifier extends StateNotifier<Set<String>> {
     }
   }
 
+  void addMember(String id) {
+    state = {...state, id};
+  }
+
+  void removeMember(String id) {
+    state = state.where((element) => element != id).toSet();
+  }
+
   void clear() {
     state = {};
   }
 }
 
-final selectedMembersProvider = StateNotifierProvider<SelectedMembersNotifier, Set<String>>((ref) {
+final selectedMembersProvider = StateNotifierProvider.autoDispose<SelectedMembersNotifier, Set<String>>((ref) {
   return SelectedMembersNotifier();
 });

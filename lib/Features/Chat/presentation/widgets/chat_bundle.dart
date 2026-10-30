@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -20,6 +21,8 @@ class ChatBubble extends StatefulWidget {
   final Function(String)? onReact;
   final VoidCallback? onReply;
   final VoidCallback? onEdit;
+  final VoidCallback? onRetry;
+  final VoidCallback? onCancel;
 
   const ChatBubble({
     super.key,
@@ -32,6 +35,8 @@ class ChatBubble extends StatefulWidget {
     this.onReact,
     this.onReply,
     this.onEdit,
+    this.onRetry,
+    this.onCancel,
   });
 
   @override
@@ -219,6 +224,10 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                         children: [
                           // Bubble Layer Canvas Block Box
                           GestureDetector(
+                            onTap: widget.message.status == MessageStatus.failed
+                                ? () =>
+                                      _showFailedMessageRecoveryDialog(context)
+                                : null,
                             onLongPress: widget.message.isDeleted
                                 ? null
                                 : () => _showMessageOptions(context),
@@ -256,22 +265,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                               ),
                               if (widget.message.isMe) ...[
                                 const SizedBox(width: 4),
-                                Icon(
-                                  (widget.message.status ==
-                                              MessageStatus.seen ||
-                                          widget.message.status ==
-                                              MessageStatus.delivered)
-                                      ? Icons.done_all
-                                      : Icons.done,
-                                  size: 14,
-                                  color:
-                                      widget.message.status ==
-                                          MessageStatus.seen
-                                      ? const Color(0xFF34C759)
-                                      : theme.colorScheme.onSurface.withOpacity(
-                                          0.6,
-                                        ),
-                                ),
+                                _buildStatusIcon(context, theme),
                               ],
                             ],
                           ),
@@ -286,6 +280,82 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+
+  void _showFailedMessageRecoveryDialog(BuildContext context) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('Message Not Sent'),
+        message: const Text(
+          'This message failed to send. Would you like to retry or delete it?',
+        ),
+        actions: [
+          if (widget.onRetry != null)
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(ctx);
+                widget.onRetry!();
+              },
+              child: const Text('Retry Sending'),
+            ),
+          if (widget.onCancel != null)
+            CupertinoActionSheetAction(
+              isDestructiveAction: true,
+              onPressed: () {
+                Navigator.pop(ctx);
+                widget.onCancel!();
+              },
+              child: const Text('Cancel & Delete'),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Dismiss'),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusIcon(BuildContext context, ThemeData theme) {
+    switch (widget.message.status) {
+      case MessageStatus.failed:
+        return GestureDetector(
+          onTap: () => _showFailedMessageRecoveryDialog(context),
+          child: const Padding(
+            padding: EdgeInsets.only(left: 2.0),
+            child: Icon(
+              Icons.error_outline_rounded,
+              size: 15,
+              color: Colors.redAccent,
+            ),
+          ),
+        );
+      case MessageStatus.queued:
+      case MessageStatus.sending:
+        return Padding(
+          padding: const EdgeInsets.only(left: 2.0),
+          child: Icon(
+            CupertinoIcons.clock,
+            size: 13,
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        );
+      case MessageStatus.sent:
+        return Icon(
+          Icons.done,
+          size: 14,
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+        );
+      case MessageStatus.delivered:
+        return Icon(
+          Icons.done_all,
+          size: 14,
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+        );
+      case MessageStatus.seen:
+        return const Icon(Icons.done_all, size: 14, color: Color(0xFF34C759));
+    }
   }
 
   Widget _buildBubbleContent(
@@ -754,6 +824,19 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                 widget.onDelete();
               }
             : null,
+        isFailed: widget.message.status == MessageStatus.failed,
+        onRetry: widget.onRetry == null
+            ? null
+            : () {
+                _removeOverlay();
+                widget.onRetry!();
+              },
+        onCancel: widget.onCancel == null
+            ? null
+            : () {
+                _removeOverlay();
+                widget.onCancel!();
+              },
       ),
     );
 
@@ -1407,6 +1490,9 @@ class _MessageActionOverlay extends StatefulWidget {
   final VoidCallback? onEdit;
   final VoidCallback onPin;
   final VoidCallback? onDelete;
+  final bool isFailed;
+  final VoidCallback? onRetry;
+  final VoidCallback? onCancel;
 
   const _MessageActionOverlay({
     required this.top,
@@ -1424,6 +1510,9 @@ class _MessageActionOverlay extends StatefulWidget {
     this.onReply,
     this.onEdit,
     this.onDelete,
+    this.isFailed = false,
+    this.onRetry,
+    this.onCancel,
   });
 
   @override
@@ -1648,6 +1737,25 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
           ),
         ),
       );
+    }
+
+    if (widget.isFailed) {
+      if (widget.onRetry != null) {
+        addTile(
+          Icons.refresh_rounded,
+          'Retry Sending',
+          widget.onRetry!,
+          color: Colors.blueAccent,
+        );
+      }
+      if (widget.onCancel != null) {
+        addTile(
+          Icons.close_rounded,
+          'Cancel & Delete',
+          widget.onCancel!,
+          color: Colors.redAccent,
+        );
+      }
     }
 
     if (widget.onReply != null) addTile(Icons.reply, 'Reply', widget.onReply!);

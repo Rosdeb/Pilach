@@ -11,7 +11,7 @@ import '../providers/contact_providers.dart';
 import '../providers/create_group_providers.dart';
 
 class CreateGroupBottomSheet extends ConsumerStatefulWidget {
-  const CreateGroupBottomSheet({Key? key}) : super(key: key);
+  const CreateGroupBottomSheet({super.key});
 
   @override
   ConsumerState<CreateGroupBottomSheet> createState() => _CreateGroupBottomSheetState();
@@ -19,47 +19,110 @@ class CreateGroupBottomSheet extends ConsumerStatefulWidget {
 
 class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet> {
   final _groupNameController = TextEditingController();
+  final _searchController = TextEditingController();
   bool _isCreating = false;
+  String _searchQuery = '';
 
   @override
   void dispose() {
     _groupNameController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _createGroup(Set<String> selectedMembers) async {
+    final groupTitle = _groupNameController.text.trim();
+    if (_isCreating) return;
+
+    if (groupTitle.isEmpty) {
+      AppToast.show(context, 'Please enter a group name', type: ToastType.warning);
+      return;
+    }
+
+    if (selectedMembers.isEmpty) {
+      AppToast.show(context, 'Please select at least one member', type: ToastType.warning);
+      return;
+    }
+
+    final router = GoRouter.of(context);
+    setState(() => _isCreating = true);
+    try {
+      final newChatId = await ref
+          .read(chatProvider.notifier)
+          .createGroupConversation(
+            title: groupTitle,
+            userIds: selectedMembers.toList(growable: false),
+          );
+      if (newChatId == null || newChatId.isEmpty) {
+        throw Exception('The server did not return the new group');
+      }
+      if (!mounted) return;
+
+      ref.read(currentChatIdProvider.notifier).state = newChatId;
+      ref.read(selectedMembersProvider.notifier).clear();
+      Navigator.of(context).pop();
+      router.push(AppPaths.chat);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isCreating = false);
+      final message = error.toString().replaceFirst('Exception: ', '').trim();
+      AppToast.show(
+        context,
+        message.isEmpty ? 'Failed to create group' : message,
+        type: ToastType.error,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Watch selected members set and master contact list records
     final selectedMembers = ref.watch(selectedMembersProvider);
-
-    // Fallback static list lookup matching your Contacts Screen provider structure
-    final contacts = ref.watch(masterContactsProvider);
+    final allContacts = ref.watch(masterContactsProvider);
     final theme = Theme.of(context);
 
+    // Filter contacts based on search query
+    final filteredContacts = allContacts.where((c) {
+      if (_searchQuery.isEmpty) return true;
+      final q = _searchQuery.toLowerCase();
+      return c.name.toLowerCase().contains(q) ||
+          c.id.toLowerCase().contains(q) ||
+          c.status.toLowerCase().contains(q);
+    }).toList();
+
+    final isManualIdEligible = _searchQuery.trim().isNotEmpty &&
+        !allContacts.any((c) => c.id.toLowerCase() == _searchQuery.trim().toLowerCase()) &&
+        !selectedMembers.contains(_searchQuery.trim());
+
     return ConstrainedBox(
-      // FIXED: Swapped out hardcoded container height for a flexible max constraint boundary.
-      // Gives the sheet space to shift up seamlessly without generating bottom rendering overflows.
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.85,
+        maxHeight: MediaQuery.of(context).size.height * 0.88,
       ),
       child: Container(
         decoration: BoxDecoration(
           color: theme.scaffoldBackgroundColor,
           borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(12),
-            topRight: Radius.circular(12),
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
           ),
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min, // FIXED: Shrinks container down dynamically around elements
+          mainAxisSize: MainAxisSize.min,
           children: [
             // --- STICKY iOS TOP NAVIGATION BAR ---
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: theme.scaffoldBackgroundColor,
-                borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12)),
-                border: Border(bottom: BorderSide(color: theme.dividerColor.withOpacity(0.12), width: 1)),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+                border: Border(
+                  bottom: BorderSide(
+                    color: theme.dividerColor.withValues(alpha: 0.12),
+                    width: 1,
+                  ),
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -78,185 +141,446 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                     children: [
                       Text(
                         'New Group',
-                        style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 17, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface,
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       if (selectedMembers.isNotEmpty)
                         Text(
                           '${selectedMembers.length} Selected',
-                          style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 11),
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            fontSize: 11,
+                          ),
                         ),
                     ],
                   ),
-                  GestureDetector(
-                    onTap: _isCreating || selectedMembers.isEmpty || _groupNameController.text.trim().isEmpty
-                        ? null
-                        : () async {
-                            final groupTitle = _groupNameController.text.trim();
-                            final memberIds = selectedMembers.toList();
-                            setState(() => _isCreating = true);
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _groupNameController,
+                    builder: (context, value, _) {
+                      final hasTitle = value.text.trim().isNotEmpty;
+                      final hasMembers = selectedMembers.isNotEmpty;
+                      final enabled = !_isCreating && hasTitle && hasMembers;
 
-                            try {
-                              final newChatId = await ref.read(chatProvider.notifier).createGroupConversation(
-                                title: groupTitle,
-                                userIds: memberIds,
-                              );
-                              ref.read(selectedMembersProvider.notifier).clear();
-                              if (context.mounted) {
-                                Navigator.of(context).pop();
-                              }
-                              if (newChatId != null && context.mounted) {
-                                ref.read(currentChatIdProvider.notifier).state = newChatId;
-                                context.push(AppPaths.chat);
-                              }
-                            } catch (e) {
-                              if (context.mounted) {
-                                setState(() => _isCreating = false);
-                                final msg = e.toString().replaceAll('Exception: ', '');
-                                AppToast.show(context, msg.isNotEmpty ? msg : 'Failed to create group', type: ToastType.error);
-                              }
-                            }
-                          },
-                    child: _isCreating
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CupertinoActivityIndicator(),
-                          )
-                        : Text(
-                            'Create',
-                            style: TextStyle(
-                              color: selectedMembers.isEmpty || _groupNameController.text.trim().isEmpty
-                                  ? theme.colorScheme.onSurface.withOpacity(0.3)
-                                  : const Color(0xFF34C759),
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                      return GestureDetector(
+                        onTap: () => _createGroup(selectedMembers),
+                        child: _isCreating
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CupertinoActivityIndicator(),
+                              )
+                            : Text(
+                                'Create',
+                                style: TextStyle(
+                                  color: enabled
+                                      ? const Color(0xFF34C759)
+                                      : theme.colorScheme.onSurface.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                      );
+                    },
                   ),
                 ],
               ),
             ),
 
-            // --- BODY SECTION CONTENT ---
-            Flexible( // FIXED: Swapped Expanded for Flexible to allow elastic shrinking on viewport height adjustments
-              child: SingleChildScrollView(
+            Flexible(
+              child: ListView(
                 physics: const BouncingScrollPhysics(),
                 padding: EdgeInsets.only(
                   left: 16.0,
                   right: 16.0,
                   top: 16.0,
-                  bottom: MediaQuery.of(context).viewInsets.bottom + 24.0, // Dynamic Keyboard layout resizing
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 24.0,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // --- SECTION: GROUP DETAILS CARD ---
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surface,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          // Dynamic Group Avatar Picker Node Placeholder
-                          CircleAvatar(
-                            radius: 30,
-                            backgroundColor: theme.brightness == Brightness.dark ? const Color(0xFF112D2D) : const Color(0xFFDFF1F1),
-                            child: Icon(CupertinoIcons.camera_fill, color: theme.colorScheme.primary, size: 22),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: TextField(
-                              controller: _groupNameController,
-                              onChanged: (value) => setState(() {}), // Force rebuild to refresh "Create" button validation state
-                              style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 16),
-                              decoration: InputDecoration(
-                                hintText: 'Enter Group Name',
-                                hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 16),
-                                border: InputBorder.none,
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                children: [
+                  // --- GROUP NAME INPUT CARD ---
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    const SizedBox(height: 24.0),
-
-                    // --- SECTION LABEL: ADD MEMBERS ---
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
-                      child: Text(
-                        'ADD MEMBERS',
-                        style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                      ),
-                    ),
-
-                    // --- MEMBERS CHECKLIST CONTAINER BLOCK ---
-                    Container(
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surface,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        padding: EdgeInsets.zero,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: contacts.length,
-                        separatorBuilder: (context, index) => Padding(
-                          padding: const EdgeInsets.only(left: 68.0),
-                          child: Divider(height: 1, thickness: 0.5, color: theme.dividerColor.withOpacity(0.12)),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundColor: theme.brightness == Brightness.dark
+                              ? const Color(0xFF112D2D)
+                              : const Color(0xFFDFF1F1),
+                          child: Icon(
+                            CupertinoIcons.group_solid,
+                            color: theme.colorScheme.primary,
+                            size: 24,
+                          ),
                         ),
-                        itemBuilder: (context, index) {
-                          final member = contacts[index];
-                          final isChecked = selectedMembers.contains(member.id);
-                          final successColor = const Color(0xFF34C759);
-
-                          return ListTile(
-                            onTap: () => ref.read(selectedMembersProvider.notifier).toggleMember(member.id),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                            leading: CircleAvatar(
-                              radius: 20,
-                              backgroundColor: theme.brightness == Brightness.dark ? const Color(0xFF1A3E40) : const Color(0xFFB8D8DA),
-                              backgroundImage: member.avatarUrl != null ? NetworkImage(member.avatarUrl!) : null,
-                              child: member.avatarUrl == null
-                                  ? Text(member.name[0], style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold))
-                                  : null,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: TextField(
+                            controller: _groupNameController,
+                            maxLength: 120,
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurface,
+                              fontSize: 16,
                             ),
-                            title: Text(
-                              member.name,
-                              style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w600, fontSize: 15),
-                            ),
-                            subtitle: Text(
-                              member.status,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 12),
-                            ),
-                            // Custom iOS Checkmark circle indicator matching successGreen design highlight
-                            trailing: Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isChecked ? successColor : Colors.transparent,
-                                border: Border.all(
-                                  color: isChecked ? successColor : theme.colorScheme.onSurface.withOpacity(0.3),
-                                  width: 1.5,
-                                ),
+                            decoration: InputDecoration(
+                              hintText: 'Enter Group Name',
+                              hintStyle: TextStyle(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                fontSize: 16,
                               ),
-                              child: isChecked
-                                  ? Icon(Icons.check, size: 16, color: theme.colorScheme.onPrimary)
-                                  : null,
+                              border: InputBorder.none,
+                              isDense: true,
+                              counterText: '',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // --- SELECTED MEMBERS CHIPS (WHEN ANY SELECTED) ---
+                  if (selectedMembers.isNotEmpty) ...[
+                    const SizedBox(height: 12.0),
+                    SizedBox(
+                      height: 42,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: selectedMembers.map((memberId) {
+                          final match = allContacts.where((c) => c.id == memberId).firstOrNull;
+                          final displayName = match?.name ??
+                              (memberId.length > 10 ? '${memberId.substring(0, 8)}…' : memberId);
+
+                          return Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: theme.colorScheme.primary.withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  displayName,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                GestureDetector(
+                                  onTap: () {
+                                    ref
+                                        .read(selectedMembersProvider.notifier)
+                                        .toggleMember(memberId);
+                                  },
+                                  child: Icon(
+                                    CupertinoIcons.clear_circled_solid,
+                                    size: 16,
+                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                  ),
+                                ),
+                              ],
                             ),
                           );
-                        },
+                        }).toList(),
                       ),
                     ),
                   ],
+
+                  const SizedBox(height: 16.0),
+
+                  // --- SEARCH & FILTER BAR ---
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          CupertinoIcons.search,
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (val) {
+                              setState(() => _searchQuery = val.trim());
+                            },
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurface,
+                              fontSize: 14,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Search conversations...',
+                              hintStyle: TextStyle(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                                fontSize: 14,
+                              ),
+                              border: InputBorder.none,
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        if (_searchQuery.isNotEmpty)
+                          GestureDetector(
+                            onTap: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                            child: Icon(
+                              CupertinoIcons.clear_circled_solid,
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                              size: 16,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  // --- ADD MANUAL USER ID BUTTON (IF ENTERED QUERY IS NOT IN CONTACTS) ---
+                  if (isManualIdEligible) ...[
+                    const SizedBox(height: 8.0),
+                    Material(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(10),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () {
+                          ref
+                              .read(selectedMembersProvider.notifier)
+                              .toggleMember(_searchQuery.trim());
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: const Color(0xFF34C759).withValues(alpha: 0.15),
+                                child: const Icon(
+                                  Icons.person_add_rounded,
+                                  color: Color(0xFF34C759),
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Add "${_searchQuery.trim()}"',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF34C759),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 16.0),
+
+                  // --- SECTION HEADER ---
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4.0, bottom: 8.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'YOUR CONVERSATIONS',
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        if (allContacts.isNotEmpty)
+                          Text(
+                            '${allContacts.length} available',
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                              fontSize: 11,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  // --- CONTACTS LIST ---
+                  if (filteredContacts.isEmpty && !isManualIdEligible)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
+                      child: Center(
+                        child: Text(
+                          allContacts.isEmpty
+                              ? 'No conversations found.'
+                              : 'No matching conversations found.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  if (filteredContacts.isNotEmpty)
+                    Container(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          for (int i = 0; i < filteredContacts.length; i++) ...[
+                            _buildContactRow(
+                              contact: filteredContacts[i],
+                              isChecked: selectedMembers.contains(filteredContacts[i].id),
+                              theme: theme,
+                              onTap: () {
+                                ref
+                                    .read(selectedMembersProvider.notifier)
+                                    .toggleMember(filteredContacts[i].id);
+                              },
+                            ),
+                            if (i < filteredContacts.length - 1)
+                              Divider(
+                                height: 1,
+                                thickness: 0.5,
+                                indent: 64,
+                                endIndent: 16,
+                                color: theme.dividerColor.withValues(alpha: 0.1),
+                              ),
+                          ],
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContactRow({
+    required ContactItem contact,
+    required bool isChecked,
+    required ThemeData theme,
+    required VoidCallback onTap,
+  }) {
+    const successColor = Color(0xFF34C759);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: theme.brightness == Brightness.dark
+                      ? const Color(0xFF1A3E40)
+                      : const Color(0xFFB8D8DA),
+                  backgroundImage:
+                      contact.avatarUrl != null && contact.avatarUrl!.startsWith('http')
+                          ? NetworkImage(contact.avatarUrl!)
+                          : null,
+                  child: (contact.avatarUrl == null || !contact.avatarUrl!.startsWith('http'))
+                      ? Text(
+                          contact.name.isEmpty ? '?' : contact.name[0].toUpperCase(),
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
+                ),
+                if (contact.isOnline)
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: successColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: theme.scaffoldBackgroundColor,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    contact.name,
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    contact.status,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isChecked ? successColor : Colors.transparent,
+                border: Border.all(
+                  color: isChecked
+                      ? successColor
+                      : theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                  width: 1.5,
                 ),
               ),
+              child: isChecked
+                  ? const Icon(Icons.check, size: 16, color: Colors.white)
+                  : null,
             ),
           ],
         ),

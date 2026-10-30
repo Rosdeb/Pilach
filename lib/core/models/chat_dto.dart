@@ -280,6 +280,7 @@ extension ChatDtoMapper on ChatDto {
       isRead: unreadCount == 0,
       isPinned: false,
       lastActive: lastActive,
+      type: type,
     );
   }
 }
@@ -329,7 +330,9 @@ extension ChatSqliteMapper on Map<String, dynamic> {
       isMuted: (this['is_muted'] as num?)?.toInt() == 1,
       isRead: ((this['unread_count'] as num?)?.toInt() ?? 0) == 0,
       isPinned: (this['is_pinned'] as num?)?.toInt() == 1,
+      draft: this['draft']?.toString(),
       lastActive: this['last_active_at'] as String?,
+      type: (this['type'] as String?) ?? 'PRIVATE',
     );
   }
 }
