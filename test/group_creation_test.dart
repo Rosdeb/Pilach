@@ -1,4 +1,5 @@
 import 'package:app/Features/Chat/data/models/chat_model.dart';
+import 'package:app/Features/Contact/presentation/providers/contact_providers.dart';
 import 'package:app/core/models/chat_dto.dart';
 import 'package:app/core/network/chat_repository.dart';
 import 'package:app/core/services/api_service.dart';
@@ -41,25 +42,28 @@ class MockApiService extends ApiService {
 
 void main() {
   group('Group Creation & Integration Tests', () {
-    test('ChatRepository.createConversation posts according to API spec', () async {
-      final api = MockApiService();
-      final repo = ChatRepository(api);
+    test(
+      'ChatRepository.createConversation posts according to API spec',
+      () async {
+        final api = MockApiService();
+        final repo = ChatRepository(api);
 
-      final result = await repo.createConversation(
-        type: 'GROUP',
-        title: 'Pilach Developers',
-        userIds: ['user-1', 'user-2'],
-      );
+        final result = await repo.createConversation(
+          type: 'GROUP',
+          title: 'Pilach Developers',
+          userIds: ['user-1', 'user-2'],
+        );
 
-      expect(api.lastEndpoint, '/api/v1/conversations');
-      expect(api.lastData['type'], 'GROUP');
-      expect(api.lastData['title'], 'Pilach Developers');
-      expect(api.lastData['userIds'], ['user-1', 'user-2']);
+        expect(api.lastEndpoint, '/api/v1/conversations');
+        expect(api.lastData['type'], 'GROUP');
+        expect(api.lastData['title'], 'Pilach Developers');
+        expect(api.lastData['userIds'], ['user-1', 'user-2']);
 
-      final data = result['data'] as Map<String, dynamic>;
-      expect(data['id'], 'new-group-123');
-      expect(data['type'], 'GROUP');
-    });
+        final data = result['data'] as Map<String, dynamic>;
+        expect(data['id'], 'new-group-123');
+        expect(data['type'], 'GROUP');
+      },
+    );
 
     test('ChatModel accurately identifies group chat vs private chat', () {
       final groupChat = ChatModel(
@@ -126,78 +130,67 @@ void main() {
       expect(sqliteMap['other_user_id'], isNull);
     });
 
-    test('ChatRepository.addMembers posts userIds to conversation members endpoint', () async {
-      final api = MockApiService();
-      final repo = ChatRepository(api);
+    test(
+      'ChatRepository.addMembers posts userIds to conversation members endpoint',
+      () async {
+        final api = MockApiService();
+        final repo = ChatRepository(api);
 
-      final res = await repo.addMembers('group-123', ['user-3', 'user-4']);
-      expect(api.lastEndpoint, '/api/v1/conversations/group-123/members');
-      expect(api.lastData['userIds'], ['user-3', 'user-4']);
-      expect(res['success'], isTrue);
-    });
+        final res = await repo.addMembers('group-123', ['user-3', 'user-4']);
+        expect(api.lastEndpoint, '/api/v1/conversations/group-123/members');
+        expect(api.lastData['userIds'], ['user-3', 'user-4']);
+        expect(res['success'], isTrue);
+      },
+    );
 
-    test('Conversation list contacts are extracted with member IDs for group members', () {
-      final conversationList = [
-        ChatModel(
-          id: 'conv-1',
-          userId: 'user-alice-123',
-          name: 'Alice Smith',
-          message: 'Hey, how are you?',
-          image: 'https://example.com/alice.jpg',
-          time: '10:00 AM',
-          unreadCount: 0,
-          isOnline: true,
-          type: 'PRIVATE',
-        ),
-        ChatModel(
-          id: 'conv-2',
-          userId: null, // Legacy or direct where id is user id
-          name: 'Bob Johnson',
-          message: 'See you tomorrow!',
-          image: 'https://example.com/bob.jpg',
-          time: '09:00 AM',
-          unreadCount: 0,
-          isOnline: false,
-          type: 'PRIVATE',
-        ),
-        ChatModel(
-          id: 'conv-3',
-          userId: null,
-          name: 'Existing Group Chat',
-          message: 'General chat',
-          image: 'https://example.com/group.jpg',
-          time: 'Yesterday',
-          unreadCount: 0,
-          isOnline: false,
-          type: 'GROUP', // Should be excluded from individual member choices
-        ),
-      ];
+    test(
+      'Conversation list contacts are extracted with member IDs for group members',
+      () {
+        final conversationList = [
+          ChatModel(
+            id: 'conv-1',
+            userId: 'user-alice-123',
+            name: 'Alice Smith',
+            message: 'Hey, how are you?',
+            image: 'https://example.com/alice.jpg',
+            time: '10:00 AM',
+            unreadCount: 0,
+            isOnline: true,
+            type: 'PRIVATE',
+          ),
+          ChatModel(
+            id: 'conv-2',
+            userId: null, // Legacy or direct where id is user id
+            name: 'Bob Johnson',
+            message: 'See you tomorrow!',
+            image: 'https://example.com/bob.jpg',
+            time: '09:00 AM',
+            unreadCount: 0,
+            isOnline: false,
+            type: 'PRIVATE',
+          ),
+          ChatModel(
+            id: 'conv-3',
+            userId: null,
+            name: 'Existing Group Chat',
+            message: 'General chat',
+            image: 'https://example.com/group.jpg',
+            time: 'Yesterday',
+            unreadCount: 0,
+            isOnline: false,
+            type: 'GROUP', // Should be excluded from individual member choices
+          ),
+        ];
 
-      final contactsByMemberId = <String, Map<String, dynamic>>{};
-      for (final chat in conversationList) {
-        if (chat.isGroup) continue;
-        final memberId = (chat.userId != null && chat.userId!.trim().isNotEmpty)
-            ? chat.userId!.trim()
-            : chat.id.trim();
-        if (memberId.isEmpty) continue;
+        final contacts = extractEligibleContacts(conversationList);
 
-        contactsByMemberId[memberId] = {
-          'id': memberId,
-          'name': chat.name,
-          'status': chat.message,
-          'isOnline': chat.isOnline,
-        };
-      }
-
-      // Group chat excluded, only 2 private conversations included
-      expect(contactsByMemberId.length, 2);
-      expect(contactsByMemberId.containsKey('user-alice-123'), isTrue);
-      expect(contactsByMemberId['user-alice-123']!['name'], 'Alice Smith');
-      expect(contactsByMemberId['user-alice-123']!['status'], 'Hey, how are you?');
-
-      expect(contactsByMemberId.containsKey('conv-2'), isTrue);
-      expect(contactsByMemberId['conv-2']!['name'], 'Bob Johnson');
-      expect(contactsByMemberId.containsKey('conv-3'), isFalse);
-    });
+        // Groups and private conversations without a real member userId are
+        // excluded; conversation IDs must never be submitted as userIds.
+        expect(contacts, hasLength(1));
+        expect(contacts.single.id, 'user-alice-123');
+        expect(contacts.single.name, 'Alice Smith');
+        expect(contacts.single.status, 'Hey, how are you?');
+      },
+    );
   });
 }

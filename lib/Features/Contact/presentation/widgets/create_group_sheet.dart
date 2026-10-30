@@ -9,14 +9,21 @@ import 'package:app/Features/Chat/presentation/providers/direct_chat_provider.da
 
 import '../providers/contact_providers.dart';
 
+final _uuidPattern = RegExp(
+  r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+  caseSensitive: false,
+);
+
 class CreateGroupBottomSheet extends ConsumerStatefulWidget {
   const CreateGroupBottomSheet({super.key});
 
   @override
-  ConsumerState<CreateGroupBottomSheet> createState() => _CreateGroupBottomSheetState();
+  ConsumerState<CreateGroupBottomSheet> createState() =>
+      _CreateGroupBottomSheetState();
 }
 
-class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet> {
+class _CreateGroupBottomSheetState
+    extends ConsumerState<CreateGroupBottomSheet> {
   final _groupNameController = TextEditingController();
   final _searchController = TextEditingController();
   final Set<String> _selectedMembers = {};
@@ -45,12 +52,20 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
     if (_isCreating) return;
 
     if (groupTitle.isEmpty) {
-      AppToast.show(context, 'Please enter a group name', type: ToastType.warning);
+      AppToast.show(
+        context,
+        'Please enter a group name',
+        type: ToastType.warning,
+      );
       return;
     }
 
     if (_selectedMembers.isEmpty) {
-      AppToast.show(context, 'Please select at least one member', type: ToastType.warning);
+      AppToast.show(
+        context,
+        'Please select at least one member',
+        type: ToastType.warning,
+      );
       return;
     }
 
@@ -98,8 +113,12 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
           c.status.toLowerCase().contains(q);
     }).toList();
 
-    final isManualIdEligible = _searchQuery.trim().isNotEmpty &&
-        !allContacts.any((c) => c.id.toLowerCase() == _searchQuery.trim().toLowerCase()) &&
+    final isManualIdEligible =
+        _searchQuery.trim().isNotEmpty &&
+        _uuidPattern.hasMatch(_searchQuery.trim()) &&
+        !allContacts.any(
+          (c) => c.id.toLowerCase() == _searchQuery.trim().toLowerCase(),
+        ) &&
         !_selectedMembers.contains(_searchQuery.trim());
 
     return ConstrainedBox(
@@ -159,7 +178,9 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                         Text(
                           '${_selectedMembers.length} Selected',
                           style: TextStyle(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
                             fontSize: 11,
                           ),
                         ),
@@ -241,7 +262,9 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                             decoration: InputDecoration(
                               hintText: 'Enter Group Name',
                               hintStyle: TextStyle(
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.5,
+                                ),
                                 fontSize: 16,
                               ),
                               border: InputBorder.none,
@@ -262,18 +285,30 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                       child: ListView(
                         scrollDirection: Axis.horizontal,
                         children: _selectedMembers.map((memberId) {
-                          final match = allContacts.where((c) => c.id == memberId).firstOrNull;
-                          final displayName = match?.name ??
-                              (memberId.length > 10 ? '${memberId.substring(0, 8)}…' : memberId);
+                          final match = allContacts
+                              .where((c) => c.id == memberId)
+                              .firstOrNull;
+                          final displayName =
+                              match?.name ??
+                              (memberId.length > 10
+                                  ? '${memberId.substring(0, 8)}…'
+                                  : memberId);
 
                           return Container(
                             margin: const EdgeInsets.only(right: 8),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                              color: theme.colorScheme.primary.withValues(
+                                alpha: 0.12,
+                              ),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: theme.colorScheme.primary.withValues(alpha: 0.25),
+                                color: theme.colorScheme.primary.withValues(
+                                  alpha: 0.25,
+                                ),
                               ),
                             ),
                             child: Row(
@@ -293,7 +328,8 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                                   child: Icon(
                                     CupertinoIcons.clear_circled_solid,
                                     size: 16,
-                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.5),
                                   ),
                                 ),
                               ],
@@ -308,7 +344,10 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
 
                   // --- SEARCH & FILTER BAR ---
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(10),
@@ -317,7 +356,9 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                       children: [
                         Icon(
                           CupertinoIcons.search,
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.5,
+                          ),
                           size: 18,
                         ),
                         const SizedBox(width: 8),
@@ -332,9 +373,11 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                               fontSize: 14,
                             ),
                             decoration: InputDecoration(
-                              hintText: 'Search conversations...',
+                              hintText: 'Search or paste a user UUID...',
                               hintStyle: TextStyle(
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.45,
+                                ),
                                 fontSize: 14,
                               ),
                               border: InputBorder.none,
@@ -350,7 +393,9 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                             },
                             child: Icon(
                               CupertinoIcons.clear_circled_solid,
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.45,
+                              ),
                               size: 16,
                             ),
                           ),
@@ -372,12 +417,17 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                           setState(() => _searchQuery = '');
                         },
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                           child: Row(
                             children: [
                               CircleAvatar(
                                 radius: 18,
-                                backgroundColor: const Color(0xFF34C759).withValues(alpha: 0.15),
+                                backgroundColor: const Color(
+                                  0xFF34C759,
+                                ).withValues(alpha: 0.15),
                                 child: const Icon(
                                   Icons.person_add_rounded,
                                   color: Color(0xFF34C759),
@@ -413,7 +463,9 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                         Text(
                           'YOUR CONVERSATIONS',
                           style: TextStyle(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.5,
@@ -423,7 +475,9 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                           Text(
                             '${allContacts.length} available',
                             style: TextStyle(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.45,
+                              ),
                               fontSize: 11,
                             ),
                           ),
@@ -434,7 +488,10 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                   // --- CONTACTS LIST ---
                   if (filteredContacts.isEmpty && !isManualIdEligible)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 24,
+                      ),
                       child: Center(
                         child: Text(
                           allContacts.isEmpty
@@ -442,7 +499,9 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                               : 'No matching conversations found.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
                             fontSize: 13,
                           ),
                         ),
@@ -460,9 +519,12 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                           for (int i = 0; i < filteredContacts.length; i++) ...[
                             _buildContactRow(
                               contact: filteredContacts[i],
-                              isChecked: _selectedMembers.contains(filteredContacts[i].id),
+                              isChecked: _selectedMembers.contains(
+                                filteredContacts[i].id,
+                              ),
                               theme: theme,
-                              onTap: () => _toggleMember(filteredContacts[i].id),
+                              onTap: () =>
+                                  _toggleMember(filteredContacts[i].id),
                             ),
                             if (i < filteredContacts.length - 1)
                               Divider(
@@ -470,7 +532,9 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                                 thickness: 0.5,
                                 indent: 64,
                                 endIndent: 16,
-                                color: theme.dividerColor.withValues(alpha: 0.1),
+                                color: theme.dividerColor.withValues(
+                                  alpha: 0.1,
+                                ),
                               ),
                           ],
                         ],
@@ -509,12 +573,17 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                       ? const Color(0xFF1A3E40)
                       : const Color(0xFFB8D8DA),
                   backgroundImage:
-                      contact.avatarUrl != null && contact.avatarUrl!.startsWith('http')
-                          ? NetworkImage(contact.avatarUrl!)
-                          : null,
-                  child: (contact.avatarUrl == null || !contact.avatarUrl!.startsWith('http'))
+                      contact.avatarUrl != null &&
+                          contact.avatarUrl!.startsWith('http')
+                      ? NetworkImage(contact.avatarUrl!)
+                      : null,
+                  child:
+                      (contact.avatarUrl == null ||
+                          !contact.avatarUrl!.startsWith('http'))
                       ? Text(
-                          contact.name.isEmpty ? '?' : contact.name[0].toUpperCase(),
+                          contact.name.isEmpty
+                              ? '?'
+                              : contact.name[0].toUpperCase(),
                           style: TextStyle(
                             color: theme.colorScheme.onSurface,
                             fontWeight: FontWeight.bold,
@@ -556,7 +625,9 @@ class _CreateGroupBottomSheetState extends ConsumerState<CreateGroupBottomSheet>
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                      color: theme.colorScheme.onSurface.withValues(
+                        alpha: 0.55,
+                      ),
                       fontSize: 12,
                     ),
                   ),

@@ -24,6 +24,9 @@ class SelectedMembersNotifier extends StateNotifier<Set<String>> {
   }
 }
 
-final selectedMembersProvider = StateNotifierProvider.autoDispose<SelectedMembersNotifier, Set<String>>((ref) {
-  return SelectedMembersNotifier();
-});
+final selectedMembersProvider =
+    StateNotifierProvider.autoDispose<SelectedMembersNotifier, Set<String>>((
+      ref,
+    ) {
+      return SelectedMembersNotifier();
+    });

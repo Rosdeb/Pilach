@@ -35,19 +35,115 @@ Base URL for all REST endpoints: `/api/v1`
   }
   ```
 
-### Rename a Group
+### Update Group Info (Name, About, Avatar)
 - **Method:** `PATCH`
 - **Path:** `/conversations/:id`
-- **Body:** `{ "title": "New Name" }`
+- **Body:**
+  ```json
+  {
+    "title": "New Name",
+    "about": "Group description",
+    "avatarUrl": "https://..."
+  }
+  ```
+
+### List Group Members (Paginated)
+- **Method:** `GET`
+- **Path:** `/conversations/:id/members`
+- **Query Params:** `?page=1&limit=50`
+- **Response:**
+  ```json
+  {
+    "data": [
+      {
+        "id": "uuid",
+        "userId": "uuid",
+        "chatId": "uuid",
+        "role": "OWNER", // or "ADMIN", "MEMBER"
+        "adminRights": {
+          "canChangeInfo": true,
+          "canDeleteMessages": true,
+          "canBanUsers": true,
+          "canInviteUsers": true,
+          "canPinMessages": true,
+          "canManageVideoChats": false
+        },
+        "joinedAt": "2026-10-30T00:00:00Z",
+        "user": {
+          "id": "uuid",
+          "name": "Alex",
+          "avatarUrl": "https://...",
+          "online": true
+        }
+      }
+    ],
+    "pagination": { "page": 1, "limit": 50, "total": 12 }
+  }
+  ```
 
 ### Add Members to a Group
 - **Method:** `POST`
 - **Path:** `/conversations/:id/members`
 - **Body:** `{ "userIds": ["user-id-3"] }`
 
-### Remove a Member (Kick / Leave)
+### Remove a Member (Kick)
 - **Method:** `DELETE`
 - **Path:** `/conversations/:id/members/:userId`
+
+### Promote or Demote an Admin
+- **Method:** `PATCH`
+- **Path:** `/conversations/:id/members/:userId/role`
+- **Body:**
+  ```json
+  {
+    "role": "ADMIN", // or "MEMBER"
+    "adminRights": {
+      "canChangeInfo": true,
+      "canDeleteMessages": true,
+      "canBanUsers": true,
+      "canInviteUsers": true,
+      "canPinMessages": true,
+      "canManageVideoChats": false
+    }
+  }
+  ```
+
+### Transfer Group Ownership
+- **Method:** `POST`
+- **Path:** `/conversations/:id/owner/transfer`
+- **Body:** `{ "userId": "user-id-to-be-owner" }`
+
+### Leave Group
+- **Method:** `POST`
+- **Path:** `/conversations/:id/leave`
+*(When owner leaves, backend automatically transfers ownership to the oldest admin or oldest member).*
+
+### Update Group Member Permissions (Default Permissions)
+- **Method:** `PATCH`
+- **Path:** `/conversations/:id/permissions`
+- **Body:**
+  ```json
+  {
+    "canSendMessages": true,
+    "canSendMedia": true,
+    "canAddReactions": true,
+    "canPinMessages": false,
+    "canChangeInfo": false,
+    "canInviteUsers": true
+  }
+  ```
+
+### Update Per-Chat Settings (Pin, Archive, Mute)
+- **Method:** `PATCH`
+- **Path:** `/conversations/:id/settings`
+- **Body:**
+  ```json
+  {
+    "isPinned": true,
+    "isArchived": false,
+    "mutedUntil": "2026-11-01T00:00:00Z"
+  }
+  ```
 
 ---
 
@@ -219,7 +315,21 @@ Base URL for all REST endpoints: `/api/v1`
 
 9. **Membership Changed:**
    - Event: `member:updated`
-   - Payload: `ChatMember` object
+   - Payload: `ChatMember` object `{ chatId, userId, role, adminRights }`
+
+10. **Member Removed / Left:**
+   - Event: `member:removed`
+   - Payload: `{ chatId: "uuid", userId: "uuid" }`
+
+11. **Session Revoked (Force Logout):**
+   - Event: `session:revoked`
+   - Payload: `{ reason: "SESSION_REVOKED" }`
+   *(Immediately clear auth credentials and return to login screen without reconnecting).*
+
+12. **Presence Updates (Privacy Filtered):**
+   - Event: `presence:online` / `presence:offline`
+   - Payload: `{ userId: "uuid", lastSeen: "..." }`
+   - Bulk Request: Emit `presence:get` with `{ userIds: [...] }` to receive `{ ok: true, data: { [userId]: { online: bool, lastSeen: string } } }`
 
 ---
 

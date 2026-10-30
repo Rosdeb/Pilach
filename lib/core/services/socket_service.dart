@@ -111,6 +111,13 @@ class SocketService extends WidgetsBindingObserver {
   Stream<Map<String, dynamic>> get onMemberRemoved =>
       _memberRemovedController.stream;
 
+  final _sessionRevokedController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get onSessionRevoked =>
+      _sessionRevokedController.stream;
+
+  VoidCallback? onSessionRevokedRequested;
+
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   Timer? _healthTimer;
   Timer? _reconnectTimer;
@@ -194,9 +201,22 @@ class SocketService extends WidgetsBindingObserver {
 
   void joinConversation(String conversationId) {
     if (conversationId.isEmpty) return;
+    final wasAlreadyActive = _activeRooms.contains(conversationId);
     _foregroundRooms.add(conversationId);
+    if (wasAlreadyActive || !isConnected) return;
     Logger.log('Joining conversation room: $conversationId', type: 'socket');
-    emit('conversation:join', {'conversationId': conversationId});
+    unawaited(
+      emitWithAck('conversation:join', {
+        'conversationId': conversationId,
+      }).then((response) {
+        if (response['ok'] != true) {
+          Logger.log(
+            'conversation:join rejected for $conversationId: ${response['error']}',
+            type: 'warning',
+          );
+        }
+      }),
+    );
   }
 
   void leaveConversation(String conversationId) {
@@ -235,6 +255,34 @@ class SocketService extends WidgetsBindingObserver {
     _disposeCurrentSocket();
     _reconnectAttempt = 0;
     _openSocket(isReconnect: true);
+  }
+
+  /// Bulk lookup of online / last seen, privacy-filtered
+  /// client -> server: presence:get { userIds: [ ... ] }
+  /// ack: [ { userId, online?, lastSeen? } ]
+  Future<List<Map<String, dynamic>>> getPresence(List<String> userIds) async {
+    if (userIds.isEmpty || !isConnected) return const [];
+    try {
+      final res = await emitWithAck('presence:get', {
+        'userIds': userIds.take(200).toList(),
+      });
+      if (res['ok'] == true && res['data'] is List) {
+        final list = (res['data'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        for (final item in list) {
+          final uid = item['userId']?.toString();
+          if (uid != null && uid.isNotEmpty) {
+            _presenceSnapshot[uid] = item;
+          }
+        }
+        return list;
+      }
+    } catch (e) {
+      Logger.log('presence:get failed: $e', type: 'warning');
+    }
+    return const [];
   }
 
   void disconnect() {
@@ -420,7 +468,16 @@ class SocketService extends WidgetsBindingObserver {
       _healthTimer?.cancel();
       _setConnectionState(SocketConnectionState.disconnected);
       Logger.log('DISCONNECTED 🔴  reason="$reason"', type: 'socket');
-      _scheduleReconnect();
+      if (reason == 'io server disconnect') {
+        Logger.log(
+          'Server actively disconnected socket (io server disconnect) — treating as logged out',
+          type: 'socket',
+        );
+        _shouldBeConnected = false;
+        onSessionRevokedRequested?.call();
+      } else {
+        _scheduleReconnect();
+      }
     });
 
     socket.onConnectError((error) {
@@ -430,6 +487,18 @@ class SocketService extends WidgetsBindingObserver {
       _isConnecting = false;
       _setConnectionState(SocketConnectionState.disconnected);
       Logger.log('CONNECT ERROR ⚠️  $error', type: 'socket');
+
+      final errStr = error?.toString() ?? '';
+      if (errStr.contains('Session revoked')) {
+        Logger.log(
+          'Unauthorized: Session revoked — stopping reconnect & triggering logout',
+          type: 'socket',
+        );
+        _shouldBeConnected = false;
+        onSessionRevokedRequested?.call();
+        return;
+      }
+
       if (!_isAuthError(error)) _scheduleReconnect();
       unawaited(_handlePotentialAuthError(error));
     });
@@ -493,6 +562,19 @@ class SocketService extends WidgetsBindingObserver {
     listen('chat:added', _chatAddedController);
     listen('member:updated', _memberUpdatedController);
     listen('member:removed', _memberRemovedController);
+
+    socket.on('session:revoked', (data) {
+      Logger.log(
+        'SESSION REVOKED 🚨 received remote sign-out event',
+        type: 'socket',
+      );
+      if (data is Map && !_sessionRevokedController.isClosed) {
+        _sessionRevokedController.add(Map<String, dynamic>.from(data));
+      }
+      _shouldBeConnected = false;
+      _stopConnection();
+      onSessionRevokedRequested?.call();
+    });
 
     Logger.log(
       'Listeners registered for ${socket.id ?? "pending"}',

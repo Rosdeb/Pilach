@@ -32,24 +32,22 @@ final contactSearchProvider = StateProvider<String>((ref) => '');
 
 // 2. Backend-derived contacts from user's conversation list.
 // For private conversations, the other user is an eligible contact/group member.
-// Their member ID is chat.userId (or chat.id if userId is not populated).
+// Their member ID must be chat.userId. A conversation ID is a different UUID
+// and must never be sent as CreateConversationDto.userIds[].
 List<ContactItem> extractEligibleContacts(List<ChatModel> chats) {
   final contactsByMemberId = <String, ContactItem>{};
 
   for (final chat in chats) {
     if (chat.isGroup) continue;
 
-    // Use chat.userId if available; fallback to chat.id
-    final memberId = (chat.userId != null && chat.userId!.trim().isNotEmpty)
-        ? chat.userId!.trim()
-        : chat.id.trim();
-    if (memberId.isEmpty) continue;
+    final memberId = chat.userId?.trim();
+    if (memberId == null || memberId.isEmpty) continue;
 
     final displayName = chat.name.trim().isNotEmpty
         ? chat.name.trim()
         : (memberId.length > 8
-            ? 'User ${memberId.substring(0, 8)}'
-            : 'User $memberId');
+              ? 'User ${memberId.substring(0, 8)}'
+              : 'User $memberId');
 
     final lastMsg = chat.message.trim();
     final statusText = lastMsg.isNotEmpty

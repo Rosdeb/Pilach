@@ -99,6 +99,12 @@ class ChatDto {
   final List<dynamic>? members;
   final String? dmKey; // "userId1:userId2" format
   final String? creatorId; // conversation creator
+  final String? about;
+  final int? slowModeSeconds;
+  final int? memberCount;
+  final Map<String, dynamic>? defaultPermissions;
+  final List<dynamic>? allowedReactions;
+  final String? lastMessageId;
 
   ChatDto({
     required this.id,
@@ -114,6 +120,12 @@ class ChatDto {
     this.members,
     this.dmKey,
     this.creatorId,
+    this.about,
+    this.slowModeSeconds,
+    this.memberCount,
+    this.defaultPermissions,
+    this.allowedReactions,
+    this.lastMessageId,
   });
 
   factory ChatDto.fromJson(Map<String, dynamic> json) {
@@ -134,6 +146,14 @@ class ChatDto {
       members: json['members'] as List<dynamic>?,
       dmKey: json['dmKey']?.toString(),
       creatorId: json['creatorId']?.toString(),
+      about: json['about']?.toString(),
+      slowModeSeconds: (json['slowModeSeconds'] as num?)?.toInt(),
+      memberCount: (json['memberCount'] as num?)?.toInt(),
+      defaultPermissions: json['defaultPermissions'] is Map
+          ? Map<String, dynamic>.from(json['defaultPermissions'] as Map)
+          : null,
+      allowedReactions: json['allowedReactions'] as List<dynamic>?,
+      lastMessageId: json['lastMessageId']?.toString(),
     );
   }
 
@@ -158,8 +178,9 @@ class ChatDto {
           ?.toUpperCase();
       if (attachmentType == 'IMAGE') return '📷 Photo';
       if (attachmentType == 'VIDEO') return '🎥 Video';
-      if (attachmentType == 'AUDIO' || attachmentType == 'VOICE')
+      if (attachmentType == 'AUDIO' || attachmentType == 'VOICE') {
         return '🎵 Audio';
+      }
       if (attachmentType == 'FILE') return '📁 File';
     }
 
@@ -276,8 +297,9 @@ extension ChatDtoMapper on ChatDto {
     String formattedTime = '';
     if (lastMessageAt != null) {
       final dt = DateTime.tryParse(lastMessageAt!);
-      if (dt != null)
+      if (dt != null) {
         formattedTime = DateFormatter.formatConversationTime(dt.toLocal());
+      }
     }
 
     String? displayTitle = title;
@@ -346,8 +368,9 @@ extension ChatSqliteMapper on Map<String, dynamic> {
     final timeStr = this['last_message_at'] ?? this['created_at'];
     if (timeStr != null) {
       final dt = DateTime.tryParse(timeStr as String);
-      if (dt != null)
+      if (dt != null) {
         formattedTime = DateFormatter.formatConversationTime(dt.toLocal());
+      }
     }
 
     final sqliteAvatar = this['avatar_url'] as String?;

@@ -1,4 +1,3 @@
-import 'package:app/Features/Chat/data/models/chat_model.dart';
 import 'package:app/Features/Chat/data/models/message_model.dart';
 import 'package:app/Features/Chat/presentation/widgets/chat_avatar.dart';
 import 'package:app/Features/Chat/presentation/widgets/chat_bundle.dart';

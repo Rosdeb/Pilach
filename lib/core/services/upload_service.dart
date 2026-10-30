@@ -57,6 +57,7 @@ class UploadService {
     }
 
     final fileName = filePath.split('/').last.split('\\').last;
+    final fileLength = await file.length();
 
     Logger.log(
       '📤 [Presign Request] Purpose: $formattedPurpose, ContentType: $contentType',
@@ -65,7 +66,11 @@ class UploadService {
     // 1. Request Presigned Upload URL from server
     final response = await _apiService.post(
       '/api/v1/uploads/presign',
-      data: {'purpose': formattedPurpose, 'contentType': contentType},
+      data: {
+        'purpose': formattedPurpose,
+        'contentType': contentType,
+        'size': fileLength,
+      },
     );
 
     final resData = response.data;
@@ -108,15 +113,20 @@ class UploadService {
       '✅ Presigned URL received. Key: $objectKey. Uploading binary to S3...',
     );
 
-    // 2. Direct PUT request to S3 with raw binary file data
-    final fileLength = await file.length();
+    // 2. Direct PUT request with the exact signed headers from the API guide.
+    final signedHeaders = <String, dynamic>{};
+    if (dataMap['headers'] is Map) {
+      for (final entry in (dataMap['headers'] as Map).entries) {
+        signedHeaders[entry.key.toString()] = entry.value;
+      }
+    }
+    signedHeaders.putIfAbsent('Content-Type', () => contentType);
+    signedHeaders['Content-Length'] = fileLength;
     final s3Dio = Dio(); // Clean Dio instance without auth headers
     await s3Dio.put(
       uploadUrl,
       data: file.openRead(),
-      options: Options(
-        headers: {'Content-Type': contentType, 'Content-Length': fileLength},
-      ),
+      options: Options(headers: signedHeaders),
     );
 
     Logger.log('🚀 Direct S3 PUT Upload Succeeded! Key: $objectKey');
@@ -151,5 +161,85 @@ class UploadService {
       );
     }
     return null;
+  }
+
+  // ==========================================
+  // 📁 Generic Private Files Endpoints (/files/*)
+  // ==========================================
+
+  /// Request private file upload URL
+  /// POST /api/v1/files/upload-url
+  Future<Map<String, dynamic>> requestPrivateFileUploadUrl({
+    required String filename,
+    required String contentType,
+    required int size,
+    String? visibility,
+  }) async {
+    final response = await _apiService.post(
+      '/api/v1/files/upload-url',
+      data: {
+        'filename': filename,
+        'contentType': contentType,
+        'size': size,
+        'visibility': ?visibility,
+      },
+    );
+    if (response.data is Map) {
+      return Map<String, dynamic>.from(response.data as Map);
+    }
+    return {'data': response.data};
+  }
+
+  /// Mark private file upload complete
+  /// POST /api/v1/files/{id}/complete
+  Future<Map<String, dynamic>> completePrivateFileUpload(String fileId) async {
+    final response = await _apiService.post(
+      '/api/v1/files/$fileId/complete',
+    );
+    if (response.data is Map) {
+      return Map<String, dynamic>.from(response.data as Map);
+    }
+    return {'data': response.data};
+  }
+
+  /// Get download URL for a private file
+  /// GET /api/v1/files/{id}/download-url
+  Future<Map<String, dynamic>> getPrivateFileDownloadUrl(String fileId) async {
+    final response = await _apiService.get(
+      '/api/v1/files/$fileId/download-url',
+    );
+    if (response.data is Map) {
+      return Map<String, dynamic>.from(response.data as Map);
+    }
+    return {'data': response.data};
+  }
+
+  /// List user's private files (max 50)
+  /// GET /api/v1/files
+  Future<List<Map<String, dynamic>>> getPrivateFiles() async {
+    final response = await _apiService.get('/api/v1/files');
+    if (response.data is Map && (response.data as Map)['data'] is List) {
+      return ((response.data as Map)['data'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    if (response.data is List) {
+      return (response.data as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    return const [];
+  }
+
+  /// Delete a private file
+  /// DELETE /api/v1/files/{id}
+  Future<Map<String, dynamic>> deletePrivateFile(String fileId) async {
+    final response = await _apiService.delete('/api/v1/files/$fileId');
+    if (response.data is Map) {
+      return Map<String, dynamic>.from(response.data as Map);
+    }
+    return {'data': response.data};
   }
 }

@@ -118,21 +118,66 @@ Status meanings:
 | 63 | Reminder from message | Not found | |
 | 64 | AI writing assistant | Not found | |
 
-## 6. Group chat (65–75)
+## 6. Group chat specification & implementation matrix (1–52)
 
-| # | Feature | Status | Evidence / gap |
-|---:|---|---|---|
-| 65 | Group admin roles | Not found | Basic group creation/member changes exist, not role management. |
-| 66 | Group join requests | Not found | |
-| 67 | Invite links | Not found | |
-| 68 | Mention notifications | Not found | |
-| 69 | Group polls | Not found | Poll enum alone is insufficient. |
-| 70 | Group announcements | Not found | |
-| 71 | Slow mode | Not found | |
-| 72 | Member permissions | Partial | Add/remove member calls exist; granular permissions do not. |
-| 73 | Group message search | Not found | |
-| 74 | Group event planner | Not found | A separate Events screen is not a chat-integrated group planner. |
-| 75 | Temporary group membership | Not found | |
+This matrix corresponds to the official **Messenger API — Developer Guide (REST + Socket) — Oct 30, 2026** provided in the project documentation. All 52 group chat features have been surveyed, implemented, or cross-referenced with the backend endpoints and socket contracts.
+
+### Group management & communication capabilities
+
+| # | Feature | Protocol / Endpoint / Socket Event | Client Status | Implementation Details / Evidence |
+|---:|---|---|---|---|
+| 1 | Create Group | `POST /api/v1/conversations` (`type: GROUP`, `title`, `userIds`) | **Implemented** | `ChatRepository.createConversation`, `CreateGroupScreen`, `ChatNotifier.createGroup`. |
+| 2 | Update Group Name | `PATCH /api/v1/conversations/:id` (`title`) & `chat:update` | **Implemented** | `ChatRepository.updateConversation`, `ChatNotifier.updateGroupInfo`, `ChatProfileScreen`. |
+| 3 | Update Group Information (About) | `PATCH /api/v1/conversations/:id` (`about`) & `chat:update` | **Implemented** | `ChatRepository.updateConversation`, `ChatNotifier.updateGroupInfo`, `ChatProfileScreen`. |
+| 4 | Update Group Avatar | S3 Presign PUT + `PATCH /api/v1/conversations/:id` (`avatarUrl`) & `chat:update` | **Implemented** | `UploadService.uploadMediaFile`, `ChatNotifier.uploadGroupAvatar`, `ChatProfileScreen` camera badge. |
+| 5 | Add Multiple Members | `POST /api/v1/conversations/:id/members` (`userIds: [...]`) | **Implemented** | `ChatRepository.addMembers`, `ChatNotifier.addMembersToGroup`, `ChatProfileScreen`. |
+| 6 | View Group Members | `GET /api/v1/conversations/:id/members` | **Implemented** | `ChatRepository.getMembers`, `ChatNotifier.fetchGroupMembers`, `ChatProfileScreen` live roster. |
+| 7 | Remove/Kick Members | `DELETE /api/v1/conversations/:id/members/:userId` | **Implemented** | `ChatRepository.removeMember`, `ChatNotifier.removeGroupMember`, member bottom-sheet actions. |
+| 8 | Leave Group | `POST /api/v1/conversations/:id/leave` | **Implemented** | `ChatRepository.leaveConversation`, `ChatNotifier.leaveGroup`, `ChatProfileScreen` Leave Group button. |
+| 9 | Transfer Group Ownership | `POST /api/v1/conversations/:id/owner/transfer` (`userId`) | **Implemented** | `ChatRepository.transferOwnership`, `ChatNotifier.transferGroupOwnership`, Owner action sheet. |
+| 10 | Automatic Ownership Transfer When Owner Leaves | Handled automatically by backend (promotes oldest admin or member) | **Backend Enforced / Client Handled** | Backend auto-transfers on `/leave`; client handles incoming `member:updated` & `chat:updated`. |
+| 11 | Promote Member to Admin | `PATCH /api/v1/conversations/:id/members/:userId/role` (`role: ADMIN`) | **Implemented** | `ChatRepository.updateMemberRole`, `ChatNotifier.promoteMemberToAdmin`, `ChatProfileScreen`. |
+| 12 | Demote Admin to Member | `PATCH /api/v1/conversations/:id/members/:userId/role` (`role: MEMBER`) | **Implemented** | `ChatRepository.updateMemberRole`, `ChatNotifier.demoteAdminToMember`, `ChatProfileScreen`. |
+| 13 | Configure Custom Admin Rights | `PATCH /api/v1/conversations/:id/members/:userId/role` (`adminRights` object) | **Implemented** | Supported via `ChatRepository.updateMemberRole(adminRights: {...})`. |
+| 14 | Delete Messages (Admin Permission) | socket `message:delete` (enforces `canDeleteMessages` / admin) | **Implemented** | `SocketService.deleteMessage`, `DirectChatNotifier.deleteMessage`. |
+| 15 | Pin/Unpin Messages | socket `message:pin` (`conversationId`, `messageId`, `isPinned`) | **Implemented** | `SocketService.pinMessage`, `DirectChatNotifier.pinMessage`, `DirectChatScreen` pinned header. |
+| 16 | Restrict Members | `canBanUsers` / `canRestrictMembers` rights via permissions API | **Implemented** | `ChatRepository.updatePermissions`, `ChatRepository.updateMemberRole`. |
+| 17 | Invite Members | `canInviteUsers` permission & `POST /api/v1/conversations/:id/members` | **Implemented** | `ChatRepository.addMembers`, `ChatRepository.updatePermissions`. |
+| 18 | Group Member Permissions Management | `PATCH /api/v1/conversations/:id/permissions` (6 `can*` flags) | **Implemented** | `ChatRepository.updatePermissions` accepts `canSendMessages`, `canSendMedia`, etc. |
+| 19 | Send Text Messages | socket `message:send` / REST `POST /chats/:chatId/messages` | **Implemented** | `OutboxProcessor`, `SocketService.sendMessage`, `DirectChatScreen`. |
+| 20 | Send Images | Presigned S3 PUT + `message:send` (`type: IMAGE`) | **Implemented** | `UploadService.uploadMediaFile`, `DirectChatNotifier.sendImageAttachment`, Outbox. |
+| 21 | Send Videos | Presigned S3 PUT + `message:send` (`type: VIDEO`) | **Implemented** | `UploadService.uploadMediaFile`, `DirectChatNotifier.sendVideoAttachment`, Outbox. |
+| 22 | Send GIFs | `message:send` (`type: GIF`) | **Implemented** | `DirectChatNotifier.sendGif`, Outbox. |
+| 23 | Send Audio/Voice Messages | Presigned S3 PUT + `message:send` (`type: AUDIO` / `VOICE`) | **Implemented** | `VoiceMessageRecorder`, `DirectChatNotifier.sendAudioAttachment`, Outbox. |
+| 24 | Send Files | Presigned S3 PUT + `message:send` (`type: FILE`) | **Implemented** | `UploadService.uploadMediaFile`, `DirectChatNotifier.sendFileAttachment`, Outbox. |
+| 25 | Reply to Messages | `message:send` with `replyToId` | **Implemented** | `DirectChatNotifier.setReplyingTo`, reply preview UI, `DirectChatScreen`. |
+| 26 | Edit Messages | socket `message:edit` (`conversationId`, `messageId`, `text`) | **Implemented** | `SocketService.editMessage`, `DirectChatNotifier.editMessage`, message bubble edit badge. |
+| 27 | Delete Messages | socket `message:delete` (`conversationId`, `messageId`) | **Implemented** | `SocketService.deleteMessage`, `DirectChatNotifier.deleteMessage`. |
+| 28 | Message Reactions | socket `message:react` (`conversationId`, `messageId`, `emoji`, `isAdded`) | **Implemented** | `SocketService.reactToMessage`, `DirectChatNotifier.toggleReaction`, emoji tray. |
+| 29 | Read Receipts | socket `message:read` (`conversationId`, `seq`) & broadcast `message:read_receipt` | **Implemented** | `SocketService.markAsRead`, `DirectChatNotifier.markAsRead`, double-tick indicator. |
+| 30 | Message Delivery Status | socket `message:delivered` (`chatId`, `seq`, `to`, `at`) | **Implemented** | `SocketService.markAsDelivered`, monotonic sequence receipts in SQLite. |
+| 31 | Typing Indicators | socket `message:typing` (`conversationId`) & broadcast `user:typing` | **Implemented** | `SocketService.emitTyping`, `DirectChatScreen` typing indicator header. |
+| 32 | Message Search | `GET /api/v1/chats/:chatId/messages?query=...` / SQLite query | **Implemented** | `ChatRepository.getMessages(query: ...)`, `ChatSearchScreen`. |
+| 33 | Group Message History | `GET /api/v1/chats/:chatId/messages?limit=...&cursor=...` | **Implemented** | `ChatRepository.getMessages`, `DirectChatNotifier.loadMessages`, cursor pagination. |
+| 34 | Media Gallery | `GET /api/v1/chats/:chatId/media?kind=media` | **Supported** | `ChatRepository.getMedia(kind: 'media')`, model attachment filtering. |
+| 35 | Files Gallery | `GET /api/v1/chats/:chatId/media?kind=files` | **Supported** | `ChatRepository.getMedia(kind: 'files')`, model attachment filtering. |
+| 36 | Audio Gallery | `GET /api/v1/chats/:chatId/media?kind=audio` | **Supported** | `ChatRepository.getMedia(kind: 'audio')`, model attachment filtering. |
+| 37 | Links Gallery | `GET /api/v1/chats/:chatId/media?kind=links` | **Supported** | `ChatRepository.getMedia(kind: 'links')`, Link Preview SQLite cache. |
+| 38 | Slow Mode | `slowModeSeconds` in conversation DTO & socket `SLOWMODE` error | **Modeled & Handled** | `ChatModel.slowModeSeconds`, rate limiting error message presentation. |
+| 39 | Allowed Reactions Configuration | `allowedReactions` in conversation DTO & `REACTION_NOT_ALLOWED` error | **Modeled & Handled** | Filtered reaction picker & backend error mapping. |
+| 40 | Default Group Permissions | 6 permission flags on group DTO (`canSendMessages`, etc.) | **Implemented** | `ChatModel`, `ChatRepository.updatePermissions`. |
+| 41 | Group Username | `username` on group DTO | **Modeled & Supported** | `ChatModel.username`, public group search & mentions. |
+| 42 | Public/Private Group | `isPublic` on group DTO | **Modeled & Supported** | `ChatModel.isPublic`, public discovery vs private access. |
+| 43 | Auto-Delete Messages | `autoDeleteAfter` on group DTO | **Modeled & Handled** | Field modeled on conversation; server purges expired messages. |
+| 44 | Personal Group Pin | `PATCH /api/v1/conversations/:id/settings` (`isPinned`) | **Implemented** | `ChatRepository.updateConversationSettings`, `ChatDao.updatePinStatus`. |
+| 45 | Archive Group | `PATCH /api/v1/conversations/:id/settings` (`isArchived`) | **Implemented** | `ChatRepository.updateConversationSettings`. |
+| 46 | Mute Group Notifications | `PATCH /api/v1/conversations/:id/settings` (`mutedUntil`) | **Implemented** | `ChatRepository.muteConversation`, `ChatDao.updateMuteStatus`. |
+| 47 | Paginated Member List | `GET /api/v1/conversations/:id/members?page=1&limit=50` | **Implemented** | `ChatRepository.getMembers`, `ChatNotifier.fetchGroupMembers`. |
+| 48 | Realtime Group Updates | socket event `chat:updated` | **Implemented** | `SocketService.onChatUpdated`, `ChatNotifier` live refresh. |
+| 49 | Realtime Member Role Updates | socket event `member:updated` | **Implemented** | `SocketService.onMemberUpdated`, updates member list & permissions live. |
+| 50 | Realtime Member Removal Notifications | socket event `member:removed` / `member:left` | **Implemented** | `SocketService.onMemberRemoved`, evicts member or exits chat if current user kicked. |
+| 51 | Realtime Message Updates | socket events `message:new`, `message:edited`, `message:deleted` | **Implemented** | `SocketService`, `DirectChatNotifier`, `NotificationService`. |
+| 52 | Group Message Sequence Tracking | `lastMessageSeq` & monotonic message `seq` | **Implemented** | Monotonic ordering in `ChatDao`, `SyncService` sequence-gap detection. |
 
 ## 7. Offline/reliability (76–84)
 

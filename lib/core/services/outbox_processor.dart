@@ -216,11 +216,16 @@ class OutboxProcessor {
         _processedController.add(conversationId);
       }
     } catch (error) {
+      final errStr = error.toString().toLowerCase();
+      final isNonRetryable = errStr.contains('403') ||
+          errStr.contains("can't message this user") ||
+          errStr.contains('blocked');
+
       final nextAttempt = attemptCount + 1;
-      if (nextAttempt > 5) {
-        // Feature 82: Max retries exceeded; move to failed state for user recovery
+      if (isNonRetryable || nextAttempt > 5) {
+        // Feature 82 & Spec: Non-retryable error (e.g. 403 blocked user) or Max retries exceeded
         await _messageDao.updateMessageStatusByClientId(clientMsgId, 'failed');
-        await _outboxDao.updateAttempt(id, nextAttempt, null, error.toString());
+        await _outboxDao.deleteItem(id);
       } else {
         // Feature 78: Exponential backoff
         await _messageDao.updateMessageStatusByClientId(clientMsgId, 'queued');

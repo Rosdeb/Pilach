@@ -175,6 +175,131 @@ class AuthRepository {
     }
   }
 
+  Future<void> logoutAll() async {
+    try {
+      await _apiService.post(ApiConstants.logoutAll);
+    } catch (e) {
+      // Ignore errors on logout-all
+    } finally {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('auth_token');
+      await prefs.remove('refresh_token');
+    }
+  }
+
+  Future<Map<String, dynamic>> getMe() async {
+    final response = await _apiService.get(ApiConstants.authMe);
+    if (response.data is Map) {
+      return Map<String, dynamic>.from(response.data as Map);
+    }
+    return {'data': response.data};
+  }
+
+  // ==========================================
+  // 🌐 OAuth (Google & Apple)
+  // ==========================================
+
+  Future<Map<String, dynamic>> loginWithGoogle(String idToken) async {
+    final response = await _apiService.post(
+      ApiConstants.oauthGoogle,
+      data: {"idToken": idToken},
+    );
+    final data = response.data;
+    if (data is Map && data['challengeId'] != null) {
+      return {
+        "is2faRequired": true,
+        "challengeId": data['challengeId'],
+        "methods": data['methods'] ?? [],
+      };
+    }
+    return _saveTokensFromResponse(data, response.headers.map);
+  }
+
+  Future<void> linkGoogle(String idToken) async {
+    await _apiService.post(
+      ApiConstants.oauthGoogleLink,
+      data: {"idToken": idToken},
+    );
+  }
+
+  Future<void> unlinkGoogle() async {
+    await _apiService.delete(ApiConstants.oauthGoogle);
+  }
+
+  Future<Map<String, dynamic>> loginWithApple(String idToken) async {
+    final response = await _apiService.post(
+      ApiConstants.oauthApple,
+      data: {"idToken": idToken},
+    );
+    final data = response.data;
+    if (data is Map && data['challengeId'] != null) {
+      return {
+        "is2faRequired": true,
+        "challengeId": data['challengeId'],
+        "methods": data['methods'] ?? [],
+      };
+    }
+    return _saveTokensFromResponse(data, response.headers.map);
+  }
+
+  Future<void> linkApple(String idToken) async {
+    await _apiService.post(
+      ApiConstants.oauthAppleLink,
+      data: {"idToken": idToken},
+    );
+  }
+
+  Future<void> unlinkApple() async {
+    await _apiService.delete(ApiConstants.oauthApple);
+  }
+
+  Future<Map<String, dynamic>> _saveTokensFromResponse(
+    dynamic responseData,
+    Map<String, List<String>> headers,
+  ) async {
+    final data = responseData is Map
+        ? Map<String, dynamic>.from(responseData)
+        : <String, dynamic>{};
+    final prefs = await SharedPreferences.getInstance();
+
+    if (data['tokens'] != null) {
+      await prefs.setString('auth_token', data['tokens']['access']['token']);
+      await prefs.setString('refresh_token', data['tokens']['refresh']['token']);
+    } else {
+      final cookies = headers['set-cookie'] ?? [];
+      String? accessToken;
+      String? refreshToken;
+      for (var cookie in cookies) {
+        if (cookie.contains('access_token=')) {
+          final match = RegExp(r'access_token=([^;]+)').firstMatch(cookie);
+          if (match != null) accessToken = match.group(1);
+        }
+        if (cookie.contains('refresh_token=')) {
+          final match = RegExp(r'refresh_token=([^;]+)').firstMatch(cookie);
+          if (match != null) refreshToken = match.group(1);
+        }
+      }
+      if (accessToken != null) {
+        await prefs.setString('auth_token', accessToken);
+      }
+      if (refreshToken != null) {
+        await prefs.setString('refresh_token', refreshToken);
+      }
+    }
+
+    final dynamic rawUser = data['user'] ?? data['data']?['user'] ?? data['data'];
+    final userId = (rawUser is Map ? (rawUser['id'] ?? rawUser['_id'] ?? rawUser['userId']) : null)?.toString()
+        ?? data['userId']?.toString();
+    if (userId != null && !userId.contains('@')) {
+      await prefs.setString('user_id', userId);
+    }
+
+    return {
+      "is2faRequired": false,
+      "user": data['data'] ?? rawUser,
+    };
+  }
+
   // ==========================================
   // 🔐 Two-Factor Authentication (2FA) Methods
   // ==========================================

@@ -2,7 +2,6 @@ import 'package:app/core/utils/app_logger.dart';
 import 'package:app/core/utils/date_formatter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:app/core/models/message_dto.dart';
 import 'package:app/core/network/chat_repository.dart';
 import 'package:app/core/providers/api_provider.dart';
@@ -13,12 +12,21 @@ import 'package:app/core/models/chat_dto.dart';
 import 'package:app/core/services/socket_service.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:isolate';
+
+import 'package:app/core/constants/api_constants.dart';
+import 'package:app/core/services/upload_service.dart';
 
 import 'package:app/core/database/daos/outbox_dao.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/Features/Chat/presentation/providers/direct_chat_provider.dart';
 import 'package:app/Features/auth/presentation/providers/auth_provider.dart';
+
+final _uuidPattern = RegExp(
+  r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+  caseSensitive: false,
+);
 
 final chatProvider = StateNotifierProvider<ChatNotifier, List<ChatModel>>((
   ref,
@@ -149,23 +157,25 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         String? previewText;
         if (rawText != null && rawText.isNotEmpty) {
           previewText = rawText;
-          if (actualType == 'IMAGE')
+          if (actualType == 'IMAGE') {
             previewText = '📷 $rawText';
-          else if (actualType == 'VIDEO')
+          } else if (actualType == 'VIDEO') {
             previewText = '🎥 $rawText';
-          else if (actualType == 'AUDIO')
+          } else if (actualType == 'AUDIO') {
             previewText = '🎵 $rawText';
-          else if (actualType == 'FILE')
+          } else if (actualType == 'FILE') {
             previewText = '📁 $rawText';
+          }
         } else {
-          if (actualType == 'IMAGE')
+          if (actualType == 'IMAGE') {
             previewText = '📷 Photo';
-          else if (actualType == 'VIDEO')
+          } else if (actualType == 'VIDEO') {
             previewText = '🎥 Video';
-          else if (actualType == 'AUDIO')
+          } else if (actualType == 'AUDIO') {
             previewText = '🎵 Audio';
-          else if (actualType == 'FILE')
+          } else if (actualType == 'FILE') {
             previewText = '📁 File';
+          }
         }
 
         final currentChatId = _ref.read(currentChatIdProvider);
@@ -254,12 +264,13 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
 
   void _listenToTyping() {
     _typingSub = _socketService.onUserTyping.listen((data) {
-      final eventChatId =
-          (data['conversationId'] ?? data['chatId'])?.toString();
-      final senderId = (data['userId'] ??
-              data['senderId'] ??
-              (data['user'] is Map ? data['user']['id'] : null))
+      final eventChatId = (data['conversationId'] ?? data['chatId'])
           ?.toString();
+      final senderId =
+          (data['userId'] ??
+                  data['senderId'] ??
+                  (data['user'] is Map ? data['user']['id'] : null))
+              ?.toString();
 
       if (_currentUserId.isEmpty) {
         final authId = _ref.read(authProvider).id;
@@ -279,9 +290,9 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       if (targetChatId == null || targetChatId.isEmpty) {
         if (senderId != null) {
           final matched = state.cast<ChatModel?>().firstWhere(
-                (c) => c != null && c.userId == senderId,
-                orElse: () => null,
-              );
+            (c) => c != null && c.userId == senderId,
+            orElse: () => null,
+          );
           if (matched != null) {
             targetChatId = matched.id;
           }
@@ -289,13 +300,14 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       }
 
       if (targetChatId != null && targetChatId.isNotEmpty) {
-        final userName = (data['userName'] ??
-                data['name'] ??
-                data['username'] ??
-                (data['user'] is Map
-                    ? (data['user']['name'] ?? data['user']['username'])
-                    : null))
-            ?.toString();
+        final userName =
+            (data['userName'] ??
+                    data['name'] ??
+                    data['username'] ??
+                    (data['user'] is Map
+                        ? (data['user']['name'] ?? data['user']['username'])
+                        : null))
+                ?.toString();
 
         final chatId = targetChatId;
         _ref.read(typingStatusProvider(chatId).notifier).state = true;
@@ -320,13 +332,20 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         if (convId != null && convId.isNotEmpty) {
           _socketService.joinConversation(convId);
         }
-        _socketService.forceReconnect();
       });
     }
 
     _metadataSubscriptions.addAll([
       _socketService.onChatUpdated.listen(refresh),
-      _socketService.onChatAdded.listen(refresh),
+      _socketService.onChatAdded.listen((data) {
+        final chatId = (data['chatId'] ?? data['conversationId'])?.toString();
+        if (chatId != null && chatId.isNotEmpty) {
+          // The API guide requires an explicit join after chat:added so live
+          // group events are not missed while REST metadata refreshes.
+          _socketService.joinConversation(chatId);
+        }
+        refresh(data);
+      }),
       _socketService.onMemberUpdated.listen(refresh),
       _socketService.onMemberRemoved.listen(refresh),
     ]);
@@ -439,6 +458,46 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         Logger.log('Reconnect sync failed for ${chat.id}: $error');
       }
     }
+    unawaited(_fetchPresenceForVisibleChats());
+  }
+
+  Future<void> _fetchPresenceForVisibleChats() async {
+    final userIds = state
+        .where((c) => !c.isGroup && c.userId != null && c.userId!.isNotEmpty)
+        .map((c) => c.userId!)
+        .toSet()
+        .toList();
+
+    if (userIds.isEmpty) return;
+
+    try {
+      final presenceList = await _socketService.getPresence(userIds);
+      for (final p in presenceList) {
+        final uid = p['userId']?.toString();
+        if (uid != null && uid.isNotEmpty) {
+          final bool isOnline = p['online'] == true;
+          final lastSeen = p['lastSeen'];
+          String? lastActiveIso;
+          if (lastSeen is int) {
+            lastActiveIso = DateTime.fromMillisecondsSinceEpoch(
+              lastSeen,
+            ).toIso8601String();
+          } else if (lastSeen is String) {
+            final parsed = int.tryParse(lastSeen);
+            if (parsed != null) {
+              lastActiveIso = DateTime.fromMillisecondsSinceEpoch(
+                parsed,
+              ).toIso8601String();
+            } else {
+              lastActiveIso = lastSeen;
+            }
+          }
+          await _updatePresence(uid, isOnline, lastActive: lastActiveIso);
+        }
+      }
+    } catch (e) {
+      Logger.log('Failed to fetch initial presence: $e', type: 'warning');
+    }
   }
 
   void _listenToPresence() {
@@ -548,10 +607,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     if (!mounted) return;
     state = state.map((c) {
       if (c.id == chatId) {
-        return c.copyWith(
-          draft: cleanDraft,
-          clearDraft: cleanDraft == null,
-        );
+        return c.copyWith(draft: cleanDraft, clearDraft: cleanDraft == null);
       }
       return c;
     }).toList();
@@ -701,6 +757,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
 
     state = models;
     _socketService.syncConversationSubscriptions(models.map((chat) => chat.id));
+    unawaited(_fetchPresenceForVisibleChats());
   }
 
   Future<void> fetchFromServer({
@@ -708,10 +765,6 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     bool forceUpdate = false,
   }) async {
     try {
-      if (isManualRefresh) {
-        await DefaultCacheManager().emptyCache();
-      }
-
       final responseData = await _chatRepository.getConversations();
       Logger.log('API RESPONSE (/api/v1/conversations): $responseData');
 
@@ -1024,13 +1077,15 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         .map((id) => id.trim())
         .where(
           (id) =>
-              id.isNotEmpty &&
-              (_currentUserId.isEmpty || id != _currentUserId),
+              id.isNotEmpty && (_currentUserId.isEmpty || id != _currentUserId),
         )
         .toSet()
         .toList(growable: false);
     if (memberIds.isEmpty) {
       throw Exception('Select at least one member');
+    }
+    if (memberIds.any((id) => !_uuidPattern.hasMatch(id))) {
+      throw Exception('Every group member must have a valid user UUID');
     }
 
     try {
@@ -1130,6 +1185,145 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       Logger.log('Failed to add members: $e\n$st', type: 'error');
       return false;
     }
+  }
+
+  Future<List<Map<String, dynamic>>> getGroupMembers(
+    String conversationId,
+  ) async {
+    try {
+      final res = await _chatRepository.getMembers(conversationId);
+      final list = res['data'] is List
+          ? (res['data'] as List)
+          : (res['members'] is List ? res['members'] as List : const []);
+      return list
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+    } catch (e, st) {
+      Logger.log('Failed to fetch group members: $e\n$st', type: 'error');
+      return const [];
+    }
+  }
+
+  Future<bool> removeMemberFromConversation(
+    String conversationId,
+    String userId,
+  ) async {
+    try {
+      await _chatRepository.removeMember(conversationId, userId);
+      await fetchFromServer();
+      return true;
+    } catch (e, st) {
+      Logger.log('Failed to remove member: $e\n$st', type: 'error');
+      return false;
+    }
+  }
+
+  Future<bool> leaveGroupConversation(String conversationId) async {
+    try {
+      await _chatRepository.leaveConversation(conversationId);
+      // Remove locally from state and SQLite
+      state = state.where((c) => c.id != conversationId).toList();
+      await _chatDao.deleteChat(conversationId);
+      await _messageDao.deleteMessagesByConversationId(conversationId);
+      return true;
+    } catch (e, st) {
+      Logger.log('Failed to leave conversation: $e\n$st', type: 'error');
+      return false;
+    }
+  }
+
+  Future<bool> updateMemberRoleInConversation(
+    String conversationId,
+    String userId, {
+    required String role,
+  }) async {
+    try {
+      await _chatRepository.updateMemberRole(conversationId, userId, role: role);
+      await fetchFromServer();
+      return true;
+    } catch (e, st) {
+      Logger.log('Failed to update member role: $e\n$st', type: 'error');
+      return false;
+    }
+  }
+
+  Future<bool> updateGroupInfo(
+    String conversationId, {
+    String? title,
+    String? about,
+    String? avatarUrl,
+  }) async {
+    try {
+      // 1. If title is changed, update via REST PATCH /conversations/:id
+      // (The backend REST DTO strictly accepts 'title' only; other fields trigger 400 Bad Request).
+      if (title != null && title.trim().isNotEmpty) {
+        await _chatRepository.updateConversation(
+          conversationId,
+          title: title.trim(),
+        );
+      }
+
+      // 2. Emit socket chat:update event as per Messenger API Developer Guide:
+      // event: chat:update -> { conversationId, data: { title?, about?, avatarUrl? } }
+      // This is the authoritative channel to update avatarUrl, about, etc., across all devices.
+      final updateData = <String, dynamic>{};
+      if (title != null && title.trim().isNotEmpty) {
+        updateData['title'] = title.trim();
+      }
+      if (about != null) {
+        updateData['about'] = about.trim();
+      }
+      if (avatarUrl != null && avatarUrl.trim().isNotEmpty) {
+        updateData['avatarUrl'] = avatarUrl.trim();
+      }
+
+      if (updateData.isNotEmpty) {
+        final ack = await _socketService.emitWithAck('chat:update', {
+          'conversationId': conversationId,
+          'data': updateData,
+        });
+        if (ack['ok'] == false) {
+          Logger.log('chat:update rejected by server: ${ack['error']}', type: 'warning');
+          return false;
+        }
+      }
+
+      // Optimistically update local DAO so UI displays new metadata immediately
+      await _chatDao.updateGroupMetadata(
+        conversationId,
+        title: title,
+        avatarUrl: avatarUrl,
+      );
+
+      await fetchFromServer();
+      return true;
+    } catch (e, st) {
+      Logger.log('Failed to update group info: $e\n$st', type: 'error');
+      return false;
+    }
+  }
+
+  Future<String?> uploadGroupAvatar(File imageFile) async {
+    try {
+      final uploadService = _ref.read(uploadServiceProvider);
+      final uploadRes = await uploadService.uploadMediaFile(
+        filePath: imageFile.path,
+        purpose: 'message',
+      );
+      final rawUrl =
+          uploadRes['publicUrl'] ?? uploadRes['url'] ?? uploadRes['key'];
+      if (rawUrl != null && rawUrl.toString().isNotEmpty) {
+        String finalUrl = rawUrl.toString();
+        if (!finalUrl.startsWith('http')) {
+          finalUrl = '${ApiConstants.baseUrl}/$finalUrl';
+        }
+        return finalUrl;
+      }
+    } catch (e, st) {
+      Logger.log('Failed to upload group avatar: $e\n$st', type: 'error');
+    }
+    return null;
   }
 
   Future<void> muteConversation(String conversationId, bool isMuted) async {

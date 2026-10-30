@@ -563,10 +563,7 @@ class NotificationService {
   String _getPlatformName() {
     if (Platform.isAndroid) return 'android';
     if (Platform.isIOS) return 'ios';
-    if (Platform.isMacOS) return 'macos';
-    if (Platform.isWindows) return 'windows';
-    if (Platform.isLinux) return 'linux';
-    return 'unknown';
+    return 'web';
   }
 
   void dispose() {

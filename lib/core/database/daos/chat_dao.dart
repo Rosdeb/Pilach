@@ -137,6 +137,29 @@ class ChatDao {
     );
   }
 
+  Future<void> updateGroupMetadata(
+    String id, {
+    String? title,
+    String? avatarUrl,
+  }) async {
+    final database = await db;
+    final updates = <String, dynamic>{
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    if (title != null && title.trim().isNotEmpty) {
+      updates['title'] = title.trim();
+    }
+    if (avatarUrl != null && avatarUrl.trim().isNotEmpty) {
+      updates['avatar_url'] = avatarUrl.trim();
+    }
+    await database.update(
+      'chats',
+      updates,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   Future<void> clearUnreadCount(String id) async {
     final database = await db;
     await database.update(

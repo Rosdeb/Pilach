@@ -11,12 +11,20 @@ class ApiConstants {
   static const String login = "/api/v1/auth/login";
   static const String register = "/api/v1/auth/register";
   static const String logout = "/api/v1/auth/logout";
+  static const String logoutAll = "/api/v1/auth/logout-all";
+  static const String authMe = "/api/v1/auth/me";
   static const String refreshToken = "/api/v1/auth/refresh";
   static const String verifyOtp = "/api/v1/auth/email/verify/otp";
   static const String forgotPassword = "/api/v1/auth/password/forgot";
   static const String resetPassword = "/api/v1/auth/password/reset";
   static const String resendEmailVerification = "/api/v1/auth/email/verify/resend";
   static const String resetPasswordByOtp = "/api/v1/auth/password/reset/otp";
+
+  // OAuth Endpoints
+  static const String oauthGoogle = "/api/v1/auth/oauth/google";
+  static const String oauthGoogleLink = "/api/v1/auth/oauth/google/link";
+  static const String oauthApple = "/api/v1/auth/oauth/apple";
+  static const String oauthAppleLink = "/api/v1/auth/oauth/apple/link";
 
   // 2FA Endpoints
   static const String twoFactorMethods = "/api/v1/auth/2fa/methods";
@@ -29,12 +37,37 @@ class ApiConstants {
   static const String twoFactorBackupCodes = "/api/v1/auth/2fa/backup-codes";
   static const String twoFactorBackupCodesRegenerate = "/api/v1/auth/2fa/backup-codes/regenerate";
 
+  // Sudo Elevation Endpoints
+  static const String authSudo = "/api/v1/auth/sudo";
+  static const String authSudoPassword = "/api/v1/auth/sudo/password";
+  static const String authSudoOtpRequest = "/api/v1/auth/sudo/otp/request";
+  static const String authSudoOtpConfirm = "/api/v1/auth/sudo/otp/confirm";
+  static const String authSudo2faSend = "/api/v1/auth/sudo/2fa/send";
+  static const String authSudo2fa = "/api/v1/auth/sudo/2fa";
+  static const String authSudoOptions = "/api/v1/auth/sudo/options";
+
+  // Device Sessions
+  static const String authSessions = "/api/v1/auth/sessions";
+  static const String authSessionsRevokeOthers = "/api/v1/auth/sessions/revoke-others";
+
+  // Account Identifiers
+  static const String authIdentifiers = "/api/v1/auth/identifiers";
+
   // ================================
   // 👤 User/Profile
   // ================================
   static const String getProfile = "/api/v1/profile/me";
   static const String updateProfile = "/api/v1/profile";
   static const String uploadAvatar = "/api/v1/profile/avatar";
+  static const String profileUsername = "/api/v1/profile/username";
+  static const String checkUsername = "/api/v1/profile/username/check";
+
+  // ================================
+  // 📖 Stories
+  // ================================
+  static const String stories = "/api/v1/stories";
+  static const String storiesFeed = "/api/v1/stories/feed";
+  static const String storiesUsers = "/api/v1/stories/users";
 
   // ================================
   // 🏘️ Community
@@ -46,19 +79,31 @@ class ApiConstants {
   static const String communityDetails = "/communities/details";
 
   // ================================
-  // 💬 Chat / Messages
+  // 💬 Chat / Messages / Conversations
   // ================================
+  static const String conversations = "/api/v1/conversations";
+  static const String chats = "/api/v1/chats";
   static const String getChats = "/chats";
   static const String createChat = "/chats/create";
   static const String getMessages = "/messages";
   static const String sendMessage = "/messages/send";
   static const String deleteMessage = "/messages/delete";
+  static const String searchMessages = "/api/v1/messages/search";
 
   // ================================
-  // 📎 Attachments
+  // 📎 Attachments & Files
   // ================================
   static const String uploadFile = "/upload/file";
   static const String uploadImage = "/upload/image";
+  static const String uploadsPresign = "/api/v1/uploads/presign";
+  static const String uploadsPresignDownload = "/api/v1/uploads/presign-download";
+  static const String files = "/api/v1/files";
+
+  // ================================
+  // 🛡️ Privacy & Blocks
+  // ================================
+  static const String privacy = "/api/v1/privacy";
+  static const String blocks = "/api/v1/blocks";
 
   // ================================
   // 🔔 Notifications

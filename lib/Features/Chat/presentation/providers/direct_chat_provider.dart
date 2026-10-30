@@ -806,10 +806,17 @@ class DirectChatNotifier extends StateNotifier<ChatState> {
   }
 
   Future<void> saveDraft(String? draft) async {
-    if (chatId == null) return;
+    final targetId = chatId;
+    if (targetId == null) return;
     final cleanDraft = draft == null || draft.trim().isEmpty ? null : draft;
-    final notifier = _ref.read(chatProvider.notifier);
-    await notifier.setDraft(chatId!, cleanDraft);
+    // Persist directly to DB first so it succeeds even when the screen is being disposed
+    await _chatDao.updateDraft(targetId, cleanDraft);
+    if (mounted) {
+      try {
+        final notifier = _ref.read(chatProvider.notifier);
+        await notifier.setDraft(targetId, cleanDraft);
+      } catch (_) {}
+    }
   }
 
   Future<void> retryMessage(String messageId) async {

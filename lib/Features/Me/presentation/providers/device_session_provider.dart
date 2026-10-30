@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import '../../data/models/device_session_model.dart';
+import '../../data/repositories/security_repository.dart';
 
 final defaultDeviceSessions = <DeviceSessionModel>[
   const DeviceSessionModel(
@@ -73,7 +76,27 @@ final defaultDeviceSessions = <DeviceSessionModel>[
 class DeviceSessionNotifier extends StateNotifier<List<DeviceSessionModel>> {
   static const int maxLinkedDevices = 5;
 
-  DeviceSessionNotifier() : super(defaultDeviceSessions);
+  DeviceSessionNotifier([this._repository]) : super(defaultDeviceSessions) {
+    if (_repository != null) {
+      unawaited(refresh());
+    }
+  }
+
+  final SecurityRepository? _repository;
+
+  Future<void> refresh() async {
+    final repo = _repository;
+    if (repo == null) return;
+    try {
+      final rows = await repo.getSessions();
+      if (rows.isNotEmpty) {
+        state = rows
+            .map(DeviceSessionModel.fromJson)
+            .where((session) => session.id.isNotEmpty)
+            .toList(growable: false);
+      }
+    } catch (_) {}
+  }
 
   bool addSession(DeviceSessionModel session) {
     if (state.length >= maxLinkedDevices) {
@@ -83,22 +106,47 @@ class DeviceSessionNotifier extends StateNotifier<List<DeviceSessionModel>> {
     return true;
   }
 
-  void terminateSession(String sessionId) {
-    state = state.where((s) => s.id != sessionId || s.isCurrentDevice).toList();
+  Future<void> terminateSession(String sessionId) async {
+    final session = state.where((item) => item.id == sessionId).firstOrNull;
+    if (session?.isCurrentDevice == true) return;
+    final repo = _repository;
+    if (repo != null) {
+      try {
+        await repo.revokeSession(sessionId);
+      } catch (_) {}
+    }
+    state = state.where((item) => item.id != sessionId).toList();
   }
 
-  void terminateAllOtherSessions() {
+  Future<void> terminateAllOtherSessions() async {
+    final repo = _repository;
+    if (repo != null) {
+      try {
+        await repo.revokeOtherSessions();
+      } catch (_) {}
+    }
     state = state.where((s) => s.isCurrentDevice).toList();
   }
 
-  void resetToDefaults() {
-    state = defaultDeviceSessions;
+  Future<void> resetToDefaults() async {
+    if (_repository != null) {
+      await refresh();
+    } else {
+      state = defaultDeviceSessions;
+    }
   }
 }
 
 final deviceSessionsProvider =
     StateNotifierProvider<DeviceSessionNotifier, List<DeviceSessionModel>>(
-  (ref) => DeviceSessionNotifier(),
+  (ref) {
+    try {
+      final repo = ref.watch(securityRepositoryProvider);
+      return DeviceSessionNotifier(repo);
+    } catch (_) {
+      return DeviceSessionNotifier();
+    }
+  },
 );
 
 final maxLinkedDevicesLimitProvider = Provider<int>((ref) => DeviceSessionNotifier.maxLinkedDevices);
