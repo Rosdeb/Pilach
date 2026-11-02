@@ -77,6 +77,9 @@ final dioProvider = Provider<Dio>((ref) {
           final duration = DateTime.now().millisecondsSinceEpoch - startTime;
           Logger.log('❌ [API ERROR] ${e.requestOptions.path} - Time: ${duration}ms');
         }
+        if (e.response != null) {
+          Logger.log('❌ [API ERROR RESPONSE] ${e.response?.statusCode}: ${e.response?.data}');
+        }
         return handler.next(e);
       },
     ));
@@ -85,9 +88,9 @@ final dioProvider = Provider<Dio>((ref) {
     dio.interceptors.add(LogInterceptor(
       request: true,
       requestHeader: false,
-      requestBody: false,
+      requestBody: true,
       responseHeader: false,
-      responseBody: false,
+      responseBody: true,
       error: true,
     ));
   }

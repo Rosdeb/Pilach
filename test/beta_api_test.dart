@@ -1,6 +1,8 @@
 import 'package:app/Features/Me/data/models/device_session_model.dart';
+import 'package:app/Features/Me/data/models/block_userlist.dart';
 import 'package:app/Features/Me/data/repositories/security_repository.dart';
 import 'package:app/Features/auth/data/repositories/auth_repository.dart';
+import 'package:app/Features/Discovers/models/story_model.dart';
 import 'package:app/core/network/chat_repository.dart';
 import 'package:app/core/services/api_service.dart';
 import 'package:app/core/services/upload_service.dart';
@@ -391,6 +393,139 @@ void main() {
       expect(api.lastMethod, 'PUT');
       expect(api.lastEndpoint, '/api/v1/privacy/LAST_SEEN');
       expect(api.lastData['level'], 'NOBODY');
+    });
+
+    test('getBlockedUsers queries /api/v1/blocks with limit', () async {
+      await secRepo.getBlockedUsers(limit: 150);
+      expect(api.lastMethod, 'GET');
+      expect(api.lastEndpoint, '/api/v1/blocks');
+      expect(api.lastQueryParams?['limit'], 150);
+    });
+
+    test('blockUser posts userId to /api/v1/blocks according to Swagger BlockUserDto', () async {
+      await secRepo.blockUser('target-user-uuid');
+      expect(api.lastMethod, 'POST');
+      expect(api.lastEndpoint, '/api/v1/blocks');
+      expect(api.lastData['userId'], 'target-user-uuid');
+    });
+
+    test('unblockUser sends DELETE to /api/v1/blocks/:userId', () async {
+      await secRepo.unblockUser('target-user-uuid');
+      expect(api.lastMethod, 'DELETE');
+      expect(api.lastEndpoint, '/api/v1/blocks/target-user-uuid');
+    });
+
+    test('isBlockedByMe queries /api/v1/blocks/:userId/status', () async {
+      final isBlocked = await secRepo.isBlockedByMe('target-user-uuid');
+      expect(api.lastMethod, 'GET');
+      expect(api.lastEndpoint, '/api/v1/blocks/target-user-uuid/status');
+      expect(isBlocked, isFalse);
+    });
+  });
+
+  group('Beta Messenger API - BlockedUser Model (Swagger ListBlocksResponseDto)', () {
+    test('BlockedUser.fromJson parses all Swagger fields correctly', () {
+      final json = {
+        'id': 'user-block-1',
+        'username': 'john_doe',
+        'name': 'John Doe',
+        'avatarUrl': 'https://example.com/avatar.jpg',
+        'createdAt': '2026-10-31T12:00:00.000Z',
+      };
+
+      final user = BlockedUser.fromJson(json);
+      expect(user.id, 'user-block-1');
+      expect(user.username, 'john_doe');
+      expect(user.name, 'John Doe');
+      expect(user.displayName, 'John Doe');
+      expect(user.handle, '@john_doe');
+      expect(user.avatarUrl, 'https://example.com/avatar.jpg');
+      expect(user.createdAt, DateTime.parse('2026-10-31T12:00:00.000Z'));
+    });
+
+    test('BlockedUser fallback displayName uses username or id when name is null', () {
+      final userWithUsername = BlockedUser.fromJson({
+        'id': 'abcd-1234-efgh',
+        'username': 'cryptoman',
+      });
+      expect(userWithUsername.displayName, '@cryptoman');
+
+      final userWithoutNameOrUsername = BlockedUser.fromJson({
+        'id': '89012345-6789',
+      });
+      expect(userWithoutNameOrUsername.displayName, 'User 89012345');
+    });
+  });
+
+  group('Beta Messenger API - Story DTO & Swagger Schema Tests', () {
+    test('CreateStoryDto schema strictly enforces type and mediaUrl without invalid array entities', () {
+      final payload = {
+        'type': 'IMAGE',
+        'mediaUrl': 'https://d503857302df6b8b52bed29773e3bc56.r2.cloudflarestorage.com/messenger/stories/test.jpeg',
+        'thumbnailUrl': 'https://d503857302df6b8b52bed29773e3bc56.r2.cloudflarestorage.com/messenger/stories/test.jpeg',
+        'privacy': 'EVERYONE',
+        'ttlHours': 24,
+      };
+
+      expect(payload['type'], isIn(['TEXT', 'IMAGE', 'VIDEO', 'GIF', 'AUDIO', 'VOICE', 'FILE', 'LOCATION', 'CONTACT', 'SYSTEM']));
+      expect(payload['mediaUrl'], startsWith('http'));
+      expect(payload['privacy'], isIn(['EVERYONE', 'CONTACTS', 'CLOSE_FRIENDS', 'SELECTED']));
+      expect(payload.containsKey('entities'), isFalse);
+      expect(payload.containsKey('allowedUserIds'), isFalse);
+    });
+
+    test('StoryModel.fromJson parses Swagger GetFeedResponseDto with nested author profile correctly', () {
+      final swaggerFeedItem = {
+        'id': 'story-uuid-1',
+        'authorId': 'author-uuid-1',
+        'type': 'IMAGE',
+        'mediaUrl': 'https://example.com/story.jpg',
+        'thumbnailUrl': 'https://example.com/thumb.jpg',
+        'caption': 'Hello from Swagger story',
+        'privacy': 'EVERYONE',
+        'allowedUserIds': ['u1', 'u2'],
+        'isPinned': false,
+        'createdAt': '2026-11-02T06:01:20.114Z',
+        'author': {
+          'id': 'author-uuid-1',
+          'username': 'johndoe',
+          'profile': {
+            'name': 'John Doe',
+            'avatarUrl': 'https://example.com/avatar.jpg',
+          },
+        },
+      };
+
+      final story = StoryModel.fromJson(swaggerFeedItem);
+      expect(story.id, 'story-uuid-1');
+      expect(story.authorId, 'author-uuid-1');
+      expect(story.type, 'IMAGE');
+      expect(story.mediaUrl, 'https://example.com/story.jpg');
+      expect(story.thumbnailUrl, 'https://example.com/thumb.jpg');
+      expect(story.caption, 'Hello from Swagger story');
+      expect(story.authorName, 'John Doe');
+      expect(story.authorAvatar, 'https://example.com/avatar.jpg');
+      expect(story.createdAt, DateTime.parse('2026-11-02T06:01:20.114Z'));
+    });
+
+    test('StoryModel.fromJson fallback extracts username when profile name is null', () {
+      final swaggerFeedItem = {
+        'id': 'story-uuid-2',
+        'authorId': 'author-uuid-2',
+        'type': 'TEXT',
+        'mediaUrl': 'https://example.com/text.jpg',
+        'author': {
+          'id': 'author-uuid-2',
+          'username': 'cryptokid',
+          'profile': {
+            'avatarUrl': 'https://example.com/avatar2.jpg',
+          },
+        },
+      };
+
+      final story = StoryModel.fromJson(swaggerFeedItem);
+      expect(story.authorName, 'cryptokid');
+      expect(story.authorAvatar, 'https://example.com/avatar2.jpg');
     });
   });
 }

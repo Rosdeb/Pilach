@@ -131,12 +131,20 @@ class UploadService {
 
     Logger.log('🚀 Direct S3 PUT Upload Succeeded! Key: $objectKey');
 
+    final String cleanUploadUrl = uploadUrl.contains('?')
+        ? uploadUrl.split('?').first
+        : uploadUrl;
+    final String resolvedPublicUrl = (publicUrl != null && publicUrl.isNotEmpty)
+        ? publicUrl
+        : (cleanUploadUrl.startsWith('http') ? cleanUploadUrl : objectKey);
+
     return {
       'key': objectKey,
       'contentType': contentType,
       'fileName': fileName,
       'url': uploadUrl,
-      'publicUrl': publicUrl ?? objectKey,
+      'cleanUrl': cleanUploadUrl,
+      'publicUrl': resolvedPublicUrl,
     };
   }
 

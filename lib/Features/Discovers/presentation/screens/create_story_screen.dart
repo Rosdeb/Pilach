@@ -54,20 +54,34 @@ class _CreateStoryScreenState extends ConsumerState<CreateStoryScreen> {
         purpose: 'story',
       );
 
-      final mediaUrl = uploadResult['publicUrl'] ?? uploadResult['url'];
-      if (mediaUrl == null) throw Exception("Failed to get uploaded media URL");
+      final String? mediaUrl = uploadResult['publicUrl'] ??
+          (uploadResult['url'] != null
+              ? uploadResult['url']!.split('?').first
+              : null) ??
+          uploadResult['key'];
+      if (mediaUrl == null || mediaUrl.isEmpty) {
+        throw Exception("Failed to get uploaded media URL");
+      }
 
-      // 2. Create Story API
-      final payload = {
-        "type": "IMAGE", // Using IMAGE for now
+      final ext = _selectedMedia!.path.split('.').last.toLowerCase();
+      final isVideo = ext == 'mp4' || ext == 'mov' || ext == 'avi' || ext == 'mkv';
+      final storyType = isVideo ? 'VIDEO' : 'IMAGE';
+      final captionText = _captionController.text.trim();
+
+      // 2. Create Story API (Strictly matches Swagger CreateStoryDto)
+      final Map<String, dynamic> payload = {
+        "type": storyType,
         "mediaUrl": mediaUrl,
-        "thumbnailUrl": mediaUrl,
-        "caption": _captionController.text.trim(),
-        "entities": [], // Use empty array instead of object for entities
         "privacy": "EVERYONE",
-        "allowedUserIds": [],
         "ttlHours": 24,
       };
+
+      if (mediaUrl.startsWith('http')) {
+        payload["thumbnailUrl"] = mediaUrl;
+      }
+      if (captionText.isNotEmpty) {
+        payload["caption"] = captionText;
+      }
 
       final response = await apiService.post('/api/v1/stories', data: payload);
       

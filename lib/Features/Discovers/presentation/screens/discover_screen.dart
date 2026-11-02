@@ -9,6 +9,7 @@ import 'package:app/core/constants/app_constants.dart' hide AppPaths;
 import 'package:app/core/constants/app_paths.dart';
 import '../../../../components/AppText/appText.dart';
 import '../../models/QuickActionItem.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/discover_providers.dart';
 import '../providers/story_provider.dart';
 import '../widgets/action_quick_card.dart';
@@ -79,8 +80,11 @@ class DiscoverScreen extends ConsumerWidget {
         child: RefreshIndicator(
           backgroundColor: AppColors.primary,
           color: Colors.white,
-          onRefresh: () {
-            return ref.read(myStoriesProvider.notifier).fetchMyStories();
+          onRefresh: () async {
+            await Future.wait([
+              ref.read(myStoriesProvider.notifier).fetchMyStories(),
+              ref.read(storyFeedProvider.notifier).fetchStoriesFeed(),
+            ]);
           },
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
@@ -229,11 +233,21 @@ class DiscoverScreen extends ConsumerWidget {
 
   Widget _buildStoriesTray(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final authState = ref.watch(authProvider);
     final myStoriesState = ref.watch(myStoriesProvider);
+    final feedState = ref.watch(storyFeedProvider);
     
     final myStories = myStoriesState.value ?? [];
+    final allFeedUserStories = feedState.value ?? [];
+
+    final currentUserId = authState.id;
+    final feedUserStories = allFeedUserStories.where((g) {
+      if (currentUserId == null || currentUserId.isEmpty) return true;
+      return g.userId != currentUserId;
+    }).toList();
     
-    if (myStoriesState.isLoading && myStories.isEmpty) {
+    if ((myStoriesState.isLoading && myStories.isEmpty) ||
+        (feedState.isLoading && feedUserStories.isEmpty)) {
       return SizedBox(
         height: 115,
         child: ListView.builder(
@@ -274,15 +288,22 @@ class DiscoverScreen extends ConsumerWidget {
 
     // PRELOAD SYSTEM: Pre-cache all story images to disk immediately when the list loads!
     for (var story in myStories) {
-      if (story.mediaUrl != null) {
-        precacheImage(CachedNetworkImageProvider(story.mediaUrl!), context);
+      final media = story.mediaUrl?.trim();
+      if (media != null && media.isNotEmpty && media.startsWith('http')) {
+        precacheImage(CachedNetworkImageProvider(media), context);
+      }
+    }
+    for (var group in feedUserStories) {
+      for (var story in group.stories) {
+        final media = story.mediaUrl?.trim();
+        if (media != null && media.isNotEmpty && media.startsWith('http')) {
+          precacheImage(CachedNetworkImageProvider(media), context);
+        }
       }
     }
 
     final hasMyStories = myStories.isNotEmpty;
-    
-    // Total items: 1 (Add Story CTA) + (1 if user has stories) + 5 (mock other users)
-    final itemCount = 1 + (hasMyStories ? 1 : 0) + 5;
+    final itemCount = 1 + (hasMyStories ? 1 : 0) + feedUserStories.length;
 
     return SizedBox(
       height: 115,
@@ -343,7 +364,6 @@ class DiscoverScreen extends ConsumerWidget {
               padding: const EdgeInsets.only(right: 16.0),
               child: GestureDetector(
                 onTap: () {
-                  // Navigate to view the story. You could pass the story ID or index.
                   context.push(AppPaths.story_details, extra: myStories);
                 },
                 child: Column(
@@ -368,7 +388,7 @@ class DiscoverScreen extends ConsumerWidget {
                           width: 56,
                           height: 56,
                           child: ClipOval(
-                            child: displayUrl != null && displayUrl.isNotEmpty
+                            child: displayUrl != null && displayUrl.isNotEmpty && displayUrl.startsWith('http')
                                 ? CachedNetworkImage(
                                     imageUrl: displayUrl,
                                     fit: BoxFit.cover,
@@ -400,9 +420,10 @@ class DiscoverScreen extends ConsumerWidget {
             );
           }
 
-          // Sample Other User Stories
-          final mockIndex = hasMyStories ? index - 1 : index;
-          return StoryAvatar(index: mockIndex);
+          // Real User Stories from Feed API
+          final userIndex = index - 1 - (hasMyStories ? 1 : 0);
+          final userGroup = feedUserStories[userIndex];
+          return UserStoryAvatar(userGroup: userGroup);
         },
       ),
     );
@@ -410,48 +431,121 @@ class DiscoverScreen extends ConsumerWidget {
 
 }
 
-class StoryAvatar extends StatelessWidget {
-  final int index;
+class UserStoryAvatar extends StatelessWidget {
+  final UserStoryGroup userGroup;
 
-  const StoryAvatar({Key? key, required this.index}) : super(key: key);
+  const UserStoryAvatar({Key? key, required this.userGroup}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+    final latestStory = userGroup.latestStory;
+    final String? displayUrl = (userGroup.avatarUrl != null &&
+            userGroup.avatarUrl!.trim().isNotEmpty &&
+            userGroup.avatarUrl!.startsWith('http'))
+        ? userGroup.avatarUrl!.trim()
+        : ((latestStory?.thumbnailUrl != null &&
+                latestStory!.thumbnailUrl!.trim().isNotEmpty &&
+                latestStory.thumbnailUrl!.startsWith('http'))
+            ? latestStory.thumbnailUrl!.trim()
+            : ((latestStory?.mediaUrl != null &&
+                    latestStory!.mediaUrl!.trim().isNotEmpty &&
+                    latestStory.mediaUrl!.startsWith('http'))
+                ? latestStory.mediaUrl!.trim()
+                : null));
+
+    final String initials = userGroup.name.trim().isNotEmpty
+        ? userGroup.name
+            .trim()
+            .split(' ')
+            .map((e) => e.isNotEmpty ? e[0] : '')
+            .take(2)
+            .join()
+            .toUpperCase()
+        : '?';
+
     return Padding(
       padding: const EdgeInsets.only(right: 16.0),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(2.5),
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [CupertinoColors.activeOrange, CupertinoColors.systemPink],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                color: theme.scaffoldBackgroundColor,
+      child: GestureDetector(
+        onTap: () {
+          context.push(AppPaths.story_details, extra: userGroup.stories);
+        },
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(2.5),
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [CupertinoColors.activeOrange, CupertinoColors.systemPink],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
-              child: CircleAvatar(
-                radius: 28,
-                backgroundColor: theme.colorScheme.onSurface.withOpacity(0.05),
-                child: Icon(CupertinoIcons.person_fill, color: theme.colorScheme.onSurface.withOpacity(0.4)),
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: theme.scaffoldBackgroundColor,
+                  shape: BoxShape.circle,
+                ),
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: ClipOval(
+                    child: (displayUrl != null &&
+                            displayUrl.isNotEmpty &&
+                            displayUrl.startsWith('http'))
+                        ? CachedNetworkImage(
+                            imageUrl: displayUrl,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              color: theme.colorScheme.onSurface.withOpacity(0.1),
+                              child: const CupertinoActivityIndicator(),
+                            ),
+                            errorWidget: (context, url, error) => Center(
+                              child: Text(
+                                initials,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Container(
+                            color: theme.colorScheme.primary.withOpacity(0.12),
+                            alignment: Alignment.center,
+                            child: Text(
+                              initials,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'User $index',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurface),
-          ),
-        ],
+            const SizedBox(height: 8),
+            SizedBox(
+              width: 68,
+              child: Text(
+                userGroup.name,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

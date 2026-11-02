@@ -265,8 +265,12 @@ class _StoryDetailsScreenState extends ConsumerState<StoryDetailsScreen> with Si
                       final isMyStory = myProfile != null && 
                                         (currentStory.authorId == myProfile.userId || currentStory.authorId == myProfile.id);
                       
-                      final displayName = isMyStory ? myProfile.name : "User";
-                      final avatarUrl = isMyStory ? myProfile.avatarUrl : null;
+                      final displayName = isMyStory
+                          ? myProfile.name
+                          : (currentStory.authorName ?? "User");
+                      final avatarUrl = isMyStory
+                          ? myProfile.avatarUrl
+                          : currentStory.authorAvatar;
                       
                       String timeAgo = "Just now";
                       if (currentStory.createdAt != null) {
@@ -285,8 +289,16 @@ class _StoryDetailsScreenState extends ConsumerState<StoryDetailsScreen> with Si
                           CircleAvatar(
                             radius: 18,
                             backgroundColor: Colors.grey,
-                            backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
-                            child: avatarUrl == null ? const Icon(CupertinoIcons.person_fill, color: Colors.white, size: 20) : null,
+                            backgroundImage: (avatarUrl != null &&
+                                    avatarUrl.trim().isNotEmpty &&
+                                    avatarUrl.startsWith('http'))
+                                ? CachedNetworkImageProvider(avatarUrl.trim())
+                                : null,
+                            child: (avatarUrl == null ||
+                                    avatarUrl.trim().isEmpty ||
+                                    !avatarUrl.startsWith('http'))
+                                ? const Icon(CupertinoIcons.person_fill, color: Colors.white, size: 20)
+                                : null,
                           ),
                           const SizedBox(width: 10),
                           Expanded(

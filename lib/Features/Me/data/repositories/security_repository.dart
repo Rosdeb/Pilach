@@ -117,12 +117,20 @@ class SecurityRepository {
   }
 
   static List<Map<String, dynamic>> _listData(dynamic responseData) {
+    if (responseData is List) {
+      return responseData
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList(growable: false);
+    }
     if (responseData is! Map) return const [];
     final data = responseData['data'];
-    if (data is! List) return const [];
-    return data
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList(growable: false);
+    if (data is List) {
+      return data
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList(growable: false);
+    }
+    return const [];
   }
 }

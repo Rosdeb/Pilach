@@ -255,18 +255,27 @@ class ContactScreen extends ConsumerWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       leading: CircleAvatar(
         radius: 22,
-        backgroundColor: contact.avatarUrl == null
+        backgroundColor: (contact.avatarUrl == null ||
+                contact.avatarUrl!.trim().isEmpty ||
+                !contact.avatarUrl!.startsWith('http'))
             ? (theme.brightness == Brightness.dark ? const Color(0xFF1A3E40) : const Color(0xFFB8D8DA))
             : Colors.transparent,
-        backgroundImage: contact.avatarUrl != null ? CachedNetworkImageProvider(
-          contact.avatarUrl!,
-          cacheKey: contact.id,
-        ) : null,
-        child: contact.avatarUrl == null
+        backgroundImage: (contact.avatarUrl != null &&
+                contact.avatarUrl!.trim().isNotEmpty &&
+                contact.avatarUrl!.startsWith('http'))
+            ? CachedNetworkImageProvider(
+                contact.avatarUrl!.trim(),
+                cacheKey: contact.id,
+              )
+            : null,
+        child: (contact.avatarUrl == null ||
+                contact.avatarUrl!.trim().isEmpty ||
+                !contact.avatarUrl!.startsWith('http'))
             ? Text(
-          initials,
-          style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.bold),
-        ) : null,
+                initials,
+                style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.bold),
+              )
+            : null,
       ),
       title: Text(
         contact.name,

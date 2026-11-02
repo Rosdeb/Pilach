@@ -229,12 +229,16 @@ class _MeScreenState extends ConsumerState<MeScreen>
                             radius: 30,
                             backgroundColor: theme.colorScheme.primary
                                 .withValues(alpha: 0.1),
-                            backgroundImage: authState.profileImage != null
+                            backgroundImage: (authState.profileImage != null &&
+                                    authState.profileImage!.trim().isNotEmpty &&
+                                    authState.profileImage!.startsWith('http'))
                                 ? CachedNetworkImageProvider(
-                                    authState.profileImage!,
+                                    authState.profileImage!.trim(),
                                   )
                                 : null,
-                            child: authState.profileImage == null
+                            child: (authState.profileImage == null ||
+                                    authState.profileImage!.trim().isEmpty ||
+                                    !authState.profileImage!.startsWith('http'))
                                 ? Icon(
                                     Icons.person,
                                     size: 30,
