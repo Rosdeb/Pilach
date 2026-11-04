@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/components/AppText/appText.dart';
-import 'package:app/core/constants/app_paths.dart';
 import 'package:app/core/utils/app_toast.dart';
 import '../../../data/models/chat_model.dart';
 import '../../providers/chat_provider.dart';
@@ -17,6 +16,7 @@ import '../../widgets/chat_avatar.dart';
 import '../../../../Contact/presentation/widgets/add_group_members_sheet.dart';
 import '../../../../Me/data/repositories/security_repository.dart';
 import 'package:app/core/network/chat_repository.dart';
+import 'chat_media_search_screen.dart';
 
 class ChatProfileScreen extends ConsumerStatefulWidget {
   final ChatModel chat;
@@ -71,6 +71,7 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
           PaintingBinding.instance.imageCache.clearLiveImages();
         } catch (_) {}
 
+        if (!mounted) return;
         setState(() {
           _chat = _chat.copyWith(image: uploadedUrl);
         });
@@ -673,10 +674,13 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                 CupertinoIcons.photo_on_rectangle,
                 'View Photos & Videos',
                 Colors.teal,
-                onTap: () => AppToast.show(
-                  context,
-                  'Photos & Videos gallery available in chat',
-                  type: ToastType.info,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ChatMediaSearchScreen(
+                      chatId: _chat.id,
+                      chatTitle: _chat.name,
+                    ),
+                  ),
                 ),
               ),
               _buildSettingTile(
@@ -684,10 +688,14 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                 CupertinoIcons.folder_fill,
                 'Files & Links',
                 Colors.indigo,
-                onTap: () => AppToast.show(
-                  context,
-                  'Files & Links available in chat',
-                  type: ToastType.info,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ChatMediaSearchScreen(
+                      chatId: _chat.id,
+                      chatTitle: _chat.name,
+                      initialKind: 'files',
+                    ),
+                  ),
                 ),
               ),
             ]),

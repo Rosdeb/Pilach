@@ -104,11 +104,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: controller, curve: Curves.easeOutCubic));
 
-    if (widget.message.status == MessageStatus.sending ||
-        (!widget.message.isMe &&
-            DateTime.now().difference(widget.message.timestamp).inSeconds <
-                3)) {
-      controller.forward();
+    if (widget.message.status == MessageStatus.sending || (!widget.message.isMe && DateTime.now().difference(widget.message.timestamp).inSeconds < 3)) {controller.forward();
     } else {
       controller.value = 1.0;
     }

@@ -79,8 +79,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     _draftDebounce?.cancel();
     _draftDebounce = Timer(const Duration(milliseconds: 300), () {
       if (mounted) {
-        ref
-            .read(directChatProvider.notifier)
+        ref.read(directChatProvider.notifier)
             .saveDraft(_messageController.text);
       }
     });
@@ -127,8 +126,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
       ref.read(editingMessageProvider.notifier).state = null;
     } else {
       final replyTo = ref.read(replyingToProvider);
-      ref
-          .read(directChatProvider.notifier)
+      ref.read(directChatProvider.notifier)
           .sendMessage(text, replyToId: replyTo?.id);
       ref.read(replyingToProvider.notifier).state = null;
     }

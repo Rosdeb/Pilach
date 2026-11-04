@@ -1,13 +1,17 @@
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:app/components/AppText/appText.dart';
 import '../../../../../core/utils/app_colour.dart';
 import '../../../../../core/utils/app_toast.dart';
+import '../../../../../core/utils/mask_utils.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../data/models/profile_model.dart';
 import '../../providers/profile_provider.dart';
+import '../../../../auth/presentation/providers/auth_provider.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -19,10 +23,25 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _bioController;
-  late TextEditingController _emailController;
+  late TextEditingController _userIdController;
   String? _avatarUrl;
   bool _isSaving = false;
   bool _isUploadingImage = false;
+
+  String _resolveUserId([ProfileModel? profile]) {
+    final prof = profile ?? ref.read(profileNotifierProvider).value;
+    if (prof?.userId != null && prof!.userId.isNotEmpty && prof.userId != '***') {
+      return prof.userId;
+    }
+    final authId = ref.read(authProvider).id;
+    if (authId != null && authId.isNotEmpty && authId != '***') {
+      return authId;
+    }
+    if (prof?.id != null && prof!.id.isNotEmpty && prof.id != '***') {
+      return prof.id;
+    }
+    return '';
+  }
 
   @override
   void initState() {
@@ -30,7 +49,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final initialProfile = ref.read(profileNotifierProvider).value;
     _nameController = TextEditingController(text: initialProfile?.name ?? '');
     _bioController = TextEditingController(text: initialProfile?.bio ?? '');
-    _emailController = TextEditingController(text: initialProfile?.userId ?? ''); // Using userId or email placeholder
+    final rawUserId = _resolveUserId(initialProfile);
+    _userIdController = TextEditingController(text: MaskUtils.maskUserId(rawUserId));
     _avatarUrl = initialProfile?.avatarUrl;
   }
 
@@ -38,7 +58,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _bioController.dispose();
-    _emailController.dispose();
+    _userIdController.dispose();
     super.dispose();
   }
 
@@ -120,13 +140,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final profileState = ref.watch(profileNotifierProvider);
 
     // Listen for transitions from loading to data
-    ref.listen<AsyncValue>(profileNotifierProvider, (previous, next) {
+    ref.listen<AsyncValue<ProfileModel?>>(profileNotifierProvider, (previous, next) {
       if (previous == null || previous.isLoading) {
         next.whenData((profile) {
           if (profile != null) {
             _nameController.text = profile.name;
             _bioController.text = profile.bio ?? '';
-            _emailController.text = profile.userId;
+            final resolvedId = _resolveUserId(profile);
+            _userIdController.text = MaskUtils.maskUserId(resolvedId);
             setState(() {
               _avatarUrl = profile.avatarUrl;
             });
@@ -162,6 +183,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           ),
         ),
         data: (profile) {
+          final resolvedId = _resolveUserId(profile);
+          if (_userIdController.text.isEmpty && resolvedId.isNotEmpty) {
+            _userIdController.text = MaskUtils.maskUserId(resolvedId);
+          }
           return CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
@@ -321,8 +346,26 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             _buildInputField(
                               context,
                               label: 'User ID',
-                              controller: _emailController,
+                              controller: _userIdController,
                               readOnly: true,
+                              suffix: IconButton(
+                                icon: const Icon(
+                                  CupertinoIcons.doc_on_doc,
+                                  size: 16,
+                                ),
+                                tooltip: 'Copy User ID',
+                                onPressed: () {
+                                  final rawId = _resolveUserId(profile);
+                                  if (rawId.isNotEmpty) {
+                                    Clipboard.setData(ClipboardData(text: rawId));
+                                    AppToast.show(
+                                      context,
+                                      'User ID copied to clipboard',
+                                      type: ToastType.success,
+                                    );
+                                  }
+                                },
+                              ),
                             ),
                             _buildDivider(context),
                             _buildInputField(
@@ -351,6 +394,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     required String label,
     required TextEditingController controller,
     bool readOnly = false,
+    Widget? suffix,
   }) {
     final theme = Theme.of(context);
     return Padding(
@@ -375,8 +419,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             child: TextFormField(
               controller: controller,
               readOnly: readOnly,
+              canRequestFocus: !readOnly,
+              enableInteractiveSelection: true,
               style: TextStyle(
-                color: theme.colorScheme.onSurface.withOpacity(readOnly ? 0.4 : 0.7),
+                color: theme.colorScheme.onSurface.withValues(
+                  alpha: readOnly ? 0.6 : 1.0,
+                ),
                 fontSize: 16,
               ),
               decoration: InputDecoration(
@@ -384,6 +432,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 fillColor: theme.colorScheme.surface,
                 hintText: readOnly ? 'N/A' : 'Enter $label',
                 isDense: true,
+                suffixIcon: suffix,
+                hintStyle: TextStyle(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                  fontSize: 16,
+                ),
                 contentPadding: const EdgeInsets.symmetric(
                   vertical: 12,
                 ),

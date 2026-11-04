@@ -11,6 +11,7 @@ import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/database/daos/chat_dao.dart';
 import '../../../../../core/utils/app_colour.dart';
 import '../../../../../core/utils/app_toast.dart';
+import '../../../../../core/utils/mask_utils.dart';
 import '../../providers/profile_provider.dart';
 import '../../../../../core/utils/app_logger.dart';
 import '../../../../auth/presentation/providers/auth_provider.dart';
@@ -555,13 +556,13 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen>
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: SelectableText(
-                          hasValidId ? qrData : 'Loading your User ID...',
+                          hasValidId ? MaskUtils.maskUserId(qrData) : 'Loading your User ID...',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: -0.5,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
                             height: 1.4,
                           ),
                         ),
