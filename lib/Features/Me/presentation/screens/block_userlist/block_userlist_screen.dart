@@ -227,6 +227,7 @@ class BlockedUsersScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: RefreshIndicator(
+        displacement: 120,
         onRefresh: () => ref.read(blockedUsersProvider.notifier).fetchBlockedUsers(),
         color: theme.colorScheme.primary,
         child: CustomScrollView(

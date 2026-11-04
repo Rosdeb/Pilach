@@ -256,7 +256,7 @@ class DiscoverScreen extends ConsumerWidget {
           itemCount: 6,
           itemBuilder: (context, index) {
             return Padding(
-              padding: EdgeInsets.only(left: index == 0 ? 16 : 0, right: 16.0),
+              padding: EdgeInsets.only(left: index == 14 ? 16 : 12, right: 16.0),
               child: CustomShimmer(
                 child: Column(
                   children: [
@@ -315,7 +315,7 @@ class DiscoverScreen extends ConsumerWidget {
           if (index == 0) {
             // First item is the "Publish Story" CTA slot
             return Padding(
-              padding: const EdgeInsets.only(left: 3, right: 16.0),
+              padding: const EdgeInsets.only(left: 12, right: 16.0),
               child: GestureDetector(
                 onTap: () {
                   context.push(AppPaths.create_story);
