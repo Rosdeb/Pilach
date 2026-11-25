@@ -443,4 +443,31 @@ class AuthRepository {
     } catch (_) {}
     return null;
   }
+
+  // ==========================================
+  // 🛡️ Sudo Mode (Sensitive Action Elevation)
+  // ==========================================
+
+  Future<bool> elevateSudoWithPassword(String password) async {
+    final response = await _apiService.post(
+      ApiConstants.authSudoPassword,
+      data: {"password": password},
+    );
+    final data = response.data;
+    if (data is Map && (data['success'] == true || response.statusCode == 200 || response.statusCode == 201)) {
+      return true;
+    }
+    throw ApiException(data is Map ? (data['message'] ?? 'Identity confirmation failed') : 'Identity confirmation failed');
+  }
+
+  Future<bool> checkSudoActive() async {
+    try {
+      final response = await _apiService.get(ApiConstants.authSudoOptions);
+      final data = response.data;
+      if (data is Map && data['success'] == true) {
+        return data['data']?['isSudoActive'] == true || data['isSudoActive'] == true;
+      }
+    } catch (_) {}
+    return false;
+  }
 }

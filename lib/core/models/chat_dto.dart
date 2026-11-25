@@ -129,12 +129,26 @@ class ChatDto {
   });
 
   factory ChatDto.fromJson(Map<String, dynamic> json) {
+    int parsedUnread = 0;
+    final dynamic rawUnread = json['unreadCount'] ??
+        json['unread_count'] ??
+        json['unreadMessagesCount'] ??
+        json['unread_messages_count'] ??
+        json['unread'] ??
+        json['unread_count_total'];
+
+    if (rawUnread is num) {
+      parsedUnread = rawUnread.toInt();
+    } else if (rawUnread is String) {
+      parsedUnread = int.tryParse(rawUnread) ?? 0;
+    }
+
     return ChatDto(
       id: (json['id'] ?? json['_id'])?.toString() ?? '',
       type: json['type']?.toString() ?? 'PRIVATE',
       title: json['title']?.toString(),
       avatarUrl: json['avatarUrl']?.toString(),
-      unreadCount: (json['unreadCount'] as num?)?.toInt() ?? 0,
+      unreadCount: parsedUnread,
       createdAt:
           json['createdAt']?.toString() ?? DateTime.now().toIso8601String(),
       lastMessageSeq: json['lastMessageSeq'],
@@ -271,18 +285,48 @@ class ChatDto {
 
     final String? lastMessagePreview = _resolveLastMessagePreview();
 
+    int resolvedUnread = unreadCount;
+    if (resolvedUnread == 0 && members != null && currentUserId != null && currentUserId.isNotEmpty) {
+      for (final m in members!) {
+        if (m is Map) {
+          final mUid = _memberUserId(m);
+          if (mUid == currentUserId) {
+            final dynamic raw = m['unreadCount'] ??
+                m['unread_count'] ??
+                m['unreadMessagesCount'] ??
+                m['unread_messages_count'] ??
+                m['unread'];
+            if (raw is num) {
+              resolvedUnread = raw.toInt();
+            } else if (raw is String) {
+              resolvedUnread = int.tryParse(raw) ?? 0;
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    final dynamic senderObj = lastMessage?['sender'];
+    final String? lastMessageSenderId = lastMessage?['senderId']?.toString() ??
+        lastMessage?['sender_id']?.toString() ??
+        (senderObj is Map ? senderObj['id']?.toString() : null);
+    final String? lastMessageStatus = lastMessage?['status']?.toString();
+
     return {
       'id': id,
       'other_user_id': otherUserId,
       'type': type,
       'title': displayTitle,
       'avatar_url': displayAvatar,
-      'unread_count': unreadCount,
+      'unread_count': resolvedUnread,
       'last_message_seq': (lastMessageSeq is String)
           ? int.tryParse(lastMessageSeq)
           : lastMessageSeq,
       'last_message_preview': lastMessagePreview,
       'last_message_at': lastMessageAt,
+      'last_message_sender_id': lastMessageSenderId,
+      'last_message_status': lastMessageStatus,
       'created_at': createdAt,
       'updated_at': updatedAt,
       'is_online': isOnline == null ? null : (isOnline ? 1 : 0),
@@ -340,6 +384,17 @@ extension ChatDtoMapper on ChatDto {
 
     final String? previewMessage = _resolveLastMessagePreview();
 
+    final dynamic senderObj = lastMessage?['sender'];
+    final String? lastMessageSenderId = lastMessage?['senderId']?.toString() ??
+        lastMessage?['sender_id']?.toString() ??
+        (senderObj is Map ? senderObj['id']?.toString() : null);
+    final String? lastMessageStatus = lastMessage?['status']?.toString();
+    final bool lastMessageIsMe = (currentUserId != null &&
+            currentUserId.isNotEmpty &&
+            lastMessageSenderId != null)
+        ? (lastMessageSenderId == currentUserId)
+        : false;
+
     return ChatModel(
       id: id,
       userId: otherUserId,
@@ -357,13 +412,16 @@ extension ChatDtoMapper on ChatDto {
       lastActive: lastActive,
       type: type,
       memberAvatars: memberAvatars,
+      lastMessageSenderId: lastMessageSenderId,
+      lastMessageStatus: lastMessageStatus,
+      lastMessageIsMe: lastMessageIsMe,
     );
   }
 }
 
 extension ChatSqliteMapper on Map<String, dynamic> {
   /// Converts an SQLite row into the UI ChatModel
-  ChatModel toChatModel() {
+  ChatModel toChatModel([String? currentUserId]) {
     String formattedTime = '';
     final timeStr = this['last_message_at'] ?? this['created_at'];
     if (timeStr != null) {
@@ -414,6 +472,16 @@ extension ChatSqliteMapper on Map<String, dynamic> {
                     : 'User $otherUid')
                 : 'Chat'));
 
+    final String? lastMessageSenderId =
+        this['last_message_sender_id']?.toString();
+    final String? lastMessageStatus =
+        this['last_message_status']?.toString();
+    final bool lastMessageIsMe = (currentUserId != null &&
+            currentUserId.isNotEmpty &&
+            lastMessageSenderId != null)
+        ? (lastMessageSenderId == currentUserId)
+        : false;
+
     return ChatModel(
       id: this['id'] as String,
       userId: otherUid,
@@ -430,6 +498,9 @@ extension ChatSqliteMapper on Map<String, dynamic> {
       lastActive: this['last_active_at'] as String?,
       type: chatType,
       memberAvatars: memberAvatars,
+      lastMessageSenderId: lastMessageSenderId,
+      lastMessageStatus: lastMessageStatus,
+      lastMessageIsMe: lastMessageIsMe,
     );
   }
 }

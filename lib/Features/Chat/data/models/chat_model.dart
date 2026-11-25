@@ -14,6 +14,9 @@ class ChatModel {
   final String? lastActive;
   final String type;
   final List<String> memberAvatars;
+  final String? lastMessageSenderId;
+  final String? lastMessageStatus;
+  final bool lastMessageIsMe;
 
   bool get isGroup => type.toUpperCase() == 'GROUP';
 
@@ -33,6 +36,9 @@ class ChatModel {
     this.lastActive,
     this.type = 'PRIVATE',
     this.memberAvatars = const [],
+    this.lastMessageSenderId,
+    this.lastMessageStatus,
+    this.lastMessageIsMe = false,
   });
 
   ChatModel copyWith({
@@ -52,6 +58,9 @@ class ChatModel {
     String? lastActive,
     String? type,
     List<String>? memberAvatars,
+    String? lastMessageSenderId,
+    String? lastMessageStatus,
+    bool? lastMessageIsMe,
   }) {
     return ChatModel(
       id: id ?? this.id,
@@ -69,6 +78,9 @@ class ChatModel {
       lastActive: lastActive ?? this.lastActive,
       type: type ?? this.type,
       memberAvatars: memberAvatars ?? this.memberAvatars,
+      lastMessageSenderId: lastMessageSenderId ?? this.lastMessageSenderId,
+      lastMessageStatus: lastMessageStatus ?? this.lastMessageStatus,
+      lastMessageIsMe: lastMessageIsMe ?? this.lastMessageIsMe,
     );
   }
 

@@ -51,6 +51,8 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
   StreamSubscription? _onlineSub;
   StreamSubscription? _offlineSub;
   StreamSubscription? _newMessageSub;
+  StreamSubscription? _readReceiptSub;
+  StreamSubscription? _deliveredSub;
   StreamSubscription<void>? _reconnectSub;
   StreamSubscription? _reactionSub;
   StreamSubscription? _typingSub;
@@ -65,6 +67,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     _init();
     _listenToPresence();
     _listenToNewMessages();
+    _listenToMessageReceipts();
     _listenToChatChanges();
     _listenToReactions();
     _listenToTyping();
@@ -210,11 +213,15 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
                 ? chat.unreadCount + 1
                 : (isCurrentlyOpen ? 0 : chat.unreadCount);
 
+            final msgStatus = messageData['status']?.toString();
             return chat.copyWith(
               message: previewText ?? chat.message,
               time: formattedTime,
               unreadCount: newUnreadCount,
               isRead: newUnreadCount == 0,
+              lastMessageSenderId: senderId,
+              lastMessageStatus: msgStatus ?? (isIncoming ? 'received' : 'sent'),
+              lastMessageIsMe: !isIncoming,
             );
           }
           return chat;
@@ -235,6 +242,8 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
             previewText ?? target.message,
             createdAtStr,
             target.unreadCount,
+            senderId: senderId,
+            status: messageData['status']?.toString() ?? (isIncoming ? 'received' : 'sent'),
           );
         } else {
           // Chat not found in current state - update SQLite and insert to state
@@ -246,13 +255,18 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
             previewText ?? 'Message',
             createdAtStr,
             isIncoming ? 1 : 0,
+            senderId: senderId,
+            status: messageData['status']?.toString() ?? (isIncoming ? 'received' : 'sent'),
           );
           final localRow = await _chatDao.getChatById(conversationId);
           if (localRow != null) {
-            final model = localRow.toChatModel().copyWith(
+            final model = localRow.toChatModel(_currentUserId).copyWith(
               message: previewText,
               time: formattedTime,
               unreadCount: isIncoming ? 1 : 0,
+              lastMessageSenderId: senderId,
+              lastMessageStatus: messageData['status']?.toString() ?? (isIncoming ? 'received' : 'sent'),
+              lastMessageIsMe: !isIncoming,
             );
             final rest = state.where((c) => c.id != conversationId).toList();
             state = [model, ...rest];
@@ -264,6 +278,49 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
           'Error updating chat list on new message: $e\n$st',
           type: "error",
         );
+      }
+    });
+  }
+
+  void _listenToMessageReceipts() {
+    _readReceiptSub = _socketService.onMessageReadReceipt.listen((data) {
+      final convId = (data['conversationId'] ?? data['chatId'])?.toString();
+      if (convId == null || convId.isEmpty || !mounted) return;
+
+      bool found = false;
+      final updated = state.map((c) {
+        if (c.id == convId && c.lastMessageIsMe) {
+          found = true;
+          return c.copyWith(lastMessageStatus: 'seen');
+        }
+        return c;
+      }).toList();
+
+      if (found) {
+        state = updated;
+        _chatDao.updateChatLastMessageStatus(convId, 'seen');
+      }
+    });
+
+    _deliveredSub = _socketService.onMessageDelivered.listen((data) {
+      final convId = (data['conversationId'] ?? data['chatId'])?.toString();
+      if (convId == null || convId.isEmpty || !mounted) return;
+
+      bool found = false;
+      final updated = state.map((c) {
+        if (c.id == convId &&
+            c.lastMessageIsMe &&
+            c.lastMessageStatus != 'seen' &&
+            c.lastMessageStatus != 'read') {
+          found = true;
+          return c.copyWith(lastMessageStatus: 'delivered');
+        }
+        return c;
+      }).toList();
+
+      if (found) {
+        state = updated;
+        _chatDao.updateChatLastMessageStatus(convId, 'delivered');
       }
     });
   }
@@ -624,14 +681,26 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     String message,
     String time, {
     bool bumpToTop = true,
+    String? senderId,
+    String? status,
+    bool isMe = true,
   }) async {
     if (!mounted) return;
+
+    final resolvedSenderId = senderId ?? (isMe ? _currentUserId : null);
+    final resolvedStatus = status ?? (isMe ? 'sent' : 'received');
 
     bool found = false;
     final updatedList = state.map((c) {
       if (c.id == chatId) {
         found = true;
-        return c.copyWith(message: message, time: time);
+        return c.copyWith(
+          message: message,
+          time: time,
+          lastMessageSenderId: resolvedSenderId,
+          lastMessageStatus: resolvedStatus,
+          lastMessageIsMe: isMe,
+        );
       }
       return c;
     }).toList();
@@ -652,6 +721,8 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         message,
         DateTime.now().toIso8601String(),
         updatedList.firstWhere((c) => c.id == chatId).unreadCount,
+        senderId: resolvedSenderId,
+        status: resolvedStatus,
       );
     } else {
       // Chat is not yet in state (e.g. newly created conversation, first message sent)
@@ -663,6 +734,8 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
         message,
         DateTime.now().toIso8601String(),
         0,
+        senderId: resolvedSenderId,
+        status: resolvedStatus,
       );
 
       Map<String, dynamic>? localRow = await _chatDao.getChatById(chatId);
@@ -676,6 +749,8 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
           'unread_count': 0,
           'last_message_preview': message,
           'last_message_at': nowStr,
+          'last_message_sender_id': resolvedSenderId,
+          'last_message_status': resolvedStatus,
           'created_at': nowStr,
           'updated_at': nowStr,
           'is_online': 0,
@@ -684,9 +759,12 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       }
 
       if (localRow != null) {
-        final newChat = localRow.toChatModel().copyWith(
+        final newChat = localRow.toChatModel(_currentUserId).copyWith(
           message: message,
           time: time,
+          lastMessageSenderId: resolvedSenderId,
+          lastMessageStatus: resolvedStatus,
+          lastMessageIsMe: isMe,
         );
         final rest = state.where((c) => c.id != chatId).toList();
         final pinned = [newChat, ...rest].where((c) => c.isPinned).toList();
@@ -727,6 +805,8 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
     _onlineSub?.cancel();
     _offlineSub?.cancel();
     _newMessageSub?.cancel();
+    _readReceiptSub?.cancel();
+    _deliveredSub?.cancel();
     _reconnectSub?.cancel();
     _reactionSub?.cancel();
     _typingSub?.cancel();
@@ -764,9 +844,10 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
   }
 
   Future<void> loadFromDb() async {
+    final currentUserId = _currentUserId;
     final chatRows = await _chatDao.getAllChats();
     final models = await Isolate.run(() {
-      final list = chatRows.map((row) => row.toChatModel()).toList();
+      final list = chatRows.map((row) => row.toChatModel(currentUserId)).toList();
       final pinned = list.where((chat) => chat.isPinned).toList();
       final unpinned = list.where((chat) => !chat.isPinned).toList();
       return [...pinned, ...unpinned];
@@ -1048,7 +1129,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       if (!state.any((c) => c.id == conversationId)) {
         final localRow = await _chatDao.getChatById(conversationId);
         if (localRow != null) {
-          state = [localRow.toChatModel(), ...state];
+          state = [localRow.toChatModel(_currentUserId), ...state];
         }
       }
 
@@ -1173,7 +1254,7 @@ class ChatNotifier extends StateNotifier<List<ChatModel>> {
       if (!state.any((c) => c.id == conversationId)) {
         final localRow = await _chatDao.getChatById(conversationId);
         if (localRow != null) {
-          state = [localRow.toChatModel(), ...state];
+          state = [localRow.toChatModel(_currentUserId), ...state];
         }
       }
       _socketService.joinConversation(conversationId);

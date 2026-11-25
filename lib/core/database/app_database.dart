@@ -22,7 +22,7 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -66,6 +66,14 @@ class AppDatabase {
         if (oldVersion < 8) {
           await db.execute('ALTER TABLE chats ADD COLUMN draft TEXT');
         }
+        if (oldVersion < 9) {
+          await db.execute(
+            'ALTER TABLE chats ADD COLUMN last_message_sender_id TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE chats ADD COLUMN last_message_status TEXT',
+          );
+        }
       },
     );
   }
@@ -83,6 +91,8 @@ class AppDatabase {
         last_message_seq INTEGER DEFAULT 0,
         last_message_preview TEXT,
         last_message_at TEXT,
+        last_message_sender_id TEXT,
+        last_message_status TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT,
         is_pinned INTEGER DEFAULT 0,

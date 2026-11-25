@@ -28,6 +28,66 @@ class _TwoFactorSettingsScreenState extends ConsumerState<TwoFactorSettingsScree
     super.dispose();
   }
 
+  void _showConfirmIdentityDialog({required Future<void> Function() onConfirmed}) {
+    final passwordController = TextEditingController();
+    showCupertinoDialog(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: const Text("Confirm Your Identity"),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 12.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Please enter your password to continue modifying security settings.",
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+                ),
+              ),
+              const SizedBox(height: 14),
+              CupertinoTextField(
+                controller: passwordController,
+                placeholder: "Account password",
+                obscureText: true,
+                style: TextStyle(color: Theme.of(context).colorScheme.onBackground),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text("Cancel"),
+            onPressed: () {
+              passwordController.dispose();
+              Navigator.pop(dialogContext);
+            },
+          ),
+          CupertinoDialogAction(
+            child: const Text("Confirm"),
+            onPressed: () async {
+              final password = passwordController.text.trim();
+              if (password.isEmpty) return;
+              Navigator.pop(dialogContext);
+
+              final elevated = await ref
+                  .read(twoFactorNotifierProvider.notifier)
+                  .confirmIdentityPassword(password);
+              if (!mounted) return;
+              if (elevated) {
+                await onConfirmed();
+              } else {
+                final err = ref.read(twoFactorNotifierProvider).errorMessage ?? "Incorrect password";
+                FloatingErrorBar.show(context, message: err);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showEnrollEmailDialog() {
     showCupertinoDialog(
       context: context,
@@ -61,6 +121,29 @@ class _TwoFactorSettingsScreenState extends ConsumerState<TwoFactorSettingsScree
               if (!success) {
                 if (mounted) {
                   final errorMsg = ref.read(twoFactorNotifierProvider).errorMessage ?? "Failed to send code";
+                  if (errorMsg.toLowerCase().contains("confirm your identity") || errorMsg.contains("403")) {
+                    _showConfirmIdentityDialog(
+                      onConfirmed: () async {
+                        final retrySuccess = await ref.read(twoFactorNotifierProvider.notifier).requestEmailEnrollment(email);
+                        if (!retrySuccess) {
+                          if (mounted) {
+                            FloatingErrorBar.show(context, message: ref.read(twoFactorNotifierProvider).errorMessage ?? "Failed to send code");
+                          }
+                          return;
+                        }
+                        if (!mounted) return;
+                        _emailController.clear();
+                        await context.push(
+                          AppPaths.two_factor_email_verify,
+                          extra: TwoFactorEmailVerifyArgs(email: email),
+                        );
+                        if (mounted) {
+                          ref.read(twoFactorNotifierProvider.notifier).loadMethods();
+                        }
+                      },
+                    );
+                    return;
+                  }
                   FloatingErrorBar.show(context, message: errorMsg);
                 }
                 return;
@@ -115,6 +198,29 @@ class _TwoFactorSettingsScreenState extends ConsumerState<TwoFactorSettingsScree
               if (!success) {
                 if (mounted) {
                   final errorMsg = ref.read(twoFactorNotifierProvider).errorMessage ?? "Failed to send code";
+                  if (errorMsg.toLowerCase().contains("confirm your identity") || errorMsg.contains("403")) {
+                    _showConfirmIdentityDialog(
+                      onConfirmed: () async {
+                        final retrySuccess = await ref.read(twoFactorNotifierProvider.notifier).requestSmsEnrollment(phone);
+                        if (!retrySuccess) {
+                          if (mounted) {
+                            FloatingErrorBar.show(context, message: ref.read(twoFactorNotifierProvider).errorMessage ?? "Failed to send code");
+                          }
+                          return;
+                        }
+                        if (!mounted) return;
+                        _phoneController.clear();
+                        await context.push(
+                          AppPaths.two_factor_sms_verify,
+                          extra: TwoFactorSmsVerifyArgs(phone: phone),
+                        );
+                        if (mounted) {
+                          ref.read(twoFactorNotifierProvider.notifier).loadMethods();
+                        }
+                      },
+                    );
+                    return;
+                  }
                   FloatingErrorBar.show(context, message: errorMsg);
                 }
                 return;
@@ -153,20 +259,33 @@ class _TwoFactorSettingsScreenState extends ConsumerState<TwoFactorSettingsScree
 
     showCupertinoDialog(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
+      builder: (dialogCtx) => CupertinoAlertDialog(
         title: Text("Disable $typeLabel 2FA"),
         content: Text("Are you sure you want to disable Two-Factor Authentication via $typeLabel?"),
         actions: [
           CupertinoDialogAction(
             child: const Text("Cancel"),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
             child: const Text("Disable"),
             onPressed: () async {
-              Navigator.pop(context);
-              await ref.read(twoFactorNotifierProvider.notifier).disableMethod(methodId);
+              Navigator.pop(dialogCtx);
+              final success = await ref.read(twoFactorNotifierProvider.notifier).disableMethod(methodId);
+              if (!mounted) return;
+              if (!success) {
+                final errorMsg = ref.read(twoFactorNotifierProvider).errorMessage ?? "Failed to disable 2FA method";
+                if (errorMsg.toLowerCase().contains("confirm your identity") || errorMsg.contains("403")) {
+                  _showConfirmIdentityDialog(
+                    onConfirmed: () async {
+                      await ref.read(twoFactorNotifierProvider.notifier).disableMethod(methodId);
+                    },
+                  );
+                  return;
+                }
+                FloatingErrorBar.show(context, message: errorMsg);
+              }
             },
           ),
         ],

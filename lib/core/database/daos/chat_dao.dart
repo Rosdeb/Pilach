@@ -8,18 +8,27 @@ class ChatDao {
     final database = await db;
     await database.transaction((txn) async {
       final values = Map<String, dynamic>.from(chat);
-      // REPLACE deletes and recreates the row. Preserve the device-local draft
-      // when refreshing conversation metadata from the server.
-      if (!values.containsKey('draft') && values['id'] != null) {
+      // REPLACE deletes and recreates the row. Preserve device-local draft and
+      // unread_count (if incoming unread_count is 0 or missing, but locally unread > 0).
+      if (values['id'] != null) {
         final existing = await txn.query(
           'chats',
-          columns: ['draft'],
+          columns: ['draft', 'unread_count'],
           where: 'id = ?',
           whereArgs: [values['id']],
           limit: 1,
         );
         if (existing.isNotEmpty) {
-          values['draft'] = existing.first['draft'];
+          if (!values.containsKey('draft')) {
+            values['draft'] = existing.first['draft'];
+          }
+          final existingUnread =
+              (existing.first['unread_count'] as num?)?.toInt() ?? 0;
+          final incomingUnread =
+              (values['unread_count'] as num?)?.toInt() ?? 0;
+          if (incomingUnread == 0 && existingUnread > 0) {
+            values['unread_count'] = existingUnread;
+          }
         }
       }
       await txn.insert(
@@ -36,20 +45,24 @@ class ChatDao {
     for (var chat in chats) {
       batch.rawInsert(
         '''
-        INSERT INTO chats (id, other_user_id, type, title, avatar_url, unread_count, last_message_seq, last_message_preview, last_message_at, created_at, updated_at, is_online, last_active_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO chats (id, other_user_id, type, title, avatar_url, unread_count, last_message_seq, last_message_preview, last_message_at, last_message_sender_id, last_message_status, created_at, updated_at, is_online, last_active_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           other_user_id = COALESCE(excluded.other_user_id, chats.other_user_id),
           type = excluded.type,
           title = COALESCE(excluded.title, chats.title),
           avatar_url = COALESCE(excluded.avatar_url, chats.avatar_url),
           unread_count = CASE
+            WHEN excluded.unread_count > 0 THEN excluded.unread_count
             WHEN chats.unread_count = 0 AND (excluded.last_message_at IS NULL OR excluded.last_message_at = chats.last_message_at) THEN 0
-            ELSE excluded.unread_count
+            WHEN chats.unread_count > 0 AND (excluded.unread_count IS NULL OR excluded.unread_count = 0) AND (excluded.last_message_at IS NULL OR excluded.last_message_at = chats.last_message_at) THEN chats.unread_count
+            ELSE COALESCE(excluded.unread_count, chats.unread_count, 0)
           END,
           last_message_seq = COALESCE(excluded.last_message_seq, chats.last_message_seq),
           last_message_preview = COALESCE(excluded.last_message_preview, chats.last_message_preview),
           last_message_at = COALESCE(excluded.last_message_at, chats.last_message_at),
+          last_message_sender_id = COALESCE(excluded.last_message_sender_id, chats.last_message_sender_id),
+          last_message_status = COALESCE(excluded.last_message_status, chats.last_message_status),
           created_at = excluded.created_at,
           updated_at = excluded.updated_at,
           is_online = COALESCE(excluded.is_online, chats.is_online),
@@ -65,6 +78,8 @@ class ChatDao {
           chat['last_message_seq'],
           chat['last_message_preview'],
           chat['last_message_at'],
+          chat['last_message_sender_id'],
+          chat['last_message_status'],
           chat['created_at'],
           chat['updated_at'],
           chat['is_online'],
@@ -121,15 +136,34 @@ class ChatDao {
     String id,
     String preview,
     String lastMessageAt,
-    int unreadCount,
-  ) async {
+    int unreadCount, {
+    String? senderId,
+    String? status,
+  }) async {
+    final database = await db;
+    final Map<String, dynamic> updateValues = {
+      'last_message_preview': preview,
+      'last_message_at': lastMessageAt,
+      'unread_count': unreadCount,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    if (senderId != null) updateValues['last_message_sender_id'] = senderId;
+    if (status != null) updateValues['last_message_status'] = status;
+
+    await database.update(
+      'chats',
+      updateValues,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> updateChatLastMessageStatus(String id, String status) async {
     final database = await db;
     await database.update(
       'chats',
       {
-        'last_message_preview': preview,
-        'last_message_at': lastMessageAt,
-        'unread_count': unreadCount,
+        'last_message_status': status,
         'updated_at': DateTime.now().toIso8601String(),
       },
       where: 'id = ?',

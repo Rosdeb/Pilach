@@ -326,7 +326,8 @@ class _ChatTileContent extends ConsumerWidget {
                                 hasUnread: hasUnread,
                                 hasDraft: chat.draft != null,
                                 isMuted: chat.isMuted,
-                                isRead: chat.isRead,
+                                isMe: chat.lastMessageIsMe,
+                                status: chat.lastMessageStatus,
                               ),
                               Expanded(
                                 child: Text(
@@ -379,21 +380,22 @@ class _ChatTileContent extends ConsumerWidget {
 
 /// The small icon/label shown before the message preview:
 /// • Draft label  (when draft != null)
-/// • Read receipt (when no unread and no draft)
+/// • Dynamic delivery / read receipt (when message is outgoing from current user)
 /// • Mute icon    (when muted)
-/// Returns [SizedBox.shrink()] when nothing should show (has unread, no extras).
 class _LeadingPreviewIcon extends StatelessWidget {
   const _LeadingPreviewIcon({
     required this.hasUnread,
     required this.hasDraft,
     required this.isMuted,
-    required this.isRead,
+    required this.isMe,
+    this.status,
   });
 
   final bool hasUnread;
   final bool hasDraft;
   final bool isMuted;
-  final bool isRead;
+  final bool isMe;
+  final String? status;
 
   @override
   Widget build(BuildContext context) {
@@ -411,8 +413,45 @@ class _LeadingPreviewIcon extends StatelessWidget {
       );
     }
 
-    // Show mute icon + read receipt together when not unread
-    if (!hasUnread) {
+    Widget? statusIcon;
+    // Dynamic read receipt and checkmarks only appear for outgoing messages (isMe)
+    if (isMe) {
+      final normalizedStatus = status?.toLowerCase() ?? '';
+      if (normalizedStatus == 'sending' || normalizedStatus == 'pending') {
+        statusIcon = const Icon(
+          CupertinoIcons.clock,
+          size: 13,
+          color: _kMutedGrey,
+        );
+      } else if (normalizedStatus == 'seen' || normalizedStatus == 'read') {
+        statusIcon = const Icon(
+          Icons.done_all,
+          size: 16,
+          color: _kBlueTick,
+        );
+      } else if (normalizedStatus == 'delivered') {
+        statusIcon = const Icon(
+          Icons.done_all,
+          size: 16,
+          color: _kMutedGrey,
+        );
+      } else if (normalizedStatus == 'failed') {
+        statusIcon = const Icon(
+          Icons.error_outline,
+          size: 14,
+          color: Colors.red,
+        );
+      } else {
+        // Default sent message (single grey check)
+        statusIcon = const Icon(
+          Icons.done,
+          size: 16,
+          color: _kMutedGrey,
+        );
+      }
+    }
+
+    if (isMuted || statusIcon != null) {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -425,14 +464,11 @@ class _LeadingPreviewIcon extends StatelessWidget {
                 color: _kMutedGrey,
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.only(right: 3),
-            child: Icon(
-              isRead ? Icons.done_all : Icons.done,
-              size: 16,
-              color: isRead ? _kBlueTick : _kMutedGrey,
+          if (statusIcon != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 3),
+              child: statusIcon,
             ),
-          ),
         ],
       );
     }

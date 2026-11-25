@@ -145,6 +145,21 @@ class TwoFactorNotifier extends StateNotifier<TwoFactorState> {
       return false;
     }
   }
+
+  Future<bool> confirmIdentityPassword(String password) async {
+    state = state.copyWith(isLoading: true);
+    try {
+      final success = await _authRepository.elevateSudoWithPassword(password);
+      state = state.copyWith(isLoading: false);
+      return success;
+    } on ApiException catch (e) {
+      state = state.copyWith(errorMessage: e.message, isLoading: false);
+      return false;
+    } catch (_) {
+      state = state.copyWith(errorMessage: "Failed to confirm identity", isLoading: false);
+      return false;
+    }
+  }
 }
 
 final twoFactorNotifierProvider = StateNotifierProvider<TwoFactorNotifier, TwoFactorState>((ref) {
