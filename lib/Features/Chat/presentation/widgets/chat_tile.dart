@@ -65,6 +65,14 @@ class _ChatTileState extends ConsumerState<ChatTile> with SingleTickerProviderSt
   }
 
   @override
+  void didUpdateWidget(covariant ChatTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.chat.id != widget.chat.id) {
+      _slide.close(animate: false);
+    }
+  }
+
+  @override
   void dispose() {
     _slide.dispose();
     super.dispose();
@@ -175,8 +183,10 @@ class _ChatTileState extends ConsumerState<ChatTile> with SingleTickerProviderSt
             child: RepaintBoundary(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
+                onHorizontalDragStart: _slide.onDragStart,
                 onHorizontalDragUpdate: _slide.onDragUpdate,
                 onHorizontalDragEnd: _slide.onDragEnd,
+                onHorizontalDragCancel: _slide.onDragCancel,
                 onTap: () {
                   if (_slide.direction.value != SlideDirection.none) {
                     _slide.close();

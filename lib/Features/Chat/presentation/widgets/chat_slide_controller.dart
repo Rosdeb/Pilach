@@ -1,21 +1,33 @@
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 /// Direction the tile is currently open toward.
 enum SlideDirection { none, left, right }
 
+/// Global coordinator to ensure only one tile is open at a time,
+/// and allows closing open tiles during vertical scrolls or pull-to-refresh.
+class ChatSlideCoordinator {
+  static ChatSlideController? _active;
+
+  static void registerActive(ChatSlideController controller) {
+    if (_active != null && _active != controller) {
+      _active?.close();
+    }
+    _active = controller;
+  }
+
+  static void unregister(ChatSlideController controller) {
+    if (_active == controller) {
+      _active = null;
+    }
+  }
+
+  static void closeAll() {
+    _active?.close();
+    _active = null;
+  }
+}
+
 /// Drives the swipe-to-reveal animation for a [ChatTile].
-///
-/// All state lives here. No [setState] is ever needed in the widget tree —
-/// the widget tree listens to [animation] directly via [AnimatedBuilder] or
-/// [SlideTransition], so only the GPU composite layer repaints during a swipe.
-///
-/// Usage:
-///   1. Create in [State.initState], dispose in [State.dispose].
-///   2. Pass [vsync] from the [TickerProviderStateMixin].
-///   3. Call [onDragUpdate] / [onDragEnd] from gesture callbacks.
-///   4. Read [animation] in SlideTransition.
-///   5. Read [direction] (a [ValueListenable]) to show/hide action panels.
 class ChatSlideController {
   ChatSlideController({required TickerProvider vsync})
       : _controller = AnimationController(
@@ -30,21 +42,40 @@ class ChatSlideController {
     animation = _curved;
   }
 
-
   final AnimationController _controller;
   late final CurvedAnimation _curved;
 
   late final Animation<double> animation;
   final ValueNotifier<SlideDirection> direction =
-  ValueNotifier(SlideDirection.none);
+      ValueNotifier(SlideDirection.none);
 
   double _dragExtent = 0.0;
+  double _accumulatedDelta = 0.0;
+  bool _dragStarted = false;
 
   static const double actionWidth = 82.0;
   static const double maxDrag = actionWidth * 2;
+  // Minimum horizontal slop to filter out accidental drags during vertical scrolling / pull-to-refresh
+  static const double slopThreshold = 14.0;
+
+  void onDragStart(DragStartDetails details) {
+    _accumulatedDelta = 0.0;
+    _dragStarted = false;
+  }
 
   void onDragUpdate(DragUpdateDetails details) {
     final delta = details.primaryDelta! * 0.82;
+
+    // Filter out minor diagonal jitter until deliberate horizontal movement is detected
+    if (!_dragStarted) {
+      _accumulatedDelta += delta;
+      if (_accumulatedDelta.abs() < slopThreshold) {
+        return;
+      }
+      _dragStarted = true;
+      ChatSlideCoordinator.registerActive(this);
+    }
+
     final next = (_dragExtent + delta).clamp(-maxDrag, maxDrag);
     if (next == _dragExtent) return;
 
@@ -63,11 +94,16 @@ class ChatSlideController {
   }
 
   void onDragEnd(DragEndDetails details) {
+    if (!_dragStarted) {
+      close();
+      return;
+    }
+
     final velocity = details.primaryVelocity ?? 0;
     final isLeft = direction.value == SlideDirection.left;
 
-    if (velocity.abs() > 400) {
-      // Fast fling
+    // Fast fling threshold raised to 650 to prevent accidental flicks
+    if (velocity.abs() > 650) {
       final openFling = (isLeft && velocity > 0) || (!isLeft && velocity < 0);
       if (openFling) {
         _snapOpen();
@@ -77,30 +113,51 @@ class ChatSlideController {
       return;
     }
 
-    // Slow drag — threshold at 60 % of action width
-    if (_dragExtent.abs() > actionWidth * 0.6) {
+    // Deliberate drag threshold (require at least 45% of full action reveal)
+    if (_dragExtent.abs() > maxDrag * 0.45) {
       _snapOpen();
     } else {
       close();
     }
   }
 
+  void onDragCancel() {
+    close();
+  }
+
   // ── Private helpers ────────────────────────────────────────────────────────
 
   void _snapOpen() {
     _dragExtent = direction.value == SlideDirection.left ? maxDrag : -maxDrag;
+    ChatSlideCoordinator.registerActive(this);
     _controller.forward();
   }
 
   /// Animate back to closed and reset direction.
-  void close() {
-    _controller.animateBack(0, duration: const Duration(milliseconds: 150),
-      curve: Curves.easeInOutCubic,
-    ).whenComplete(() => direction.value = SlideDirection.none);
+  void close({bool animate = true}) {
+    ChatSlideCoordinator.unregister(this);
     _dragExtent = 0.0;
+    _accumulatedDelta = 0.0;
+    _dragStarted = false;
+
+    if (!animate) {
+      _controller.value = 0.0;
+      direction.value = SlideDirection.none;
+    } else {
+      _controller
+          .animateBack(
+            0,
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeInOutCubic,
+          )
+          .whenComplete(() {
+            direction.value = SlideDirection.none;
+          });
+    }
   }
 
   void dispose() {
+    ChatSlideCoordinator.unregister(this);
     _curved.dispose();
     _controller.dispose();
     direction.dispose();

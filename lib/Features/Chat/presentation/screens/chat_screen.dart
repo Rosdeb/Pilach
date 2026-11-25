@@ -9,6 +9,7 @@ import '../../../Contact/presentation/widgets/create_contact_sheet.dart';
 import '../../data/models/chat_model.dart';
 import '../providers/chat_provider.dart';
 import '../widgets/chat_tile.dart';
+import '../widgets/chat_slide_controller.dart';
 import '../widgets/custom_fad.dart';
 import '../widgets/search_bar_widget.dart';
 import '../providers/connection_banner_provider.dart';
@@ -51,6 +52,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           RefreshIndicator(
             onRefresh: () async {
+              ChatSlideCoordinator.closeAll();
               await ref
                   .read(chatProvider.notifier)
                   .fetchFromServer(isManualRefresh: true);
@@ -59,14 +61,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             backgroundColor: theme.cardColor,
             strokeWidth: 3.0,
             displacement: 80.0,
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
-              ),
-              slivers: [
-                const _ChatSliverAppBar(),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollStartNotification ||
+                    notification is OverscrollNotification) {
+                  ChatSlideCoordinator.closeAll();
+                }
+                return false;
+              },
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
+                slivers: [
+                  const _ChatSliverAppBar(),
 
-                const SliverToBoxAdapter(child: _InboxConnectionBanner()),
+                  const SliverToBoxAdapter(child: _InboxConnectionBanner()),
 
                 // ── Search bar ────────────────────────────────────────────────
                 SliverToBoxAdapter(
@@ -112,6 +122,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ],
             ),
           ),
+        ),
 
           Positioned(
             bottom: 130,
@@ -240,7 +251,7 @@ class _ChatTileRow extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ChatTile(chat: chat),
+        ChatTile(key: ValueKey(chat.id), chat: chat),
         if (!isLast)
           Padding(
             padding: const EdgeInsets.only(left: 68),
