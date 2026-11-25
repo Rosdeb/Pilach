@@ -117,18 +117,25 @@ class AttachmentDrawer extends ConsumerWidget {
   Future<void> _pickAndSendLocation(BuildContext context, WidgetRef ref) async {
     ref.read(showAttachmentMenuProvider.notifier).state = false;
     final chatId = ref.read(currentChatIdProvider);
-    if (chatId == null) return;
+    debugPrint('[AttachmentDrawer] _pickAndSendLocation tapped for chatId: $chatId');
+    if (chatId == null) {
+      debugPrint('[AttachmentDrawer] currentChatIdProvider is null, cannot send message');
+      return;
+    }
 
-    AppToast.show(context, 'Getting your location...');
+    AppToast.show(context, '📍 Acquiring GPS & generating map link...');
 
     final result = await LocationService.instance.getCurrentLocation();
     if (!context.mounted) return;
 
     if (result.isSuccess && result.messageText != null) {
+      debugPrint('[AttachmentDrawer] Location acquired: ${result.coordinates}, link: ${result.mapUrl}');
       await ref
           .read(directChatProvider.notifier)
           .sendMessage(result.messageText!);
+      debugPrint('[AttachmentDrawer] Location message sent successfully');
     } else {
+      debugPrint('[AttachmentDrawer] Failed to acquire location: ${result.errorMessage}');
       FloatingErrorBar.show(
         context,
         message: result.errorMessage ?? 'Could not determine location.',
@@ -175,6 +182,7 @@ class AttachmentIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
