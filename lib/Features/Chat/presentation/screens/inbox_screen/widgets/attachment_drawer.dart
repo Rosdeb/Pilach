@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:app/Features/Chat/presentation/providers/direct_chat_provider.dart';
+import 'package:app/components/FloatingErrorBar/floatingbar.dart';
+import 'package:app/core/services/location_service.dart';
 import 'inbox_providers.dart';
 
 class AttachmentDrawerOverlay extends ConsumerWidget {
@@ -95,10 +97,11 @@ class AttachmentDrawer extends ConsumerWidget {
             color: Colors.orange,
             label: 'Audio',
           ),
-          const AttachmentIcon(
+          AttachmentIcon(
             icon: Icons.location_on,
             color: Colors.green,
             label: 'Location',
+            onTap: () => _pickAndSendLocation(context, ref),
           ),
           const AttachmentIcon(
             icon: Icons.person,
@@ -108,6 +111,26 @@ class AttachmentDrawer extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _pickAndSendLocation(BuildContext context, WidgetRef ref) async {
+    ref.read(showAttachmentMenuProvider.notifier).state = false;
+    final chatId = ref.read(currentChatIdProvider);
+    if (chatId == null) return;
+
+    final result = await LocationService.instance.getCurrentLocation();
+    if (!context.mounted) return;
+
+    if (result.isSuccess && result.messageText != null) {
+      await ref
+          .read(directChatProvider.notifier)
+          .sendMessage(result.messageText!);
+    } else {
+      FloatingErrorBar.show(
+        context,
+        message: result.errorMessage ?? 'Could not determine location.',
+      );
+    }
   }
 
   Future<void> _pickAndSendDocument(BuildContext context, WidgetRef ref) async {

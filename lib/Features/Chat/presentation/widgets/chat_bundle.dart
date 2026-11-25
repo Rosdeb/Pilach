@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/theme/chat_theme_model.dart';
 import '../../../../core/models/link_preview.dart';
 import '../../../../core/services/link_preview_service.dart';
+import '../../../../core/services/location_service.dart';
 import '../../../../core/utils/url_launcher_utils.dart';
 import '../../../../core/utils/app_toast.dart';
 import '../../data/models/message_model.dart';
@@ -679,6 +681,18 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                     ),
                   );
                 },
+              ),
+            ],
+            if (LocationService.parseCoordinates(widget.message.text) != null) ...[
+              Padding(
+                padding: hasImage
+                    ? const EdgeInsets.only(left: 10, right: 10, top: 10)
+                    : const EdgeInsets.only(bottom: 6),
+                child: _LocationBubbleCard(
+                  coords: LocationService.parseCoordinates(widget.message.text)!,
+                  title: LocationService.extractLocationTitle(widget.message.text),
+                  isMe: widget.message.isMe,
+                ),
               ),
             ],
             if (widget.message.text.isNotEmpty)
@@ -1937,6 +1951,184 @@ class _MessageActionOverlayState extends State<_MessageActionOverlay>
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(mainAxisSize: MainAxisSize.min, children: items),
+    );
+  }
+}
+
+class _LocationBubbleCard extends StatelessWidget {
+  final LocationCoordinates coords;
+  final String? title;
+  final bool isMe;
+
+  const _LocationBubbleCard({
+    required this.coords,
+    this.title,
+    required this.isMe,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = isDark
+        ? Colors.black.withValues(alpha: 0.35)
+        : Colors.white.withValues(alpha: 0.85);
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 240),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.12)
+              : Colors.black.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _openMapOptions(context),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.location_on,
+                    color: Colors.redAccent,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title ?? 'Shared Location',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${coords.latitude.toStringAsFixed(4)}, ${coords.longitude.toStringAsFixed(4)}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.directions,
+                            size: 13,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Open in Maps',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openMapOptions(BuildContext context) {
+    final isIos = defaultTargetPlatform == TargetPlatform.iOS;
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (bottomSheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              if (isIos)
+                ListTile(
+                  leading: const Icon(Icons.map_outlined, color: Colors.blueAccent),
+                  title: const Text('Open in Apple Maps'),
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext);
+                    final url = LocationService.generateAppleMapsUrl(
+                      latitude: coords.latitude,
+                      longitude: coords.longitude,
+                    );
+                    UrlLauncherUtils.openUrl(context, url);
+                  },
+                ),
+              ListTile(
+                leading: const Icon(Icons.location_on, color: Colors.redAccent),
+                title: const Text('Open in Google Maps'),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  final url = LocationService.generateGoogleMapsUrl(
+                    latitude: coords.latitude,
+                    longitude: coords.longitude,
+                  );
+                  UrlLauncherUtils.openUrl(context, url);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy, color: Colors.grey),
+                title: const Text('Copy Coordinates'),
+                subtitle: Text(
+                  '${coords.latitude.toStringAsFixed(5)}, ${coords.longitude.toStringAsFixed(5)}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  Clipboard.setData(
+                    ClipboardData(
+                      text: '${coords.latitude}, ${coords.longitude}',
+                    ),
+                  );
+                  AppToast.show(context, 'Coordinates copied to clipboard');
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
