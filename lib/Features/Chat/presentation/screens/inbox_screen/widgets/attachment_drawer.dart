@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:app/Features/Chat/presentation/providers/direct_chat_provider.dart';
 import 'package:app/components/FloatingErrorBar/floatingbar.dart';
 import 'package:app/core/services/location_service.dart';
+import 'package:app/core/utils/app_toast.dart';
 import 'inbox_providers.dart';
 
 class AttachmentDrawerOverlay extends ConsumerWidget {
@@ -117,6 +118,8 @@ class AttachmentDrawer extends ConsumerWidget {
     ref.read(showAttachmentMenuProvider.notifier).state = false;
     final chatId = ref.read(currentChatIdProvider);
     if (chatId == null) return;
+
+    AppToast.show(context, 'Getting your location...');
 
     final result = await LocationService.instance.getCurrentLocation();
     if (!context.mounted) return;

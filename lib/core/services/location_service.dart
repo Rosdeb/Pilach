@@ -297,19 +297,28 @@ class LocationService {
         );
       }
 
-      final position = mockCurrentPosition != null
-          ? await mockCurrentPosition!(
-              locationSettings: LocationSettings(
-                accuracy: accuracy,
-                timeLimit: timeout,
-              ),
-            )
-          : await Geolocator.getCurrentPosition(
-              locationSettings: LocationSettings(
-                accuracy: accuracy,
-                timeLimit: timeout,
-              ),
-            );
+      Position? position;
+      try {
+        position = mockCurrentPosition != null
+            ? await mockCurrentPosition!(
+                locationSettings: LocationSettings(
+                  accuracy: accuracy,
+                  timeLimit: timeout,
+                ),
+              )
+            : await Geolocator.getCurrentPosition(
+                locationSettings: LocationSettings(
+                  accuracy: accuracy,
+                  timeLimit: timeout,
+                ),
+              );
+      } catch (posError) {
+        debugPrint('[LocationService] getCurrentPosition failed ($posError), checking lastKnownPosition');
+        if (mockCurrentPosition == null) {
+          position = await Geolocator.getLastKnownPosition();
+        }
+        if (position == null) rethrow;
+      }
 
       return LocationResult.success(
         LocationCoordinates(
