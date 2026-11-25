@@ -124,6 +124,10 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
   }
 
   void _prepareLinkPreview() {
+    if (LocationService.isLocationMessage(widget.message.text)) {
+      _linkPreviewFuture = null;
+      return;
+    }
     final url = LinkPreviewService.firstUrl(widget.message.text);
     _linkPreviewFuture = url == null
         ? null
@@ -573,7 +577,8 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
               ),
             ),
           ] else ...[
-            if (_linkPreviewFuture != null)
+            if (_linkPreviewFuture != null &&
+                !LocationService.isLocationMessage(widget.message.text))
               Padding(
                 padding: hasImage
                     ? const EdgeInsets.fromLTRB(10, 10, 10, 2)
@@ -687,7 +692,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
               Padding(
                 padding: hasImage
                     ? const EdgeInsets.only(left: 10, right: 10, top: 10)
-                    : const EdgeInsets.only(bottom: 6),
+                    : const EdgeInsets.only(bottom: 2),
                 child: _LocationBubbleCard(
                   coords: LocationService.parseCoordinates(widget.message.text)!,
                   title: LocationService.extractLocationTitle(widget.message.text),
@@ -695,7 +700,10 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                 ),
               ),
             ],
-            if (widget.message.text.isNotEmpty)
+            if (widget.message.text.isNotEmpty &&
+                !(LocationService.isLocationMessage(widget.message.text) &&
+                    widget.message.text.trim().startsWith('📍') &&
+                    widget.message.text.trim().split('\n').length <= 2))
               Padding(
                 padding: hasImage
                     ? const EdgeInsets.only(
@@ -1015,8 +1023,8 @@ class _LinkPreviewCard extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Container(
-            width: 250,
-            height: 72,
+            width: 200,
+            height: 52,
             decoration: BoxDecoration(
               color: Theme.of(
                 context,
@@ -1025,8 +1033,8 @@ class _LinkPreviewCard extends StatelessWidget {
             ),
             alignment: Alignment.center,
             child: const SizedBox(
-              width: 18,
-              height: 18,
+              width: 16,
+              height: 16,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           );
@@ -1046,7 +1054,7 @@ class _LinkPreviewCard extends StatelessWidget {
                 UrlLauncherUtils.showLinkOptions(context, preview.url),
             borderRadius: BorderRadius.circular(10),
             child: Container(
-              width: 250,
+              width: 200,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
@@ -1060,47 +1068,47 @@ class _LinkPreviewCard extends StatelessWidget {
                   if (hasImage)
                     CachedNetworkImage(
                       imageUrl: preview.imageUrl!,
-                      width: 250,
-                      height: 125,
+                      width: 200,
+                      height: 80,
                       fit: BoxFit.cover,
                       placeholder: (_, __) =>
-                          const _ShimmerPlaceholder(width: 250, height: 125),
+                          const _ShimmerPlaceholder(width: 200, height: 80),
                       errorWidget: (_, __, ___) => const SizedBox.shrink(),
                     ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
+                    padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           preview.title,
-                          maxLines: 2,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: colors.onSurface,
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         if (preview.description?.isNotEmpty == true) ...[
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 2),
                           Text(
                             preview.description!,
-                            maxLines: 2,
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: colors.onSurfaceVariant,
-                              fontSize: 11,
+                              fontSize: 10,
                             ),
                           ),
                         ],
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 4),
                         Row(
                           children: [
                             Icon(
                               Icons.link,
-                              size: 12,
+                              size: 11,
                               color: colors.onSurfaceVariant,
                             ),
                             const SizedBox(width: 4),
@@ -1113,14 +1121,14 @@ class _LinkPreviewCard extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: colors.onSurfaceVariant,
-                                  fontSize: 10,
+                                  fontSize: 9.5,
                                 ),
                               ),
                             ),
                             const SizedBox(width: 4),
                             Icon(
                               Icons.open_in_new_rounded,
-                              size: 12,
+                              size: 11,
                               color: colors.onSurfaceVariant.withValues(
                                 alpha: 0.7,
                               ),
@@ -1975,10 +1983,10 @@ class _LocationBubbleCard extends StatelessWidget {
         : Colors.white.withValues(alpha: 0.85);
 
     return Container(
-      constraints: const BoxConstraints(maxWidth: 240),
+      constraints: const BoxConstraints(maxWidth: 200),
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isDark
               ? Colors.white.withValues(alpha: 0.12)
@@ -1988,16 +1996,16 @@ class _LocationBubbleCard extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           onTap: () => _openMapOptions(context),
           child: Padding(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
                     color: Colors.redAccent.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
@@ -2005,10 +2013,10 @@ class _LocationBubbleCard extends StatelessWidget {
                   child: const Icon(
                     Icons.location_on,
                     color: Colors.redAccent,
-                    size: 24,
+                    size: 18,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Flexible(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2017,34 +2025,34 @@ class _LocationBubbleCard extends StatelessWidget {
                       Text(
                         title ?? 'Shared Location',
                         style: const TextStyle(
-                          fontSize: 13,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1),
                       Text(
                         '${coords.latitude.toStringAsFixed(4)}, ${coords.longitude.toStringAsFixed(4)}',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 10,
                           color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.directions,
-                            size: 13,
+                            size: 11,
                             color: theme.colorScheme.primary,
                           ),
-                          const SizedBox(width: 4),
+                          const SizedBox(width: 3),
                           Text(
                             'Open in Maps',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 10,
                               fontWeight: FontWeight.w600,
                               color: theme.colorScheme.primary,
                             ),

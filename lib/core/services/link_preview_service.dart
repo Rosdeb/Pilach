@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import '../database/daos/link_preview_dao.dart';
 import '../models/link_preview.dart';
 import '../utils/url_launcher_utils.dart';
+import 'location_service.dart';
 
 class LinkPreviewService {
   LinkPreviewService._()
@@ -39,8 +40,16 @@ class LinkPreviewService {
   }
 
   Future<LinkPreview?> previewForText(String text) {
+    if (LocationService.isLocationMessage(text)) return Future.value(null);
     final url = firstUrl(text);
     if (url == null) return Future.value(null);
+    final uri = Uri.tryParse(url);
+    if (uri != null &&
+        (uri.host.contains('maps.google.') ||
+            uri.host == 'goo.gl' ||
+            uri.host.contains('maps.apple.'))) {
+      return Future.value(null);
+    }
     return _inFlight.putIfAbsent(url, () async {
       try {
         return await _load(url);

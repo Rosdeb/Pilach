@@ -45,6 +45,10 @@ class AttachmentDrawer extends ConsumerWidget {
     WidgetRef ref,
     ImageSource source,
   ) async {
+    final chatId = ref.read(currentChatIdProvider);
+    final chatNotifier = ref.read(directChatProvider.notifier);
+    final menuNotifier = ref.read(showAttachmentMenuProvider.notifier);
+
     try {
       final picker = ImagePicker();
       final XFile? file = await picker.pickImage(
@@ -52,12 +56,9 @@ class AttachmentDrawer extends ConsumerWidget {
         imageQuality: 85,
       );
       if (file != null) {
-        ref.read(showAttachmentMenuProvider.notifier).state = false;
-        final chatId = ref.read(currentChatIdProvider);
+        menuNotifier.state = false;
         if (chatId != null) {
-          await ref
-              .read(directChatProvider.notifier)
-              .sendImageAttachment(file.path);
+          await chatNotifier.sendImageAttachment(file.path);
         }
       }
     } catch (e) {
@@ -115,46 +116,60 @@ class AttachmentDrawer extends ConsumerWidget {
   }
 
   Future<void> _pickAndSendLocation(BuildContext context, WidgetRef ref) async {
-    ref.read(showAttachmentMenuProvider.notifier).state = false;
     final chatId = ref.read(currentChatIdProvider);
+    final menuNotifier = ref.read(showAttachmentMenuProvider.notifier);
+
     debugPrint('[AttachmentDrawer] _pickAndSendLocation tapped for chatId: $chatId');
     if (chatId == null) {
       debugPrint('[AttachmentDrawer] currentChatIdProvider is null, cannot send message');
       return;
     }
 
+    final chatNotifier = ref.read(directChatProvider.notifier);
     AppToast.show(context, '📍 Acquiring GPS & generating map link...');
+    menuNotifier.state = false;
 
-    final result = await LocationService.instance.getCurrentLocation();
-    if (!context.mounted) return;
+    try {
+      final result = await LocationService.instance.getCurrentLocation();
+      debugPrint('[AttachmentDrawer] LocationService result: isSuccess=${result.isSuccess}, coordinates=${result.coordinates}, mapUrl=${result.mapUrl}');
 
-    if (result.isSuccess && result.messageText != null) {
-      debugPrint('[AttachmentDrawer] Location acquired: ${result.coordinates}, link: ${result.mapUrl}');
-      await ref
-          .read(directChatProvider.notifier)
-          .sendMessage(result.messageText!);
-      debugPrint('[AttachmentDrawer] Location message sent successfully');
-    } else {
-      debugPrint('[AttachmentDrawer] Failed to acquire location: ${result.errorMessage}');
-      FloatingErrorBar.show(
-        context,
-        message: result.errorMessage ?? 'Could not determine location.',
-      );
+      if (result.isSuccess && result.messageText != null) {
+        debugPrint('[AttachmentDrawer] Sending location message to chatId: $chatId -> "${result.messageText}"');
+        await chatNotifier.sendMessage(result.messageText!);
+        debugPrint('[AttachmentDrawer] Location message sent successfully');
+      } else {
+        debugPrint('[AttachmentDrawer] Failed to acquire location: ${result.errorMessage}');
+        if (context.mounted) {
+          FloatingErrorBar.show(
+            context,
+            message: result.errorMessage ?? 'Could not determine location.',
+          );
+        }
+      }
+    } catch (e, stack) {
+      debugPrint('[AttachmentDrawer] Unexpected error in _pickAndSendLocation: $e\n$stack');
+      if (context.mounted) {
+        FloatingErrorBar.show(
+          context,
+          message: 'Failed to share location: $e',
+        );
+      }
     }
   }
 
   Future<void> _pickAndSendDocument(BuildContext context, WidgetRef ref) async {
+    final chatId = ref.read(currentChatIdProvider);
+    final chatNotifier = ref.read(directChatProvider.notifier);
+    final menuNotifier = ref.read(showAttachmentMenuProvider.notifier);
+
     try {
       final result = await FilePicker.pickFiles(type: FileType.any);
       if (result != null && result.files.isNotEmpty) {
         final path = result.files.single.path;
         if (path != null) {
-          ref.read(showAttachmentMenuProvider.notifier).state = false;
-          final chatId = ref.read(currentChatIdProvider);
+          menuNotifier.state = false;
           if (chatId != null) {
-            await ref
-                .read(directChatProvider.notifier)
-                .sendFileAttachment(path);
+            await chatNotifier.sendFileAttachment(path);
           }
         }
       }

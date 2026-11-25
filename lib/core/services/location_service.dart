@@ -262,9 +262,11 @@ class LocationService {
     LocationAccuracy accuracy = LocationAccuracy.high,
   }) async {
     try {
+      debugPrint('[LocationService] Checking isLocationServiceEnabled...');
       final serviceEnabled = mockServiceEnabled != null
           ? await mockServiceEnabled!()
           : await Geolocator.isLocationServiceEnabled();
+      debugPrint('[LocationService] Location service enabled: $serviceEnabled');
 
       if (!serviceEnabled) {
         return LocationResult.failure(
@@ -273,14 +275,18 @@ class LocationService {
         );
       }
 
+      debugPrint('[LocationService] Checking permission...');
       LocationPermission permission = mockCheckPermission != null
           ? await mockCheckPermission!()
           : await Geolocator.checkPermission();
+      debugPrint('[LocationService] Current permission: $permission');
 
       if (permission == LocationPermission.denied) {
+        debugPrint('[LocationService] Requesting permission...');
         permission = mockRequestPermission != null
             ? await mockRequestPermission!()
             : await Geolocator.requestPermission();
+        debugPrint('[LocationService] Permission after request: $permission');
 
         if (permission == LocationPermission.denied) {
           return LocationResult.failure(
@@ -298,26 +304,65 @@ class LocationService {
       }
 
       Position? position;
-      try {
-        position = mockCurrentPosition != null
-            ? await mockCurrentPosition!(
-                locationSettings: LocationSettings(
-                  accuracy: accuracy,
-                  timeLimit: timeout,
-                ),
-              )
-            : await Geolocator.getCurrentPosition(
-                locationSettings: LocationSettings(
-                  accuracy: accuracy,
-                  timeLimit: timeout,
-                ),
-              );
-      } catch (posError) {
-        debugPrint('[LocationService] getCurrentPosition failed ($posError), checking lastKnownPosition');
-        if (mockCurrentPosition == null) {
+
+      // 1. Fast path: try cached last known position first (instant on Android/iOS)
+      if (mockCurrentPosition == null) {
+        try {
           position = await Geolocator.getLastKnownPosition();
+          if (position != null) {
+            debugPrint('[LocationService] Using instant lastKnownPosition: ${position.latitude}, ${position.longitude}');
+          }
+        } catch (e) {
+          debugPrint('[LocationService] getLastKnownPosition failed: $e');
         }
-        if (position == null) rethrow;
+      }
+
+      // 2. If no cached position, fetch fresh position with a strict Dart timeout
+      if (position == null) {
+        try {
+          position = mockCurrentPosition != null
+              ? await mockCurrentPosition!(
+                  locationSettings: LocationSettings(
+                    accuracy: accuracy,
+                    timeLimit: timeout,
+                  ),
+                )
+              : await Geolocator.getCurrentPosition(
+                  locationSettings: const LocationSettings(
+                    accuracy: LocationAccuracy.medium,
+                    timeLimit: Duration(seconds: 5),
+                  ),
+                ).timeout(const Duration(seconds: 5));
+        } catch (posError) {
+          debugPrint('[LocationService] getCurrentPosition failed ($posError), attempting low accuracy fallback');
+          if (mockCurrentPosition == null) {
+            try {
+              position = await Geolocator.getCurrentPosition(
+                locationSettings: const LocationSettings(
+                  accuracy: LocationAccuracy.low,
+                  timeLimit: Duration(seconds: 3),
+                ),
+              ).timeout(const Duration(seconds: 3));
+            } catch (_) {}
+          }
+          if (position == null && mockCurrentPosition != null) {
+            rethrow;
+          }
+        }
+      }
+
+      // 3. Final check: fallback to lastKnownPosition if fresh fetch failed
+      if (position == null && mockCurrentPosition == null) {
+        try {
+          position = await Geolocator.getLastKnownPosition();
+        } catch (_) {}
+      }
+
+      if (position == null) {
+        return LocationResult.failure(
+          errorMessage: 'Unable to acquire location fix. Please ensure GPS is enabled.',
+          errorType: LocationErrorType.timeout,
+        );
       }
 
       return LocationResult.success(
